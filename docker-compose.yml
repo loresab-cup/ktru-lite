@@ -1,0 +1,77 @@
+# One command: cp .env.example .env, fill LLM_API_URL and LLM_API_KEY, docker compose up --build
+name: ktru-lite
+
+services:
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    depends_on:
+      - backend
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ktru}:${POSTGRES_PASSWORD:-ktru}@db:5432/${POSTGRES_DB:-ktru}
+      OLLAMA_URL: http://ollama:11434
+      LLM_API_URL: ${LLM_API_URL:-https://api.anthropic.com}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_API_MODEL: ${LLM_API_MODEL:-claude-sonnet-5}
+    volumes:
+      - ./db:/catalog:ro
+      - cache:/cache
+      - uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ktru}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ktru}
+      POSTGRES_DB: ${POSTGRES_DB:-ktru}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # bge-m3 is pulled while the image is built: later starts work without internet
+  ollama:
+    build:
+      context: ./backend  # nothing is copied; a small folder keeps the build context tiny
+      dockerfile_inline: |
+        FROM ollama/ollama:0.40.3
+        RUN useradd --uid 10002 --create-home ollama && mkdir /models && chown ollama /models
+        USER ollama
+        ENV HOME=/home/ollama OLLAMA_MODELS=/models OLLAMA_KEEP_ALIVE=24h OLLAMA_NUM_PARALLEL=4
+        RUN (ollama serve > /tmp/serve.log 2>&1 &) \
+            && for i in $$(seq 1 60); do ollama list > /dev/null 2>&1 && break; sleep 1; done \
+            && ollama pull bge-m3
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+  cache:
+  uploads:
