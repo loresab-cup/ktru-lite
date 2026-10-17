@@ -31,12 +31,28 @@ QUERY_CHUNK = 128  # 128 x 81 509 float32 = 42 MB of similarities at a time
 WORDS_ONLY_BASE = 0.6  # without vectors the score stays low: nothing goes to auto
 MAX_CODE_WORDS = 400
 BRIEF_CHARS, BRIEF_VALUES = 12, 20
-CACHE_VERSION = 2  # bump when the cached metadata changes
+CACHE_VERSION = 4  # bump when the cached metadata changes
 # Neighbour codes of one group often differ only by a range: "> 1.25" vs "<= 1.25".
 # A bound of the row equal to a bound of the code adds NUMERIC_BONUS; the same number on the
 # other side ("не менее 1.25" against "<= 1.25") takes NUMERIC_CLASH off.
 NUMERIC_BONUS = 0.01
 NUMERIC_CLASH = 0.01
+# Neighbour codes also differ by a fixed characteristic («Неизменяемая заказчиком») with one
+# value: «Вид сырья: Коровье молоко» vs «Козье молоко», «Для детского питания: Да» vs «Нет».
+#   FIXED_BONUS - a fixed value of the code is written in the row;
+#   FIXED_CLASH - the row names the characteristic, but with another value;
+#   FIXED_FLAG  - the code has a special «Да» feature the row does not mention.
+# Checked on the real specification (12 rows: 9 -> 10 right) and on the draft gold
+# (291 rows: 66.7 -> 68.7 %).
+FIXED_BONUS = 0.02
+FIXED_CLASH = 0.04
+FIXED_FLAG = 0.03
+MAX_FIXED_VALUES = 30
+# A template («шаблон») lists every value of its group, so it matches any row as well as the
+# right specific code. In a real specification the specific code is chosen (12 of 12 there):
+# a template is a little lower - less than one shared word, so it wins only when no specific
+# code fits the row as well.
+TEMPLATE_PENALTY = 0.015
 
 # Latin letters that look like Cyrillic ones: "A4" and "А4" must be the same word
 _LOOKALIKE = str.maketrans("aceopxkmhbty", "асеорхкмнвту")
@@ -64,6 +80,11 @@ def query_bounds(text: str) -> tuple[set[float], set[float]]:
     return lower, upper
 
 
+def stems(text: str) -> set[str]:
+    """First 5 letters of the words: «коровье» and «коровьего» are the same."""
+    return {word[:5] for word in words(text)}
+
+
 @dataclass
 class Catalog:
     vectors: np.ndarray  # (n, DIM) float32, L2-normalized
@@ -74,6 +95,8 @@ class Catalog:
     code_words: list[str]  # space-joined words of name + characteristic values
     chars: list[list]  # [[name, [values]]] short, for the UI
     bounds: list[list]  # [[min values], [max values]] of the numeric characteristic values
+    fixed: list[list]  # [[name, [values]]] of the fixed characteristics
+    templates: list[bool]  # is_template: the general code of a group
     index: dict[str, int] = field(init=False)
     active: np.ndarray = field(init=False)
 
@@ -96,7 +119,7 @@ class Catalog:
         else:
             nearest = [self._nearest_by_words(qw, include_inactive) for qw in query_words]
         return [
-            self._rank(qw, query_bounds(text), near)
+            self._rank(qw, query_bounds(text), stems(text), near)
             for qw, text, near in zip(query_words, texts, nearest, strict=True)
         ]
 
@@ -143,15 +166,38 @@ class Catalog:
         clashes = len((lower & code_upper) - code_lower) + len((upper & code_lower) - code_upper)
         return matches, clashes
 
+    def _fixed_fit(self, i: int, query_stems: set[str]) -> tuple[int, int, int]:
+        """(fixed values written in the row, fixed values the row contradicts, unasked «Да»)."""
+        matches = clashes = flags = 0
+        for name, values in self.fixed[i]:
+            name_stems = stems(name)
+            named = len(name_stems & query_stems) >= max(1, len(name_stems) // 2)
+            if len(values) == 1 and values[0].lower() in ("да", "нет"):
+                flags += values[0].lower() == "да" and not named
+                continue
+            if any(stems(value) and stems(value) <= query_stems for value in values):
+                matches += 1
+            elif named:
+                clashes += 1
+        return matches, clashes, flags
+
     def _rank(
-        self, query_words: set[str], query: tuple[set[float], set[float]], nearest: list
+        self,
+        query_words: set[str],
+        query: tuple[set[float], set[float]],
+        query_stems: set[str],
+        nearest: list,
     ) -> list[dict]:
         scored = []
         for i, cosine in nearest:
             shared = query_words & set(self.code_words[i].split())
             matches, clashes = self._numeric_fit(i, query)
             score = cosine + WORD_BONUS * len(shared) + NUMERIC_BONUS * matches
-            scored.append((score - NUMERIC_CLASH * clashes, cosine, i, shared, matches))
+            score -= NUMERIC_CLASH * clashes
+            fixed_matches, fixed_clashes, flags = self._fixed_fit(i, query_stems)
+            score += FIXED_BONUS * fixed_matches - FIXED_CLASH * fixed_clashes - FIXED_FLAG * flags
+            score -= TEMPLATE_PENALTY * self.templates[i]
+            scored.append((score, cosine, i, shared, matches))
         # Sorted by the raw sum: the cap at 1.0 must not make near-perfect matches equal
         scored.sort(key=lambda row: row[0], reverse=True)
         return [
@@ -208,6 +254,16 @@ class Catalog:
 # --- loading -------------------------------------------------------------------------------
 
 
+def fixed_characteristics(characteristics: list) -> list[list]:
+    """[[name, [values]]] of the characteristics the customer may not change."""
+    fixed = []
+    for characteristic in characteristics or []:
+        if (characteristic.get("kind") or "").startswith("Неизменяемая"):
+            values = [v.get("text") or "" for v in characteristic.get("values") or []]
+            fixed.append([characteristic.get("name") or "", values[:MAX_FIXED_VALUES]])
+    return fixed
+
+
 def numeric_bounds(characteristics: list) -> list[list[float]]:
     """[[min values], [max values]] of all numeric values: "≥ 3000 и < 4000" -> 3000, 4000."""
     lower, upper = set(), set()
@@ -237,7 +293,18 @@ def build(path: Path) -> tuple[np.ndarray, dict]:
     """Streams the dump: vectors into a growing matrix, the rest into short lists."""
     vectors = np.empty((90_000, DIM), dtype=np.float32)
     meta: dict[str, list] = {
-        k: [] for k in ("codes", "statuses", "names", "okpd2", "words", "chars", "bounds")
+        k: []
+        for k in (
+            "codes",
+            "statuses",
+            "names",
+            "okpd2",
+            "words",
+            "chars",
+            "bounds",
+            "fixed",
+            "templates",
+        )
     }
     n = 0
     with gzip.open(path, "rt", encoding="utf-8") as lines:
@@ -257,6 +324,8 @@ def build(path: Path) -> tuple[np.ndarray, dict]:
             meta["words"].append(" ".join(code_words[:MAX_CODE_WORDS]))
             meta["chars"].append(chars)
             meta["bounds"].append(numeric_bounds(record.get("characteristics")))
+            meta["fixed"].append(fixed_characteristics(record.get("characteristics")))
+            meta["templates"].append(bool(record.get("is_template")))
             n += 1
     return vectors[:n], meta  # a view: no second 334 MB copy
 
@@ -293,4 +362,6 @@ def load_catalog(path: Path | None = None, cache_dir: Path | None = None) -> Cat
         code_words=meta["words"],
         chars=meta["chars"],
         bounds=meta["bounds"],
+        fixed=meta["fixed"],
+        templates=meta["templates"],
     )

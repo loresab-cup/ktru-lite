@@ -368,9 +368,97 @@ def test_search_numeric_range_picks_neighbour():
         code_words=["клеть дуо 25"] * 2,
         chars=[search.brief_chars(r["characteristics"])[0] for r in records],
         bounds=[search.numeric_bounds(r["characteristics"]) for r in records],
+        fixed=[search.fixed_characteristics(r["characteristics"]) for r in records],
+        templates=[False] * len(records),
     )
     assert search.query_bounds("не менее 3000 и менее 4000 мм, до 5,5") == ({3000.0}, {4000.0, 5.5})
     [found] = catalog.search(
         np.stack([unit([1, 0])]), ["Клеть дуо производительность не менее 1.25"]
     )
     assert found[0]["code"].endswith("92") and found[0]["numeric_matches"] == 1
+
+
+def small_catalog(records: list[dict]) -> search.Catalog:
+    """Codes with equal vectors and words: only the characteristics can tell them apart."""
+    characteristics = [r["characteristics"] for r in records]
+    return search.Catalog(
+        vectors=np.stack([unit([1, 0])] * len(records)),
+        codes=[r["code"] for r in records],
+        statuses=["ACTIVE"] * len(records),
+        names=[r["name"] for r in records],
+        okpd2=["10.51"] * len(records),
+        code_words=[" ".join(search.words(r["name"])) for r in records],
+        chars=[search.brief_chars(c)[0] for c in characteristics],
+        bounds=[search.numeric_bounds(c) for c in characteristics],
+        fixed=[search.fixed_characteristics(c) for c in characteristics],
+        templates=[bool(r.get("is_template")) for r in records],
+    )
+
+
+def fixed(name: str, value: str) -> dict:
+    return {"name": name, "kind": "Неизменяемая заказчиком", "values": [{"text": value}]}
+
+
+def test_search_fixed_characteristics_pick_neighbour():
+    yogurt = small_catalog(
+        [
+            {
+                "code": "10.51.52.110-00000004",
+                "name": "Йогурт",
+                "characteristics": [fixed("Для детского питания", "Да")],
+            },
+            {
+                "code": "10.51.52.110-00000007",
+                "name": "Йогурт",
+                "characteristics": [fixed("Для детского питания", "Нет")],
+            },
+        ]
+    )
+    [found] = yogurt.search(np.stack([unit([1, 0])]), ["Йогурт питьевой"])
+    assert found[0]["code"].endswith("07")  # baby food is not asked for
+    [found] = yogurt.search(np.stack([unit([1, 0])]), ["Йогурт для детского питания"])
+    assert found[0]["code"].endswith("04")
+
+    cheese = small_catalog(
+        [
+            {
+                "code": "10.51.40.120-00000003",
+                "name": "Сыры полутвердые",
+                "characteristics": [fixed("Вид сырья", "Козье молоко")],
+            },
+            {
+                "code": "10.51.40.120-00000002",
+                "name": "Сыры полутвердые",
+                "characteristics": [fixed("Вид сырья", "Коровье молоко")],
+            },
+        ]
+    )
+    [found] = cheese.search(
+        np.stack([unit([1, 0])]), ["Сыр полутвердый. Вид сырья: коровьего молока"]
+    )
+    assert found[0]["code"].endswith("02")
+
+
+def test_search_prefers_specific_code_to_template():
+    raw = {
+        "name": "Вид сырья",
+        "kind": "Неизменяемая заказчиком",
+        "values": [{"text": "Коровье молоко"}, {"text": "Козье молоко"}],
+    }
+    catalog = small_catalog(
+        [
+            {
+                "code": "10.51.40.120-00000001",
+                "name": "Сыры полутвердые",
+                "is_template": True,
+                "characteristics": [raw],
+            },
+            {
+                "code": "10.51.40.120-00000002",
+                "name": "Сыры полутвердые",
+                "characteristics": [fixed("Вид сырья", "Коровье молоко")],
+            },
+        ]
+    )
+    [found] = catalog.search(np.stack([unit([1, 0])]), ["Сыр полутвердый, коровье молоко"])
+    assert found[0]["code"].endswith("02")
