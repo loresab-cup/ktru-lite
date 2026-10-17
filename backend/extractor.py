@@ -1,24 +1,40 @@
 """Positions -> attributes: name, brand, model, characteristics, search_text.
 
-A neural network by the Anthropic Messages protocol does the work; every value it returns
-must be present in the source row (guard against invented values and prompt injection).
+GigaChat (REST API of Sber) does the work; every value it returns must be present in the
+source row (guard against invented values and prompt injection).
 No key, the budget is over or the request failed -> simple rules. A job never fails here.
+
+GigaChat auth: the authorization key (Basic) -> POST {GIGACHAT_AUTH_URL} -> access token for
+30 minutes -> POST {GIGACHAT_BASE_URL}/chat/completions with "Authorization: Bearer <token>".
 """
 
 import json
 import logging
 import os
 import re
+import threading
 import time
+import uuid
 from concurrent.futures import Future, ThreadPoolExecutor
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
-API_URL = os.getenv("LLM_API_URL", "https://api.anthropic.com").rstrip("/")
-API_KEY = os.getenv("LLM_API_KEY", "")
-MODEL = os.getenv("LLM_API_MODEL", "claude-sonnet-5")
+BASE_URL = os.getenv("GIGACHAT_BASE_URL", "https://api.giga.chat/v1").rstrip("/")
+AUTH_URL = os.getenv("GIGACHAT_AUTH_URL", "https://ngw.devices.sberbank.ru:9443/api/v2/oauth")
+CREDENTIALS = os.getenv("GIGACHAT_CREDENTIALS", "")  # authorization key from the Sber cabinet
+SCOPE = os.getenv("GIGACHAT_SCOPE", "GIGACHAT_API_PERS")
+MODEL = os.getenv("GIGACHAT_MODEL", "GigaChat-3-Ultra")
+# GigaChat certificates are signed by the Russian root CA (Минцифры), missing from the usual
+# trust stores. "false" turns the check off (as in the Sber example) - traffic with the key can
+# then be intercepted by a forged certificate; a path to that CA bundle keeps the check on.
+_VERIFY = os.getenv("GIGACHAT_VERIFY_SSL", "true")
+VERIFY_SSL: bool | str = (
+    _VERIFY if _VERIFY.endswith((".pem", ".crt")) else (_VERIFY.lower() not in ("0", "false", "no"))
+)
+TEMPERATURE = 0.0001  # below 0.001 GigaChat answers the same way every time
+TOKEN_MARGIN = 60.0  # seconds: a token that expires sooner is replaced before the request
 BATCH_SIZE = 10
 PARALLEL = 16
 REQUEST_TIMEOUT = 90.0
@@ -52,7 +68,9 @@ SYSTEM_PROMPT = """Ты извлекаешь атрибуты товаров и�
 Ответ — только JSON-массив, без пояснений."""
 
 _pool = ThreadPoolExecutor(PARALLEL, thread_name_prefix="llm")
-_client = httpx.Client(timeout=REQUEST_TIMEOUT)
+_client = httpx.Client(timeout=REQUEST_TIMEOUT, verify=VERIFY_SSL)
+_token = {"value": "", "expires": 0.0}  # access token and its end, unix seconds
+_token_lock = threading.Lock()
 
 # --- guard ---------------------------------------------------------------------------------
 
@@ -187,16 +205,39 @@ def rules(text: str, reason: str = ERROR) -> dict:
 # --- requests ------------------------------------------------------------------------------
 
 
+def access_token(renew: bool = False) -> str:
+    """GigaChat access token: cached for its 30 minutes, renewed a minute before the end."""
+    with _token_lock:
+        if renew or time.time() > _token["expires"] - TOKEN_MARGIN:
+            response = _client.post(
+                AUTH_URL,
+                headers={
+                    "Authorization": f"Basic {CREDENTIALS}",
+                    "RqUID": str(uuid.uuid4()),
+                    "Accept": "application/json",
+                },
+                data={"scope": SCOPE},
+                timeout=30.0,
+            )
+            response.raise_for_status()
+            body = response.json()
+            _token["value"] = body["access_token"]
+            _token["expires"] = body["expires_at"] / 1000  # milliseconds in the answer
+        return _token["value"]
+
+
 def call_llm(rows: list[dict], deadline: float) -> str:
-    """One Messages request with retries on 429, 5xx and timeouts while the budget lasts."""
+    """One chat request with retries on 429, 5xx and timeouts while the budget lasts."""
     body = {
         "model": MODEL,
         "max_tokens": 4096,
-        "temperature": 0,
-        "system": SYSTEM_PROMPT,
-        "messages": [{"role": "user", "content": json.dumps(rows, ensure_ascii=False)}],
+        "temperature": TEMPERATURE,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": json.dumps(rows, ensure_ascii=False)},
+        ],
     }
-    headers = {"x-api-key": API_KEY, "anthropic-version": "2023-06-01"}
+    renewed = False
     timeout_error = None
     for attempt in range(RETRIES + 1):
         left = deadline - time.monotonic()
@@ -204,8 +245,9 @@ def call_llm(rows: list[dict], deadline: float) -> str:
             # The budget ran out while the network kept silent: that is "no answer", not "slow"
             raise timeout_error or TimeoutError("LLM budget is over")
         try:
+            headers = {"Authorization": f"Bearer {access_token()}", "Accept": "application/json"}
             response = _client.post(
-                f"{API_URL}/v1/messages",
+                f"{BASE_URL}/chat/completions",
                 json=body,
                 headers=headers,
                 timeout=min(REQUEST_TIMEOUT, left),
@@ -220,15 +262,19 @@ def call_llm(rows: list[dict], deadline: float) -> str:
                 response.raise_for_status()
             time.sleep(min(2.0 * (attempt + 1), max(0.0, deadline - time.monotonic())))
             continue
+        if response.status_code == 401 and not renewed:
+            access_token(renew=True)  # the token was revoked or ended early: one more try
+            renewed = True
+            continue
         response.raise_for_status()
-        blocks = response.json().get("content") or []
-        return "".join(block.get("text", "") for block in blocks if block.get("type") == "text")
+        choices = response.json().get("choices") or [{}]
+        return choices[0].get("message", {}).get("content") or ""
     raise RuntimeError("unreachable")
 
 
 def llm_state() -> str:
     """off - no key, down - did not answer a moment ago, on - in use."""
-    if not API_KEY:
+    if not CREDENTIALS:
         return "off"
     return "down" if time.monotonic() < _down_until else "on"
 

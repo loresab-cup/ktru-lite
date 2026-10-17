@@ -28,7 +28,7 @@ TMP = Path(tempfile.mkdtemp(prefix="ktru-test-"))
 
 @pytest.fixture(autouse=True)
 def no_llm_key(monkeypatch):
-    monkeypatch.setattr(extractor, "API_KEY", "")
+    monkeypatch.setattr(extractor, "CREDENTIALS", "")
 
 
 # Spec files of the old project; the parser tests are skipped without it
@@ -494,7 +494,7 @@ def test_rules_tell_why_the_network_was_not_used(monkeypatch):
     [row] = extractor.extract_chunk(["Бумага А4"], deadline=0)
     assert row["source"] == "rules" and row["fallback"] == extractor.NO_KEY
 
-    monkeypatch.setattr(extractor, "API_KEY", "test-key")
+    monkeypatch.setattr(extractor, "CREDENTIALS", "test-key")
     monkeypatch.setattr(extractor, "_down_until", 0.0)
 
     def no_answer(rows, deadline):
@@ -508,7 +508,7 @@ def test_rules_tell_why_the_network_was_not_used(monkeypatch):
 
 def test_silent_network_is_unavailable_not_slow(monkeypatch):
     """Timeouts until the budget ends: the network is paused, not just "too slow"."""
-    monkeypatch.setattr(extractor, "API_KEY", "test-key")
+    monkeypatch.setattr(extractor, "CREDENTIALS", "test-key")
     monkeypatch.setattr(extractor, "_down_until", 0.0)
     clock = iter([0.0, 0.0, 100.0, 100.0, 200.0, 200.0, 200.0])
     monkeypatch.setattr(extractor.time, "monotonic", lambda: next(clock, 200.0))
@@ -544,3 +544,56 @@ def test_units_decide_between_twin_codes():
     vectors = np.stack([unit([1, 0])] * 2)
     by_litre, by_kilo = twins.search(vectors, ["Кефир 2,5 %"] * 2, units=["l", "kg"])
     assert by_litre[0]["code"].endswith("05") and by_kilo[0]["code"].endswith("08")
+
+
+class FakeGigaChat:
+    """Stands for httpx.Client: an OAuth server and a chat endpoint that may reject a token."""
+
+    def __init__(self, reject_first_chat: bool = False):
+        self.tokens = 0
+        self.chats = []
+        self.reject = reject_first_chat
+
+    def post(self, url, headers=None, json=None, data=None, timeout=None):
+        request = extractor.httpx.Request("POST", url)
+        if url == extractor.AUTH_URL:
+            assert headers["Authorization"] == "Basic test-key" and data == {"scope": "SCOPE_X"}
+            assert headers["RqUID"]  # uuid4 is required by the OAuth endpoint
+            self.tokens += 1
+            body = {"access_token": f"token-{self.tokens}", "expires_at": 4_000_000_000_000}
+            return extractor.httpx.Response(200, json=body, request=request)
+        self.chats.append(headers["Authorization"])
+        if self.reject:
+            self.reject = False
+            return extractor.httpx.Response(401, json={"message": "expired"}, request=request)
+        assert json["messages"][0]["role"] == "system" and json["temperature"] > 0
+        answer = '[{"id": 0, "name": "Бумага", "search_text": "Бумага для офисной техники"}]'
+        content = {"choices": [{"message": {"role": "assistant", "content": answer}}]}
+        return extractor.httpx.Response(200, json=content, request=request)
+
+
+@pytest.fixture
+def gigachat(monkeypatch):
+    monkeypatch.setattr(extractor, "CREDENTIALS", "test-key")
+    monkeypatch.setattr(extractor, "SCOPE", "SCOPE_X")
+    monkeypatch.setattr(extractor, "_down_until", 0.0)
+    monkeypatch.setattr(extractor, "_token", {"value": "", "expires": 0.0})
+    return monkeypatch
+
+
+def test_gigachat_token_is_cached_and_used(gigachat):
+    fake = FakeGigaChat()
+    gigachat.setattr(extractor, "_client", fake)
+    first = extractor.extract_chunk(["Бумага А4"], deadline=time.monotonic() + 30)
+    second = extractor.extract_chunk(["Бумага А4"], deadline=time.monotonic() + 30)
+    assert first[0]["source"] == second[0]["source"] == "llm"
+    assert first[0]["search_text"] == "Бумага для офисной техники"
+    assert fake.tokens == 1 and fake.chats == ["Bearer token-1", "Bearer token-1"]
+
+
+def test_gigachat_renews_rejected_token(gigachat):
+    fake = FakeGigaChat(reject_first_chat=True)
+    gigachat.setattr(extractor, "_client", fake)
+    [row] = extractor.extract_chunk(["Бумага А4"], deadline=time.monotonic() + 30)
+    assert row["source"] == "llm"
+    assert fake.tokens == 2 and fake.chats == ["Bearer token-1", "Bearer token-2"]
