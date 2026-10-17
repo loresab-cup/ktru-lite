@@ -36,7 +36,9 @@ VERIFY_SSL: bool | str = (
 TEMPERATURE = 0.0001  # below 0.001 GigaChat answers the same way every time
 TOKEN_MARGIN = 60.0  # seconds: a token that expires sooner is replaced before the request
 BATCH_SIZE = 10
-PARALLEL = 16
+PARALLEL = 16  # rows of a job are prepared in parallel; requests wait for a free slot below
+# Requests to GigaChat at the same moment: the Freemium tariff answers 429 to a second one
+PARALLEL_REQUESTS = max(1, int(os.getenv("GIGACHAT_PARALLEL", "1")))
 REQUEST_TIMEOUT = 90.0
 RETRIES = 2
 JOB_BUDGET = 150.0  # seconds for all LLM requests of one job
@@ -71,6 +73,7 @@ _pool = ThreadPoolExecutor(PARALLEL, thread_name_prefix="llm")
 _client = httpx.Client(timeout=REQUEST_TIMEOUT, verify=VERIFY_SSL)
 _token = {"value": "", "expires": 0.0}  # access token and its end, unix seconds
 _token_lock = threading.Lock()
+_slots = threading.BoundedSemaphore(PARALLEL_REQUESTS)
 
 # --- guard ---------------------------------------------------------------------------------
 
@@ -226,6 +229,25 @@ def access_token(renew: bool = False) -> str:
         return _token["value"]
 
 
+def post_chat(body: dict, deadline: float) -> httpx.Response:
+    """POST /chat/completions as soon as a request slot is free, within the job budget."""
+    if not _slots.acquire(timeout=max(0.0, deadline - time.monotonic())):
+        raise TimeoutError("LLM budget is over while waiting for a free request slot")
+    try:
+        headers = {"Authorization": f"Bearer {access_token()}", "Accept": "application/json"}
+        timeout = min(REQUEST_TIMEOUT, max(1.0, deadline - time.monotonic()))
+        try:
+            return _client.post(
+                f"{BASE_URL}/chat/completions", json=body, headers=headers, timeout=timeout
+            )
+        except httpx.TimeoutException as exc:
+            if timeout < REQUEST_TIMEOUT:  # cut by the job budget: the network itself may be fine
+                raise TimeoutError("LLM budget is over: the request was cut") from exc
+            raise
+    finally:
+        _slots.release()
+
+
 def call_llm(rows: list[dict], deadline: float) -> str:
     """One chat request with retries on 429, 5xx and timeouts while the budget lasts."""
     body = {
@@ -245,18 +267,16 @@ def call_llm(rows: list[dict], deadline: float) -> str:
             # The budget ran out while the network kept silent: that is "no answer", not "slow"
             raise timeout_error or TimeoutError("LLM budget is over")
         try:
-            headers = {"Authorization": f"Bearer {access_token()}", "Accept": "application/json"}
-            response = _client.post(
-                f"{BASE_URL}/chat/completions",
-                json=body,
-                headers=headers,
-                timeout=min(REQUEST_TIMEOUT, left),
-            )
-        except httpx.TimeoutException as exc:
+            response = post_chat(body, deadline)
+        except httpx.TimeoutException as exc:  # a full window without an answer
             if attempt == RETRIES:
                 raise
             timeout_error = exc
             continue
+        except TimeoutError:  # the budget ended while waiting for a slot or during a request
+            if timeout_error:
+                raise timeout_error from None  # the network had kept silent before: unavailable
+            raise
         if response.status_code == 429 or response.status_code >= 500:
             if attempt == RETRIES:
                 response.raise_for_status()
@@ -295,7 +315,8 @@ def extract_chunk(texts: list[str], deadline: float) -> list[dict]:
         logger.warning("LLM budget is over, rules for %s rows", len(texts))
         return [rules(text, BUDGET) for text in texts]
     except Exception as exc:  # noqa: BLE001 - HTTP error or a broken answer: rules for this chunk
-        logger.warning("LLM failed for %s rows: %s", len(texts), type(exc).__name__)
+        status = getattr(getattr(exc, "response", None), "status_code", "")
+        logger.warning("LLM failed for %s rows: %s %s", len(texts), type(exc).__name__, status)
         return [rules(text, ERROR) for text in texts]
     return [accept(by_id[i], t) if i in by_id else rules(t, MISSING) for i, t in enumerate(texts)]
 

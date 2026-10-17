@@ -597,3 +597,49 @@ def test_gigachat_renews_rejected_token(gigachat):
     [row] = extractor.extract_chunk(["Бумага А4"], deadline=time.monotonic() + 30)
     assert row["source"] == "llm"
     assert fake.tokens == 2 and fake.chats == ["Bearer token-1", "Bearer token-2"]
+
+
+def test_gigachat_requests_wait_for_a_free_slot(gigachat):
+    """Freemium answers 429 to a second request at the same moment: requests go one by one."""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    fake = FakeGigaChat()
+    active, peak, lock = [0], [0], threading.Lock()
+    original = fake.post
+
+    def slow_post(url, **kwargs):
+        if url == extractor.AUTH_URL:
+            return original(url, **kwargs)
+        with lock:
+            active[0] += 1
+            peak[0] = max(peak[0], active[0])
+        time.sleep(0.05)
+        with lock:
+            active[0] -= 1
+        return original(url, **kwargs)
+
+    fake.post = slow_post
+    gigachat.setattr(extractor, "_client", fake)
+    gigachat.setattr(extractor, "_slots", threading.BoundedSemaphore(1))
+    deadline = time.monotonic() + 30
+    with ThreadPoolExecutor(4) as pool:
+        rows = list(pool.map(lambda _: extractor.extract_chunk(["Бумага"], deadline), range(4)))
+    assert peak[0] == 1 and all(r[0]["source"] == "llm" for r in rows)
+
+
+def test_request_cut_by_budget_is_not_an_outage(gigachat):
+    """A request that got only the end of the budget and timed out: "budget", no pause."""
+    fake = FakeGigaChat()
+    original = fake.post
+
+    def slow_chat(url, **kwargs):
+        if url == extractor.AUTH_URL:
+            return original(url, **kwargs)
+        raise extractor.httpx.ReadTimeout("cut by the short timeout")
+
+    fake.post = slow_chat
+    gigachat.setattr(extractor, "_client", fake)
+    [row] = extractor.extract_chunk(["Бумага"], deadline=time.monotonic() + 5)
+    assert row["fallback"] == extractor.BUDGET
+    assert extractor.llm_state() == "on"  # other jobs keep using the network
