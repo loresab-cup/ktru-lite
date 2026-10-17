@@ -19,8 +19,12 @@ server {
     add_header X-Frame-Options DENY always;
     add_header Referrer-Policy same-origin always;
 
+    # Docker DNS: the backend address is resolved again after the container is recreated
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    set $backend http://backend:8000;
+
     location /api/ {
-        proxy_pass http://backend:8000;
+        proxy_pass $backend;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_read_timeout 120s;

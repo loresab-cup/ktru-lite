@@ -10,6 +10,7 @@ import json
 import os
 import tempfile
 import time
+import uuid
 from pathlib import Path
 
 import numpy as np
@@ -301,6 +302,18 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
         assert filtered.json()["total"] == 1
         assert client.get(f"/api/jobs/{job_id}/items", params={"q": "%"}).json()["total"] == 0
 
+        notebook = items[1]
+        bad = client.put(f"/api/items/{notebook['id']}/attributes", json={"name": "  "})
+        assert bad.status_code == 422
+        edited = client.put(
+            f"/api/items/{notebook['id']}/attributes",
+            json={"name": "Ноутбук", "brand": "", "characteristics": [{"value": "14"}]},
+        ).json()
+        assert edited["ktru_code"] == CODES[3][0]
+        assert edited["attributes"]["source"] == "manual"
+        assert edited["attributes"]["search_text"] == "Ноутбук. 14"
+        assert edited["attributes"]["columns"]["Кол-во"] == "1"
+
         accepted = client.post(f"/api/jobs/{job_id}/accept", params={"min_confidence": 0})
         assert accepted.json()["accepted"] == 1
 
@@ -308,6 +321,9 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
         assert CODES[0][0] in csv_text and "'=HYPERLINK(1) ноутбук" in csv_text
         xlsx = client.get(f"/api/jobs/{job_id}/export", params={"format": "xlsx"})
         assert xlsx.content.startswith(b"PK")
+        api.set_job(uuid.UUID(job_id), status="processing")
+        assert client.get(f"/api/jobs/{job_id}/export").status_code == 409
+        api.set_job(uuid.UUID(job_id), status="done")
         assert client.get("/api/jobs/not-a-uuid").status_code == 404
 
 
@@ -328,3 +344,33 @@ def test_worker_survives_database_errors(monkeypatch):
     api.worker_loop()  # returns only because of stop, not because of the exception
     assert len(calls) == 2
     api.state.stop.clear()
+
+
+def test_search_numeric_range_picks_neighbour():
+    def code(number: str, value: dict) -> dict:
+        return {
+            "code": f"28.99.30.000-0000009{number}",
+            "status": "ACTIVE",
+            "name": "Клеть дуо",
+            "okpd2_code": "28.99.30.000",
+            "characteristics": [{"name": "Производительность", "values": [value]}],
+        }
+
+    above = {"text": "> 1.25", "min": 1.25, "min_op": ">"}
+    below = {"text": "≤ 1.25", "max": 1.25, "max_op": "≤"}
+    records = [code("3", below), code("2", above)]  # equal vectors and words
+    catalog = search.Catalog(
+        vectors=np.stack([unit([1, 0]), unit([1, 0])]),
+        codes=[r["code"] for r in records],
+        statuses=["ACTIVE", "ACTIVE"],
+        names=["Клеть дуо"] * 2,
+        okpd2=["28.99.30.000"] * 2,
+        code_words=["клеть дуо 25"] * 2,
+        chars=[search.brief_chars(r["characteristics"])[0] for r in records],
+        bounds=[search.numeric_bounds(r["characteristics"]) for r in records],
+    )
+    assert search.query_bounds("не менее 3000 и менее 4000 мм, до 5,5") == ({3000.0}, {4000.0, 5.5})
+    [found] = catalog.search(
+        np.stack([unit([1, 0])]), ["Клеть дуо производительность не менее 1.25"]
+    )
+    assert found[0]["code"].endswith("92") and found[0]["numeric_matches"] == 1

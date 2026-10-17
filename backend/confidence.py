@@ -43,6 +43,8 @@ def explain(best: dict, is_product: bool) -> str:
         parts.append("совпали слова: " + ", ".join(best["shared_words"][:8]))
     if best.get("matched_characteristics"):
         parts.append("характеристики: " + "; ".join(best["matched_characteristics"][:4]))
+    if best.get("numeric_matches"):
+        parts.append(f"совпало числовых границ: {best['numeric_matches']}")
     if not best.get("shared_words"):
         parts.append(f"совпадение по смыслу {best.get('cosine', best['score']):.2f}")
     if best.get("status") in STATUS_LABELS:

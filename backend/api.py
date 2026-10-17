@@ -153,20 +153,25 @@ def tick(stages: dict, stage: str, started: float) -> None:
     stages[stage] = round(stages.get(stage, 0.0) + time.monotonic() - started, 2)
 
 
+def apply_candidates(item: Item, found: list, is_product: bool = True) -> None:
+    """Top-5 -> the best code, confidence, zone, status and explanation of the item."""
+    verdict = confidence.assess(found, is_product=is_product)
+    best = found[0] if found else {}
+    item.candidates = found
+    item.ktru_code, item.ktru_name = best.get("code"), best.get("name")
+    item.confidence, item.zone = verdict["confidence"], verdict["zone"]
+    item.status, item.summary = verdict["status"], verdict["summary"]
+
+
 def build_item(job_id: uuid.UUID, row: parser.Item, attributes: dict, found: list) -> Item:
     item = Item(
         job_id=job_id,
         row_number=row.row_number,
         raw_text=row.text,
-        candidates=found,
         attributes={**attributes, "columns": row.columns},
     )
     try:
-        verdict = confidence.assess(found, is_product=bool(attributes.get("name")))
-        best = found[0] if found else {}
-        item.ktru_code, item.ktru_name = best.get("code"), best.get("name")
-        item.confidence, item.zone = verdict["confidence"], verdict["zone"]
-        item.status, item.summary = verdict["status"], verdict["summary"]
+        apply_candidates(item, found, is_product=bool(attributes.get("name")))
     except Exception as exc:  # one broken row must not stop the job
         logger.exception("item failed")
         item.status, item.summary = "failed", f"Ошибка обработки позиции: {type(exc).__name__}"
@@ -211,16 +216,18 @@ def run_job(job_id: uuid.UUID) -> None:
         set_job(job_id, total=len(rows))
         process_items(job_id, rows, include_inactive, stages)
         tick(stages, "total", started)
-        finish(job_id, "done", None, stages)
+        status, error = "done", None
     except parser.ParseError as exc:
-        finish(job_id, "failed", str(exc), stages)
+        status, error = "failed", str(exc)
     except FileNotFoundError:
-        finish(job_id, "failed", "Файл задания не найден: загрузите его заново", stages)
+        status, error = "failed", "Файл задания не найден: загрузите его заново"
     except Exception:
         logger.exception("job %s failed", job_id)
-        finish(job_id, "failed", "Не удалось обработать файл, попробуйте ещё раз", stages)
-    finally:
-        path.unlink(missing_ok=True)
+        status, error = "failed", "Не удалось обработать файл, попробуйте ещё раз"
+    # If this write fails (the database restarts), the file stays: after a restart the job is
+    # queued again and processed from the start
+    finish(job_id, status, error, stages)
+    path.unlink(missing_ok=True)
 
 
 def worker_loop() -> None:
@@ -327,11 +334,16 @@ async def create_job(
         parser.check_signature(Path(filename).suffix.lower(), data[:8])
     except parser.ParseError as exc:
         raise HTTPException(400, str(exc)) from exc
-    with SessionLocal() as session:
-        job = Job(id=uuid.uuid4(), filename=filename, include_inactive=include_inactive)
-        upload_path(job).write_bytes(data)  # the name on disk is the uuid, not the user's name
-        session.add(job)
-        session.commit()
+    job = Job(id=uuid.uuid4(), filename=filename, include_inactive=include_inactive)
+    path = upload_path(job)
+    path.write_bytes(data)  # the name on disk is the uuid, not the user's name
+    try:
+        with SessionLocal() as session:
+            session.add(job)
+            session.commit()
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
     return {"job_id": str(job.id)}
 
 
@@ -397,6 +409,48 @@ def correct_item(item_id: int, body: Correction):
         item = get_or_404(session, Item, item_id, "Позиция")
         item.ktru_code, item.ktru_name, item.status = code["code"], code["name"], "corrected"
         item.confidence, item.zone, item.summary = 100.0, "high", "Код выбран вручную"
+        session.commit()
+        return to_dict(item)
+
+
+class CharacteristicIn(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+    name: str = Field("", max_length=100)
+    value: str = Field(min_length=1, max_length=100)
+    unit: str = Field("", max_length=30)
+
+
+class AttributesIn(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+    name: str = Field(min_length=1, max_length=300)
+    brand: str = Field("", max_length=100)
+    model: str = Field("", max_length=100)
+    characteristics: list[CharacteristicIn] = Field(default_factory=list, max_length=30)
+
+
+def manual_search_text(body: AttributesIn) -> str:
+    """The query is built like the network's search_text: name, then «name: value unit»."""
+    parts = [body.name]
+    for c in body.characteristics:
+        value = f"{c.value} {c.unit}".strip()
+        parts.append(f"{c.name}: {value}" if c.name else value)
+    return ". ".join(parts)
+
+
+@app.put("/api/items/{item_id}/attributes")
+def edit_attributes(item_id: int, body: AttributesIn):
+    """A person fixes the attributes; the code is searched again by the fixed text."""
+    catalog = require_catalog()
+    query = manual_search_text(body)
+    with SessionLocal() as session:
+        item = get_or_404(session, Item, item_id, "Позиция")
+        include_inactive = session.get(Job, item.job_id).include_inactive
+        [found] = catalog.search(embedder.embed([query]), [query], include_inactive)
+        columns = (item.attributes or {}).get("columns", {})
+        attributes = body.model_dump() | {"search_text": query, "source": "manual"}
+        item.attributes = attributes | {"columns": columns}
+        apply_candidates(item, found)
+        item.summary = f"Атрибуты исправлены вручную. {item.summary}"
         session.commit()
         return to_dict(item)
 
@@ -524,6 +578,8 @@ def to_xlsx(rows: list[list]) -> bytes:
 def export(job_id: str, format: str = Query("xlsx", pattern="^(xlsx|csv)$")):
     with SessionLocal() as session:
         job = get_or_404(session, Job, job_id, "Задание")
+        if job.status != "done":
+            raise HTTPException(409, "Выгрузка доступна после окончания обработки")
         items = session.scalars(select(Item).where(Item.job_id == job.id).order_by(Item.id)).all()
     rows = export_rows(list(items))
     if format == "csv":

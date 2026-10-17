@@ -31,16 +31,37 @@ QUERY_CHUNK = 128  # 128 x 81 509 float32 = 42 MB of similarities at a time
 WORDS_ONLY_BASE = 0.6  # without vectors the score stays low: nothing goes to auto
 MAX_CODE_WORDS = 400
 BRIEF_CHARS, BRIEF_VALUES = 12, 20
+CACHE_VERSION = 2  # bump when the cached metadata changes
+# Neighbour codes of one group often differ only by a range: "> 1.25" vs "<= 1.25".
+# A bound of the row equal to a bound of the code adds NUMERIC_BONUS; the same number on the
+# other side ("не менее 1.25" against "<= 1.25") takes NUMERIC_CLASH off.
+NUMERIC_BONUS = 0.01
+NUMERIC_CLASH = 0.01
 
 # Latin letters that look like Cyrillic ones: "A4" and "А4" must be the same word
 _LOOKALIKE = str.maketrans("aceopxkmhbty", "асеорхкмнвту")
 _WORD = re.compile(r"[a-zа-я0-9]+")
+_NUM = r"(\d+(?:[.,]\d+)?)"
+_LOWER = re.compile(
+    rf"(?<!\w)(?:не\s+менее|не\s+меньше|(?<!не )более|(?<!не )больше|свыше|от|≥|>=|>)\s*{_NUM}"
+)
+_UPPER = re.compile(
+    rf"(?<!\w)(?:не\s+более|не\s+больше|(?<!не )менее|(?<!не )меньше|до|≤|<=|<)\s*{_NUM}"
+)
 
 
 def words(text: str) -> set[str]:
     """Words for matching: 3+ letters or with a digit, lowercase, ё=е, Latin lookalikes."""
     text = (text or "").lower().replace("ё", "е").translate(_LOOKALIKE)
     return {w for w in _WORD.findall(text) if len(w) >= 3 or any(c.isdigit() for c in w)}
+
+
+def query_bounds(text: str) -> tuple[set[float], set[float]]:
+    """Lower and upper bounds written in a row: "не менее 3000 и менее 4000" -> {3000}, {4000}."""
+    text = (text or "").lower().replace("ё", "е")
+    lower = {float(m.group(1).replace(",", ".")) for m in _LOWER.finditer(text)}
+    upper = {float(m.group(1).replace(",", ".")) for m in _UPPER.finditer(text)}
+    return lower, upper
 
 
 @dataclass
@@ -52,6 +73,7 @@ class Catalog:
     okpd2: list[str]
     code_words: list[str]  # space-joined words of name + characteristic values
     chars: list[list]  # [[name, [values]]] short, for the UI
+    bounds: list[list]  # [[min values], [max values]] of the numeric characteristic values
     index: dict[str, int] = field(init=False)
     active: np.ndarray = field(init=False)
 
@@ -73,7 +95,10 @@ class Catalog:
             nearest = self._nearest_by_vectors(vectors, include_inactive)
         else:
             nearest = [self._nearest_by_words(qw, include_inactive) for qw in query_words]
-        return [self._rank(qw, near) for qw, near in zip(query_words, nearest, strict=True)]
+        return [
+            self._rank(qw, query_bounds(text), near)
+            for qw, text, near in zip(query_words, texts, nearest, strict=True)
+        ]
 
     def _nearest_by_vectors(self, queries: np.ndarray, include_inactive: bool) -> list[list]:
         limit = min(VECTOR_LIMIT, len(self.codes))
@@ -110,11 +135,23 @@ class Catalog:
                 self._postings = {w: np.array(ix, dtype=np.int32) for w, ix in lists.items()}
             return self._postings
 
-    def _rank(self, query_words: set[str], nearest: list[tuple[int, float]]) -> list[dict]:
+    def _numeric_fit(self, i: int, query: tuple[set[float], set[float]]) -> tuple[int, int]:
+        """(bounds of the row the code has, bounds the code has only on the other side)."""
+        lower, upper = query
+        code_lower, code_upper = (set(values) for values in self.bounds[i])
+        matches = len(lower & code_lower) + len(upper & code_upper)
+        clashes = len((lower & code_upper) - code_lower) + len((upper & code_lower) - code_upper)
+        return matches, clashes
+
+    def _rank(
+        self, query_words: set[str], query: tuple[set[float], set[float]], nearest: list
+    ) -> list[dict]:
         scored = []
         for i, cosine in nearest:
             shared = query_words & set(self.code_words[i].split())
-            scored.append((cosine + WORD_BONUS * len(shared), cosine, i, shared))
+            matches, clashes = self._numeric_fit(i, query)
+            score = cosine + WORD_BONUS * len(shared) + NUMERIC_BONUS * matches
+            scored.append((score - NUMERIC_CLASH * clashes, cosine, i, shared, matches))
         # Sorted by the raw sum: the cap at 1.0 must not make near-perfect matches equal
         scored.sort(key=lambda row: row[0], reverse=True)
         return [
@@ -124,8 +161,9 @@ class Catalog:
                 "cosine": round(cosine, 4),
                 "shared_words": sorted(shared)[:12],
                 "matched_characteristics": self._matched_chars(i, query_words),
+                "numeric_matches": matches,
             }
-            for score, cosine, i, shared in scored[:TOP_K]
+            for score, cosine, i, shared, matches in scored[:TOP_K]
         ]
 
     def _matched_chars(self, i: int, query_words: set[str]) -> list[str]:
@@ -170,6 +208,18 @@ class Catalog:
 # --- loading -------------------------------------------------------------------------------
 
 
+def numeric_bounds(characteristics: list) -> list[list[float]]:
+    """[[min values], [max values]] of all numeric values: "≥ 3000 и < 4000" -> 3000, 4000."""
+    lower, upper = set(), set()
+    for characteristic in characteristics or []:
+        for value in characteristic.get("values") or []:
+            if isinstance(value.get("min"), int | float):
+                lower.add(float(value["min"]))
+            if isinstance(value.get("max"), int | float):
+                upper.add(float(value["max"]))
+    return [sorted(lower), sorted(upper)]
+
+
 def brief_chars(characteristics: list) -> tuple[list, list[str]]:
     """Short characteristics for the UI and all their value texts for word matching."""
     brief, texts = [], []
@@ -187,7 +237,7 @@ def build(path: Path) -> tuple[np.ndarray, dict]:
     """Streams the dump: vectors into a growing matrix, the rest into short lists."""
     vectors = np.empty((90_000, DIM), dtype=np.float32)
     meta: dict[str, list] = {
-        k: [] for k in ("codes", "statuses", "names", "okpd2", "words", "chars")
+        k: [] for k in ("codes", "statuses", "names", "okpd2", "words", "chars", "bounds")
     }
     n = 0
     with gzip.open(path, "rt", encoding="utf-8") as lines:
@@ -206,6 +256,7 @@ def build(path: Path) -> tuple[np.ndarray, dict]:
             meta["okpd2"].append(record.get("okpd2_code") or "")
             meta["words"].append(" ".join(code_words[:MAX_CODE_WORDS]))
             meta["chars"].append(chars)
+            meta["bounds"].append(numeric_bounds(record.get("characteristics")))
             n += 1
     return vectors[:n], meta  # a view: no second 334 MB copy
 
@@ -213,7 +264,7 @@ def build(path: Path) -> tuple[np.ndarray, dict]:
 def load_catalog(path: Path | None = None, cache_dir: Path | None = None) -> Catalog:
     path, cache_dir = path or CATALOG_PATH, cache_dir or CACHE_DIR
     stat = path.stat()
-    key = f"{stat.st_size}-{stat.st_mtime_ns}"
+    key = f"v{CACHE_VERSION}-{stat.st_size}-{stat.st_mtime_ns}"
     vectors_path = cache_dir / f"catalog-{key}.npy"
     meta_path = cache_dir / f"catalog-{key}.json.gz"
     if vectors_path.exists() and meta_path.exists():
@@ -241,4 +292,5 @@ def load_catalog(path: Path | None = None, cache_dir: Path | None = None) -> Cat
         okpd2=meta["okpd2"],
         code_words=meta["words"],
         chars=meta["chars"],
+        bounds=meta["bounds"],
     )

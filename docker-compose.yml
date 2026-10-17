@@ -14,7 +14,7 @@ services:
     build: ./backend
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"  # API docs for this machine only; users go through nginx
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ktru}:${POSTGRES_PASSWORD:-ktru}@db:5432/${POSTGRES_DB:-ktru}
       OLLAMA_URL: http://ollama:11434
