@@ -1,0 +1,1 @@
+{"provider": "yandex", "model": "qwen3.6-35b-a3b", "parallel_requests": 4, "batch_size": 10, "job_budget_seconds": 150.0, "request_timeout_seconds": 90.0}

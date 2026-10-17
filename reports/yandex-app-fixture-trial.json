@@ -1,0 +1,598 @@
+{
+  "provider": "yandex",
+  "model": "qwen3.6-35b-a3b",
+  "smoke": [
+    {
+      "name": "Бумага офисная",
+      "brand": "TestBrand",
+      "model": "",
+      "characteristics": [
+        {
+          "name": "Формат",
+          "value": "А4",
+          "unit": ""
+        },
+        {
+          "name": "Плотность",
+          "value": "80",
+          "unit": "г/м2"
+        },
+        {
+          "name": "Количество листов",
+          "value": "500",
+          "unit": "листов"
+        }
+      ],
+      "search_text": "Бумага офисная. Формат: А4. Плотность: 80 г/м2.",
+      "measure": "упак",
+      "source": "llm"
+    }
+  ],
+  "fixture_seconds": 3.8412551279998297,
+  "products": 13,
+  "unique_texts": 16,
+  "fields_correct": {
+    "name": 13,
+    "brand": 12,
+    "model": 12
+  },
+  "aggregate_percent": 94.87179487179488,
+  "sources": {
+    "llm": 16
+  },
+  "calls": [
+    {
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 411,
+        "total_tokens": 549,
+        "completion_tokens": 138,
+        "prompt_tokens_details": {
+          "cached_tokens": 384
+        }
+      },
+      "stop_reason": null,
+      "seconds": 1.412484874999791
+    },
+    {
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 728,
+        "total_tokens": 1917,
+        "completion_tokens": 1189,
+        "prompt_tokens_details": {
+          "cached_tokens": 320
+        }
+      },
+      "stop_reason": null,
+      "seconds": 2.434364708999965
+    },
+    {
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 546,
+        "total_tokens": 1249,
+        "completion_tokens": 703,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "stop_reason": null,
+      "seconds": 1.4057225570004448
+    }
+  ],
+  "results": [
+    {
+      "case": "text_utf8",
+      "expected": {
+        "name": "Монитор",
+        "brand": "Aster",
+        "model": "M24"
+      },
+      "actual": {
+        "name": "Монитор",
+        "brand": "Aster",
+        "model": "M24"
+      },
+      "correct": {
+        "name": true,
+        "brand": true,
+        "model": true
+      },
+      "source": "llm"
+    },
+    {
+      "case": "text_utf8",
+      "expected": {
+        "name": "Кабель",
+        "brand": "Vector",
+        "model": "C6"
+      },
+      "actual": {
+        "name": "Кабель",
+        "brand": "Vector",
+        "model": "C6"
+      },
+      "correct": {
+        "name": true,
+        "brand": true,
+        "model": true
+      },
+      "source": "llm"
+    },
+    {
+      "case": "csv_cp1251",
+      "expected": {
+        "name": "Бумага офисная",
+        "brand": "Лист",
+        "model": "А4-80"
+      },
+      "actual": {
+        "name": "Бумага офисная",
+        "brand": "",
+        "model": ""
+      },
+      "correct": {
+        "name": true,
+        "brand": false,
+        "model": false
+      },
+      "source": "llm"
+    },
+    {
+      "case": "csv_cp1251",
+      "expected": {
+        "name": "Мыло жидкое",
+        "brand": "Чисто",
+        "model": "МЖ-5"
+      },
+      "actual": {
+        "name": "Мыло жидкое",
+        "brand": "Чисто",
+        "model": "МЖ-5"
+      },
+      "correct": {
+        "name": true,
+        "brand": true,
+        "model": true
+      },
+      "source": "llm"
+    },
+    {
+      "case": "docx_table",
+      "expected": {
+        "name": "Дрель",
+        "brand": "Мастер",
+        "model": "D500"
+      },
+      "actual": {
+        "name": "Дрель",
+        "brand": "Мастер",
+        "model": "D500"
+      },
+      "correct": {
+        "name": true,
+        "brand": true,
+        "model": true
+      },
+      "source": "llm"
+    },
+    {
+      "case": "docx_table",
+      "expected": {
+        "name": "Перчатки",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Перчатки",
+        "brand": "",
+        "model": ""
+      },
+      "correct": {
+        "name": true,
+        "brand": true,
+        "model": true
+      },
+      "source": "llm"
+    },
+    {
+      "case": "pdf_text",
+      "expected": {
+        "name": "Весы",
+        "brand": "Точно",
+        "model": "V15"
+      },
+      "actual": {
+        "name": "Весы",
+        "brand": "Точно",
+        "model": "V15"
+      },
+      "correct": {
+        "name": true,
+        "brand": true,
+        "model": true
+      },
+      "source": "llm"
+    },
+    {
+      "case": "xlsx_multisheet",
+      "expected": {
+        "name": "Болт",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Болт",
+        "brand": "",
+        "model": ""
+      },
+      "correct": {
+        "name": true,
+        "brand": true,
+        "model": true
+      },
+      "source": "llm"
+    },
+    {
+      "case": "xlsx_multisheet",
+      "expected": {
+        "name": "Краска",
+        "brand": "Колор",
+        "model": "К1"
+      },
+      "actual": {
+        "name": "Краска",
+        "brand": "Колор",
+        "model": "К1"
+      },
+      "correct": {
+        "name": true,
+        "brand": true,
+        "model": true
+      },
+      "source": "llm"
+    },
+    {
+      "case": "xlsx_multisheet",
+      "expected": {
+        "name": "Лампа",
+        "brand": "Люкс",
+        "model": "L9"
+      },
+      "actual": {
+        "name": "Лампа",
+        "brand": "Люкс",
+        "model": "L9"
+      },
+      "correct": {
+        "name": true,
+        "brand": true,
+        "model": true
+      },
+      "source": "llm"
+    },
+    {
+      "case": "unknown_utf16",
+      "expected": {
+        "name": "Стул",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Стул",
+        "brand": "",
+        "model": ""
+      },
+      "correct": {
+        "name": true,
+        "brand": true,
+        "model": true
+      },
+      "source": "llm"
+    },
+    {
+      "case": "duplicates_csv",
+      "expected": {
+        "name": "Фильтр",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Фильтр",
+        "brand": "",
+        "model": ""
+      },
+      "correct": {
+        "name": true,
+        "brand": true,
+        "model": true
+      },
+      "source": "llm"
+    },
+    {
+      "case": "duplicates_csv",
+      "expected": {
+        "name": "Фильтр",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Фильтр",
+        "brand": "",
+        "model": ""
+      },
+      "correct": {
+        "name": true,
+        "brand": true,
+        "model": true
+      },
+      "source": "llm"
+    }
+  ],
+  "answers_by_text": {
+    "Синтетическая заявка, не реальная закупка.": {
+      "name": "",
+      "brand": "",
+      "model": "",
+      "characteristics": [],
+      "search_text": "Синтетическая заявка, не реальная закупка.",
+      "measure": "",
+      "source": "llm"
+    },
+    "Монитор. Бренд: Aster. Модель: M24. Количество: 3 шт. Диагональ: 24 дюйм. Разрешение: 1920x1080.": {
+      "name": "Монитор",
+      "brand": "Aster",
+      "model": "M24",
+      "characteristics": [
+        {
+          "name": "Диагональ",
+          "value": "24",
+          "unit": "дюйм"
+        },
+        {
+          "name": "Разрешение",
+          "value": "1920x1080",
+          "unit": ""
+        }
+      ],
+      "search_text": "Монитор. Диагональ: 24 дюйм. Разрешение: 1920x1080.",
+      "measure": "шт",
+      "source": "llm"
+    },
+    "Кабель. Бренд: Vector. Модель: C6. Количество: 12,5 м. Категория: Cat6. Цвет: серый.": {
+      "name": "Кабель",
+      "brand": "Vector",
+      "model": "C6",
+      "characteristics": [
+        {
+          "name": "Категория",
+          "value": "Cat6",
+          "unit": ""
+        },
+        {
+          "name": "Цвет",
+          "value": "серый",
+          "unit": ""
+        }
+      ],
+      "search_text": "Кабель. Категория: Cat6. Цвет: серый.",
+      "measure": "м",
+      "source": "llm"
+    },
+    "Бумага офисная. Лист. А4-80. Формат: A4; Плотность: 80 г/м2": {
+      "name": "Бумага офисная",
+      "brand": "",
+      "model": "",
+      "characteristics": [
+        {
+          "name": "Формат",
+          "value": "A4",
+          "unit": ""
+        },
+        {
+          "name": "Плотность",
+          "value": "80",
+          "unit": "г/м2"
+        }
+      ],
+      "search_text": "Бумага офисная. Формат: A4. Плотность: 80 г/м2.",
+      "measure": "упак",
+      "source": "llm"
+    },
+    "Мыло жидкое. Чисто. МЖ-5. Цвет: прозрачный; Запах: нейтральный": {
+      "name": "Мыло жидкое",
+      "brand": "Чисто",
+      "model": "МЖ-5",
+      "characteristics": [
+        {
+          "name": "Цвет",
+          "value": "прозрачный",
+          "unit": ""
+        },
+        {
+          "name": "Запах",
+          "value": "нейтральный",
+          "unit": ""
+        }
+      ],
+      "search_text": "Мыло жидкое. Цвет: прозрачный. Запах: нейтральный.",
+      "measure": "л",
+      "source": "llm"
+    },
+    "Дрель. Мастер. D500. Мощность: 500 Вт; Напряжение: 220 В": {
+      "name": "Дрель",
+      "brand": "Мастер",
+      "model": "D500",
+      "characteristics": [
+        {
+          "name": "Мощность",
+          "value": "500",
+          "unit": "Вт"
+        },
+        {
+          "name": "Напряжение",
+          "value": "220",
+          "unit": "В"
+        }
+      ],
+      "search_text": "Дрель. Мощность: 500 Вт. Напряжение: 220 В.",
+      "measure": "шт",
+      "source": "llm"
+    },
+    "Перчатки. Материал: нитрил; Размер: L": {
+      "name": "Перчатки",
+      "brand": "",
+      "model": "",
+      "characteristics": [
+        {
+          "name": "Материал",
+          "value": "нитрил",
+          "unit": ""
+        },
+        {
+          "name": "Размер",
+          "value": "L",
+          "unit": ""
+        }
+      ],
+      "search_text": "Перчатки. Материал: нитрил. Размер: L.",
+      "measure": "пара",
+      "source": "llm"
+    },
+    "Синтетическая спецификация для проверки PDF.": {
+      "name": "",
+      "brand": "",
+      "model": "",
+      "characteristics": [],
+      "search_text": "Синтетическая спецификация для проверки PDF.",
+      "measure": "",
+      "source": "llm"
+    },
+    "Весы. Бренд: Точно. Модель: V15. Количество: 2 шт. Предел взвешивания: 15 кг. Цена": {
+      "name": "Весы",
+      "brand": "Точно",
+      "model": "V15",
+      "characteristics": [
+        {
+          "name": "Предел взвешивания",
+          "value": "15",
+          "unit": "кг"
+        }
+      ],
+      "search_text": "Весы. Предел взвешивания: 15 кг.",
+      "measure": "шт",
+      "source": "llm"
+    },
+    "деления: 5 г.": {
+      "name": "",
+      "brand": "",
+      "model": "",
+      "characteristics": [],
+      "search_text": "деления: 5 г.",
+      "measure": "",
+      "source": "llm"
+    },
+    "Болт. Диаметр: 8 мм; Длина: 40 мм": {
+      "name": "Болт",
+      "brand": "",
+      "model": "",
+      "characteristics": [
+        {
+          "name": "Диаметр",
+          "value": "8 мм",
+          "unit": "мм"
+        },
+        {
+          "name": "Длина",
+          "value": "40 мм",
+          "unit": "мм"
+        }
+      ],
+      "search_text": "Болт. Диаметр: 8 мм. Длина: 40 мм",
+      "measure": "шт",
+      "source": "llm"
+    },
+    "Краска. Колор. К1. Цвет: белый; Основа: акриловая": {
+      "name": "Краска",
+      "brand": "Колор",
+      "model": "К1",
+      "characteristics": [
+        {
+          "name": "Цвет",
+          "value": "белый",
+          "unit": ""
+        },
+        {
+          "name": "Основа",
+          "value": "акриловая",
+          "unit": ""
+        }
+      ],
+      "search_text": "Краска. Цвет: белый. Основа: акриловая",
+      "measure": "л",
+      "source": "llm"
+    },
+    "Лампа. Люкс. L9. Мощность: 9 Вт; Цоколь: E27": {
+      "name": "Лампа",
+      "brand": "Люкс",
+      "model": "L9",
+      "characteristics": [
+        {
+          "name": "Мощность",
+          "value": "9 Вт",
+          "unit": "Вт"
+        },
+        {
+          "name": "Цоколь",
+          "value": "E27",
+          "unit": ""
+        }
+      ],
+      "search_text": "Лампа. Мощность: 9 Вт. Цоколь: E27",
+      "measure": "шт",
+      "source": "llm"
+    },
+    "Документ синтетический. Итоги не являются товарами.": {
+      "name": "",
+      "brand": "",
+      "model": "",
+      "characteristics": [],
+      "search_text": "Документ синтетический. Итоги не являются товарами.",
+      "measure": "",
+      "source": "llm"
+    },
+    "Стул. Материал: дерево. Количество и единица не указаны.": {
+      "name": "Стул",
+      "brand": "",
+      "model": "",
+      "characteristics": [
+        {
+          "name": "Материал",
+          "value": "дерево",
+          "unit": ""
+        }
+      ],
+      "search_text": "Стул. Материал: дерево",
+      "measure": "шт",
+      "source": "llm"
+    },
+    "Фильтр. Размер: 10 мкм": {
+      "name": "Фильтр",
+      "brand": "",
+      "model": "",
+      "characteristics": [
+        {
+          "name": "Размер",
+          "value": "10 мкм",
+          "unit": "мкм"
+        }
+      ],
+      "search_text": "Фильтр. Размер: 10 мкм",
+      "measure": "шт",
+      "source": "llm"
+    }
+  },
+  "status": "complete",
+  "scope": "synthetic fixture extraction only; not full KTRU accuracy or 1000-row performance acceptance"
+}

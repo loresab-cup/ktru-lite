@@ -1,0 +1,19 @@
+{
+  "provided_file": "C:\\Users\\user\\Downloads\\spec_1000(1).xlsx",
+  "previously_tested_file": "C:\\Users\\user\\Documents\\GitHub\\b2b\\scripts\\fixtures\\load\\spec_1000.xlsx",
+  "sha256": "69b7cd3dc0746832aea217d1c73dfa8be01d79122dfbb9a47ce882a8a7249821",
+  "byte_identical": true,
+  "reused_job_id": "6ff990ea-dee2-41d8-b461-c3bb7ab25101",
+  "new_paid_model_requests": 0,
+  "records": 1000,
+  "sources": {
+    "llm": 1000
+  },
+  "statuses": {
+    "needs_review": 942,
+    "auto": 58
+  },
+  "original_run_seconds": 139.09308760000567,
+  "reference_codes_in_provided_workbook": 0,
+  "exact_code_accuracy": null
+}

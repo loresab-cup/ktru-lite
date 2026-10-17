@@ -1,0 +1,105 @@
+backend-1  | INFO:     Started server process [1]
+backend-1  | INFO:     Waiting for application startup.
+backend-1  | INFO:     Application startup complete.
+backend-1  | INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+backend-1  | 2026-10-17 13:57:30,726 INFO search: catalog from cache: 81509 codes
+backend-1  | 2026-10-17 13:59:07,501 INFO extractor: LLM response provider=anthropic status=200 seconds=83.177
+backend-1  | 2026-10-17 13:59:10,432 INFO extractor: LLM response provider=anthropic status=200 seconds=86.109
+backend-1  | 2026-10-17 13:59:11,946 INFO extractor: LLM response provider=anthropic status=200 seconds=87.624
+backend-1  | 2026-10-17 13:59:12,145 INFO extractor: LLM response provider=anthropic status=200 seconds=87.822
+backend-1  | 2026-10-17 14:00:14,319 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,319 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,319 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,319 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,319 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,319 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,319 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,320 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,320 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,320 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,320 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,320 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,321 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,321 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,322 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,322 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,323 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,323 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,324 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,324 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,325 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,325 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,328 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,329 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,339 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,331 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,332 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,333 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,333 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,334 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,335 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,336 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,337 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,337 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,338 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,330 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,341 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,340 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,342 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,354 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,344 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,345 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,346 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,347 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,348 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,349 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,350 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,351 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,353 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,354 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,355 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,356 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,357 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,358 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,343 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,359 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,360 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,361 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,362 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,363 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,364 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,365 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,365 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,366 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,367 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,367 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,368 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,369 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,370 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,371 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,372 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,373 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,374 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,375 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,376 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,377 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,377 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,378 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,379 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,380 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,381 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,381 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,382 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,383 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,383 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,385 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,385 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,386 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,387 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,387 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,388 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,390 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,391 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,392 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,393 WARNING extractor: LLM budget is over, rules for 10 rows
+backend-1  | 2026-10-17 14:00:14,395 WARNING extractor: LLM budget is over, rules for 5 rows

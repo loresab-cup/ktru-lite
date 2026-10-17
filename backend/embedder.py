@@ -32,7 +32,11 @@ def _request(texts: list[str]) -> np.ndarray:
     vectors = np.asarray(response.json()["embeddings"], dtype=np.float32)
     if vectors.shape != (len(texts), DIM):
         raise ValueError(f"unexpected embeddings shape {vectors.shape}")
+    if not np.isfinite(vectors).all():
+        raise ValueError("non-finite embeddings")
     norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+    if not np.isfinite(norms).all() or (norms <= 1e-12).any():
+        raise ValueError("invalid embedding norms")
     return vectors / np.maximum(norms, 1e-12)
 
 

@@ -1,0 +1,3 @@
+{"BlockIO":"123MB / 340MB","CPUPerc":"169.94%","Container":"ktru-lite-backend-1","ID":"fb974bdb340c","MemPerc":"10.65%","MemUsage":"802.5MiB / 7.362GiB","Name":"ktru-lite-backend-1","NetIO":"2.16MB / 939kB","PIDs":"34"}
+{"BlockIO":"146MB / 69.6kB","CPUPerc":"358.20%","Container":"ktru-lite-ollama-1","ID":"dd596f843b88","MemPerc":"18.52%","MemUsage":"1.363GiB / 7.362GiB","Name":"ktru-lite-ollama-1","NetIO":"83.8kB / 1.32MB","PIDs":"71"}
+{"BlockIO":"62.4MB / 54.4MB","CPUPerc":"3.10%","Container":"ktru-lite-db-1","ID":"fa64d660a20d","MemPerc":"0.87%","MemUsage":"65.59MiB / 7.362GiB","Name":"ktru-lite-db-1","NetIO":"1.4MB / 421kB","PIDs":"8"}

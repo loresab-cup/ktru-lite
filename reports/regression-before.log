@@ -1,0 +1,97 @@
+FFFFFFFFFF..F.                                                           [100%]
+================================== FAILURES ===================================
+_______ test_bad_characteristics_only_fall_back_for_affected_row[None] ________
+backend\tests\test_regressions.py:46: in test_bad_characteristics_only_fall_back_for_affected_row
+    assert rows[0]["fallback"] == extractor.ERROR
+           ^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'fallback'
+________ test_bad_characteristics_only_fall_back_for_affected_row[42] _________
+backend\tests\test_regressions.py:45: in test_bad_characteristics_only_fall_back_for_affected_row
+    rows = extractor.extract_chunk(["������ 80 �", "����� 10 ��"], time.monotonic() + 5)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\GitHub\ktru-lite\backend\extractor.py:321: in extract_chunk
+    return [accept(by_id[i], t) if i in by_id else rules(t, MISSING) for i, t in enumerate(texts)]
+            ^^^^^^^^^^^^^^^^^^^
+..\..\..\GitHub\ktru-lite\backend\extractor.py:100: in accept
+    for item in proposed.get("characteristics") or []:
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: 'int' object is not iterable
+_______ test_bad_characteristics_only_fall_back_for_affected_row[wrong] _______
+backend\tests\test_regressions.py:46: in test_bad_characteristics_only_fall_back_for_affected_row
+    assert rows[0]["fallback"] == extractor.ERROR
+           ^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'fallback'
+_______ test_bad_characteristics_only_fall_back_for_affected_row[bad3] ________
+backend\tests\test_regressions.py:46: in test_bad_characteristics_only_fall_back_for_affected_row
+    assert rows[0]["fallback"] == extractor.ERROR
+           ^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'fallback'
+______________ test_oauth_timeout_is_limited_by_remaining_budget ______________
+backend\tests\test_regressions.py:81: in test_oauth_timeout_is_limited_by_remaining_budget
+    extractor.access_token(deadline=time.monotonic() + 0.2)
+E   TypeError: access_token() got an unexpected keyword argument 'deadline'
+_________ test_invalid_vectors_fall_back_without_poisoning_cache[nan] _________
+backend\tests\test_regressions.py:112: in test_invalid_vectors_fall_back_without_poisoning_cache
+    assert embedder.embed(["�����"]) is None
+E   AssertionError: assert array([[nan, nan, nan, ..., nan, nan, nan]],\n      shape=(1, 1024), dtype=float32) is None
+E    +  where array([[nan, nan, nan, ..., nan, nan, nan]],\n      shape=(1, 1024), dtype=float32) = <function embed at 0x000001E4C4E153A0>(['�����'])
+E    +    where <function embed at 0x000001E4C4E153A0> = embedder.embed
+_________ test_invalid_vectors_fall_back_without_poisoning_cache[inf] _________
+backend\tests\test_regressions.py:112: in test_invalid_vectors_fall_back_without_poisoning_cache
+    assert embedder.embed(["�����"]) is None
+E   AssertionError: assert array([[nan, nan, nan, ..., nan, nan, nan]],\n      shape=(1, 1024), dtype=float32) is None
+E    +  where array([[nan, nan, nan, ..., nan, nan, nan]],\n      shape=(1, 1024), dtype=float32) = <function embed at 0x000001E4C4E153A0>(['�����'])
+E    +    where <function embed at 0x000001E4C4E153A0> = embedder.embed
+_________ test_invalid_vectors_fall_back_without_poisoning_cache[0.0] _________
+backend\tests\test_regressions.py:112: in test_invalid_vectors_fall_back_without_poisoning_cache
+    assert embedder.embed(["�����"]) is None
+E   AssertionError: assert array([[0., 0., 0., ..., 0., 0., 0.]], shape=(1, 1024), dtype=float32) is None
+E    +  where array([[0., 0., 0., ..., 0., 0., 0.]], shape=(1, 1024), dtype=float32) = <function embed at 0x000001E4C4E153A0>(['�����'])
+E    +    where <function embed at 0x000001E4C4E153A0> = embedder.embed
+________________ test_export_escapes_obscured_formulas[\n=1+1] ________________
+backend\tests\test_regressions.py:118: in test_export_escapes_obscured_formulas
+    assert isolated_api.cell(text) == "'" + text
+E   assert '\n=1+1' == "'\n=1+1"
+E     
+E     - '
+E     + 
+E       =1+1
+________________ test_export_escapes_obscured_formulas[  =1+1] ________________
+backend\tests\test_regressions.py:118: in test_export_escapes_obscured_formulas
+    assert isolated_api.cell(text) == "'" + text
+E   assert '  =1+1' == "'  =1+1"
+E     
+E     - '  =1+1
+E     ? -
+E     +   =1+1
+_________________ test_export_escapes_obscured_formulas[ +1] __________________
+backend\tests\test_regressions.py:118: in test_export_escapes_obscured_formulas
+    assert isolated_api.cell(text) == "'" + text
+E   assert ' +1' == "' +1"
+E     
+E     - ' +1
+E     ? -
+E     +  +1
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\user\Documents\ChatGPT\���� 2\ktru-lite\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+backend/tests/test_regressions.py::test_invalid_vectors_fall_back_without_poisoning_cache[inf]
+  C:\Users\user\Documents\GitHub\ktru-lite\backend\embedder.py:36: RuntimeWarning: invalid value encountered in divide
+    return vectors / np.maximum(norms, 1e-12)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED backend/tests/test_regressions.py::test_bad_characteristics_only_fall_back_for_affected_row[None]
+FAILED backend/tests/test_regressions.py::test_bad_characteristics_only_fall_back_for_affected_row[42]
+FAILED backend/tests/test_regressions.py::test_bad_characteristics_only_fall_back_for_affected_row[wrong]
+FAILED backend/tests/test_regressions.py::test_bad_characteristics_only_fall_back_for_affected_row[bad3]
+FAILED backend/tests/test_regressions.py::test_oauth_timeout_is_limited_by_remaining_budget
+FAILED backend/tests/test_regressions.py::test_invalid_vectors_fall_back_without_poisoning_cache[nan]
+FAILED backend/tests/test_regressions.py::test_invalid_vectors_fall_back_without_poisoning_cache[inf]
+FAILED backend/tests/test_regressions.py::test_invalid_vectors_fall_back_without_poisoning_cache[0.0]
+FAILED backend/tests/test_regressions.py::test_export_escapes_obscured_formulas[\n=1+1]
+FAILED backend/tests/test_regressions.py::test_export_escapes_obscured_formulas[  =1+1]
+FAILED backend/tests/test_regressions.py::test_export_escapes_obscured_formulas[ +1]
+11 failed, 3 passed, 19 deselected, 2 warnings in 1.43s

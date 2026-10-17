@@ -1,0 +1,23 @@
+{
+  "scope": "synthetic deterministic reproduction, no external calls",
+  "embeddings": null,
+  "candidates": [
+    {
+      "code": "27.32.13.199-00000001",
+      "score": 0.64,
+      "cosine": 0.6
+    },
+    {
+      "code": "27.32.13.199-00000002",
+      "score": 0.32,
+      "cosine": 0.3
+    }
+  ],
+  "verdict": {
+    "confidence": 100.0,
+    "zone": "high",
+    "needs_review": false,
+    "status": "auto",
+    "summary": "Совпали слова: кабель, медный"
+  }
+}

@@ -49,6 +49,7 @@ def explain(best: dict, is_product: bool) -> str:
         parts.append(f"совпадение по смыслу {best.get('cosine', best['score']):.2f}")
     if best.get("status") in STATUS_LABELS:
         parts.append(STATUS_LABELS[best["status"]])
+    parts.extend(best.get("review_reasons") or [])
     text = "; ".join(parts)
     return text[:1].upper() + text[1:]
 
@@ -63,11 +64,25 @@ def assess(candidates: list[dict], is_product: bool = True) -> dict:
             "summary": "Подходящих кодов КТРУ не найдено",
         }
     best = candidates[0]
-    margin = best["score"] - candidates[1]["score"] if len(candidates) > 1 else 0.0
+    # Hybrid name ranking can select a lower cosine candidate. Its advantage
+    # must be measured in the ordering that actually selected it, not by
+    # subtracting unrelated legacy scores (which can yield a negative margin).
+    score_key = "rank_score" if all("rank_score" in c for c in candidates) else "score"
+    margin = (
+        max(0.0, best[score_key] - max(c[score_key] for c in candidates[1:]))
+        if len(candidates) > 1 else 0.0
+    )
     confidence = round(probability(best["score"], margin), 1)
     zone = zone_of(confidence)
     # A terminated code and a row that is not a product never go to auto
-    auto = zone == "high" and best.get("status") == "ACTIVE" and is_product
+    # Retrieval bonuses are evidence for ranking, not calibrated probabilities.
+    # Explicit category/specialization warnings always require human confirmation.
+    auto = (
+        zone == "high"
+        and best.get("status") == "ACTIVE"
+        and is_product
+        and not best.get("review_reasons")
+    )
     return {
         "confidence": confidence,
         "zone": zone,

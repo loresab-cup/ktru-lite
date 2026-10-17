@@ -147,7 +147,13 @@ def set_job(job_id: uuid.UUID, **values) -> None:
 
 
 def finish(job_id: uuid.UUID, status: str, error: str | None, stages: dict) -> None:
-    set_job(job_id, status=status, error=error, finished_at=now(), stage_seconds=dict(stages))
+    set_job(
+        job_id,
+        status=status,
+        error=error,
+        finished_at=now(),
+        stage_seconds=dict(stages),
+    )
 
 
 def tick(stages: dict, stage: str, started: float) -> None:
@@ -175,7 +181,10 @@ def build_item(job_id: uuid.UUID, row: parser.Item, attributes: dict, found: lis
         apply_candidates(item, found, is_product=bool(attributes.get("name")))
     except Exception as exc:  # one broken row must not stop the job
         logger.exception("item failed")
-        item.status, item.summary = "failed", f"Ошибка обработки позиции: {type(exc).__name__}"
+        item.status, item.summary = (
+            "failed",
+            f"Ошибка обработки позиции: {type(exc).__name__}",
+        )
     return item
 
 
@@ -186,6 +195,15 @@ def unit_hint(row: parser.Item, attributes: dict) -> str | None:
         if key:
             return key
     return search.unit_key(attributes.get("measure") or "")
+
+
+def product_name(row: parser.Item, attributes: dict) -> str:
+    """Prefer the supplied product title over a generated category."""
+    for title, value in row.columns.items():
+        key = title.lower().strip()
+        if value and (key.startswith("наименование") or key in ("товар", "название")):
+            return value.strip()
+    return attributes.get("name") or ""
 
 
 def process_items(
@@ -203,7 +221,8 @@ def process_items(
         ]
         units = [unit_hint(row, a) for a, row in zip(attributes, batch, strict=True)]
         vectors = embedder.embed(queries)
-        found = state.catalog.search(vectors, queries, include_inactive, units)
+        names = [product_name(row, a) for a, row in zip(attributes, batch, strict=True)]
+        found = state.catalog.search(vectors, queries, include_inactive, units, names=names)
         tick(stages, "search", started)
         started = time.monotonic()
         items = [build_item(job_id, *args) for args in zip(batch, attributes, found, strict=True)]
@@ -333,11 +352,12 @@ def require_catalog() -> search.Catalog:
 
 
 @app.post("/api/jobs", status_code=202)
-async def create_job(
-    file: Annotated[UploadFile, File()], include_inactive: Annotated[bool, Form()] = False
+def create_job(
+    file: Annotated[UploadFile, File()],
+    include_inactive: Annotated[bool, Form()] = False,
 ):
     filename = Path(file.filename or "file").name[:200]
-    data = await file.read(parser.MAX_FILE_BYTES + 1)
+    data = file.file.read(parser.MAX_FILE_BYTES + 1)
     if len(data) > parser.MAX_FILE_BYTES:
         raise HTTPException(413, "Файл больше 10 МБ")
     if not data:
@@ -375,8 +395,11 @@ def get_job(job_id: str):
         )
         counts = {status: 0 for status in ITEM_STATUSES} | dict(rows.all())
         # Rows whose attributes came from the rules: the UI warns that the network was not used
-        attributes = session.scalars(select(Item.attributes).where(Item.job_id == job.id))
-        fallback = sum((a or {}).get("source") == "rules" for a in attributes)
+        fallback = session.scalar(
+            select(func.count())
+            .select_from(Item)
+            .where(Item.job_id == job.id, Item.attributes["source"].as_string() == "rules")
+        )
         return to_dict(job) | {"counts": counts, "fallback": fallback}
 
 
@@ -423,7 +446,11 @@ def correct_item(item_id: int, body: Correction):
         raise HTTPException(400, "Такого кода нет в каталоге КТРУ")
     with SessionLocal() as session:
         item = get_or_404(session, Item, item_id, "Позиция")
-        item.ktru_code, item.ktru_name, item.status = code["code"], code["name"], "corrected"
+        item.ktru_code, item.ktru_name, item.status = (
+            code["code"],
+            code["name"],
+            "corrected",
+        )
         item.confidence, item.zone, item.summary = 100.0, "high", "Код выбран вручную"
         session.commit()
         return to_dict(item)
@@ -461,7 +488,9 @@ def edit_attributes(item_id: int, body: AttributesIn):
     with SessionLocal() as session:
         item = get_or_404(session, Item, item_id, "Позиция")
         include_inactive = session.get(Job, item.job_id).include_inactive
-        [found] = catalog.search(embedder.embed([query]), [query], include_inactive)
+        [found] = catalog.search(
+            embedder.embed([query]), [query], include_inactive, names=[body.name]
+        )
         columns = (item.attributes or {}).get("columns", {})
         attributes = body.model_dump() | {"search_text": query, "source": "manual"}
         item.attributes = attributes | {"columns": columns}
@@ -539,12 +568,18 @@ EXPORT_HEADER = [
     "Статус кода",
     "Статус позиции",
 ]
-CODE_STATUS_TEXT = {"ACTIVE": "действует", "TERMINATED": "отменён", "INACTIVE": "недействующий"}
+CODE_STATUS_TEXT = {
+    "ACTIVE": "действует",
+    "TERMINATED": "отменён",
+    "INACTIVE": "недействующий",
+}
 
 
 def cell(value):
     """Formula injection guard: a text starting with = + - @ gets a leading apostrophe."""
-    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+    if isinstance(value, str) and (
+        value[:1] in ("\t", "\r", "\n") or value.lstrip()[:1] in ("=", "+", "-", "@")
+    ):
         return "'" + value
     return value
 
@@ -562,7 +597,10 @@ def export_rows(items: list[Item]) -> list[list]:
         row = [item.row_number, *(attrs.get("columns", {}).get(c, "") for c in columns)]
         row += [attrs.get(key, "") for key in ("name", "brand", "model")]
         row += [characteristics, item.ktru_code, item.ktru_name, item.confidence]
-        row += [CODE_STATUS_TEXT.get(code["status"]) if code else "", STATUS_TEXT[item.status]]
+        row += [
+            CODE_STATUS_TEXT.get(code["status"]) if code else "",
+            STATUS_TEXT[item.status],
+        ]
         rows.append(row)
     return [[cell(value) for value in row] for row in rows]
 

@@ -1,0 +1,308 @@
+{
+  "model": "qwen3.6-35b-a3b",
+  "provider": "Yandex AI Studio; no GigaChat calls",
+  "smoke": [
+    {
+      "name": "Бумага офисная",
+      "brand": "TestBrand",
+      "model": "А4",
+      "characteristics": [
+        {
+          "name": "",
+          "value": "80",
+          "unit": "г/м2"
+        },
+        {
+          "name": "",
+          "value": "500",
+          "unit": "листов"
+        }
+      ],
+      "search_text": "Бумага офисная TestBrand А4, 80 г/м2, 500 листов",
+      "source": "rules",
+      "fallback": "missing"
+    }
+  ],
+  "fixture_seconds": 1.00000761449337e-06,
+  "products": 13,
+  "unique_texts": 16,
+  "fields_correct": null,
+  "aggregate_percent": null,
+  "sources": {},
+  "events": [
+    {
+      "label": "smoke",
+      "rows": 1,
+      "status": 200,
+      "finish_reason": "length",
+      "usage": {
+        "prompt_tokens": 409,
+        "total_tokens": 4505,
+        "completion_tokens": 4096,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "content": "\n\n[{\"id\": 0, \"name\": \"Бумага офисная\", \"brand\": \"TestBrand\", \"model\": \"А4\", \"characteristics\": [{\"name\": \"Плотность\", \"value\": \"80 г/м2\", \"unit\": \"\"}], \"search_text\": \"Бумага",
+      "seconds": 9.987355699995533,
+      "llm_rows": 0
+    }
+  ],
+  "results": [
+    {
+      "case": "text_utf8",
+      "expected": {
+        "name": "Монитор",
+        "brand": "Aster",
+        "model": "M24"
+      },
+      "actual": {
+        "name": null,
+        "brand": null,
+        "model": null
+      },
+      "correct": {
+        "name": false,
+        "brand": false,
+        "model": false
+      },
+      "source": null
+    },
+    {
+      "case": "text_utf8",
+      "expected": {
+        "name": "Кабель",
+        "brand": "Vector",
+        "model": "C6"
+      },
+      "actual": {
+        "name": null,
+        "brand": null,
+        "model": null
+      },
+      "correct": {
+        "name": false,
+        "brand": false,
+        "model": false
+      },
+      "source": null
+    },
+    {
+      "case": "csv_cp1251",
+      "expected": {
+        "name": "Бумага офисная",
+        "brand": "Лист",
+        "model": "А4-80"
+      },
+      "actual": {
+        "name": null,
+        "brand": null,
+        "model": null
+      },
+      "correct": {
+        "name": false,
+        "brand": false,
+        "model": false
+      },
+      "source": null
+    },
+    {
+      "case": "csv_cp1251",
+      "expected": {
+        "name": "Мыло жидкое",
+        "brand": "Чисто",
+        "model": "МЖ-5"
+      },
+      "actual": {
+        "name": null,
+        "brand": null,
+        "model": null
+      },
+      "correct": {
+        "name": false,
+        "brand": false,
+        "model": false
+      },
+      "source": null
+    },
+    {
+      "case": "docx_table",
+      "expected": {
+        "name": "Дрель",
+        "brand": "Мастер",
+        "model": "D500"
+      },
+      "actual": {
+        "name": null,
+        "brand": null,
+        "model": null
+      },
+      "correct": {
+        "name": false,
+        "brand": false,
+        "model": false
+      },
+      "source": null
+    },
+    {
+      "case": "docx_table",
+      "expected": {
+        "name": "Перчатки",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": null,
+        "brand": null,
+        "model": null
+      },
+      "correct": {
+        "name": false,
+        "brand": false,
+        "model": false
+      },
+      "source": null
+    },
+    {
+      "case": "pdf_text",
+      "expected": {
+        "name": "Весы",
+        "brand": "Точно",
+        "model": "V15"
+      },
+      "actual": {
+        "name": null,
+        "brand": null,
+        "model": null
+      },
+      "correct": {
+        "name": false,
+        "brand": false,
+        "model": false
+      },
+      "source": null
+    },
+    {
+      "case": "xlsx_multisheet",
+      "expected": {
+        "name": "Болт",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": null,
+        "brand": null,
+        "model": null
+      },
+      "correct": {
+        "name": false,
+        "brand": false,
+        "model": false
+      },
+      "source": null
+    },
+    {
+      "case": "xlsx_multisheet",
+      "expected": {
+        "name": "Краска",
+        "brand": "Колор",
+        "model": "К1"
+      },
+      "actual": {
+        "name": null,
+        "brand": null,
+        "model": null
+      },
+      "correct": {
+        "name": false,
+        "brand": false,
+        "model": false
+      },
+      "source": null
+    },
+    {
+      "case": "xlsx_multisheet",
+      "expected": {
+        "name": "Лампа",
+        "brand": "Люкс",
+        "model": "L9"
+      },
+      "actual": {
+        "name": null,
+        "brand": null,
+        "model": null
+      },
+      "correct": {
+        "name": false,
+        "brand": false,
+        "model": false
+      },
+      "source": null
+    },
+    {
+      "case": "unknown_utf16",
+      "expected": {
+        "name": "Стул",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": null,
+        "brand": null,
+        "model": null
+      },
+      "correct": {
+        "name": false,
+        "brand": false,
+        "model": false
+      },
+      "source": null
+    },
+    {
+      "case": "duplicates_csv",
+      "expected": {
+        "name": "Фильтр",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": null,
+        "brand": null,
+        "model": null
+      },
+      "correct": {
+        "name": false,
+        "brand": false,
+        "model": false
+      },
+      "source": null
+    },
+    {
+      "case": "duplicates_csv",
+      "expected": {
+        "name": "Фильтр",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": null,
+        "brand": null,
+        "model": null
+      },
+      "correct": {
+        "name": false,
+        "brand": false,
+        "model": false
+      },
+      "source": null
+    }
+  ],
+  "answers_by_text": {},
+  "settings": {
+    "max_tokens": 4096,
+    "batch_size": 10,
+    "structured_output": "prompt only"
+  },
+  "scope": "synthetic fixture extraction only, not a full 1000-position performance or accuracy test",
+  "status": "incomplete"
+}

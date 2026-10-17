@@ -1,0 +1,4 @@
+backend running healthy
+db running healthy
+frontend running 
+ollama running healthy

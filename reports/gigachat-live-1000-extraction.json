@@ -1,0 +1,308 @@
+{
+  "live_provider": true,
+  "model": "GigaChat-3-Ultra",
+  "parallel_limit": 1,
+  "job_budget_seconds": 150.0,
+  "records": 1000,
+  "unique_texts": 995,
+  "seconds": 150.0316482999915,
+  "sources": {
+    "llm": 253,
+    "rules": 747
+  },
+  "fallback_reasons": {
+    "budget": 747
+  },
+  "all_rows_from_llm": false,
+  "under_200_seconds": true,
+  "under_300_seconds": true,
+  "scope": "real extraction only; excludes embeddings, search, queue, storage, HTTP upload",
+  "calls": [
+    {
+      "kind": "oauth",
+      "status": 200,
+      "usage": {},
+      "seconds": 0.8334270999912405
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 674,
+        "completion_tokens": 1410,
+        "total_tokens": 2084,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 7.06547679999494
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 669,
+        "completion_tokens": 1327,
+        "total_tokens": 1996,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 7.239226200006669
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 600,
+        "completion_tokens": 905,
+        "total_tokens": 1505,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 4.365219100000104
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 625,
+        "completion_tokens": 988,
+        "total_tokens": 1613,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 4.595242499999586
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 614,
+        "completion_tokens": 1135,
+        "total_tokens": 1749,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 5.276906199986115
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 669,
+        "completion_tokens": 1398,
+        "total_tokens": 2067,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 6.828837499997462
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 611,
+        "completion_tokens": 938,
+        "total_tokens": 1549,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 4.611256700009108
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 625,
+        "completion_tokens": 861,
+        "total_tokens": 1486,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 5.3847852000035346
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 620,
+        "completion_tokens": 1271,
+        "total_tokens": 1891,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 6.610858199986978
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 669,
+        "completion_tokens": 1353,
+        "total_tokens": 2022,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 7.4450692999962484
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 614,
+        "completion_tokens": 1151,
+        "total_tokens": 1765,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 5.875992799992673
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 628,
+        "completion_tokens": 1011,
+        "total_tokens": 1639,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 5.509298100005253
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 619,
+        "completion_tokens": 1257,
+        "total_tokens": 1876,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 6.58030570000119
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 671,
+        "completion_tokens": 1279,
+        "total_tokens": 1950,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 6.141444499997306
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 611,
+        "completion_tokens": 1092,
+        "total_tokens": 1703,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 5.4983202000003075
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 623,
+        "completion_tokens": 910,
+        "total_tokens": 1533,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 4.277965300003416
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 616,
+        "completion_tokens": 1097,
+        "total_tokens": 1713,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 5.7208754000021145
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 665,
+        "completion_tokens": 1381,
+        "total_tokens": 2046,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 8.526046200000565
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 618,
+        "completion_tokens": 1244,
+        "total_tokens": 1862,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 6.2813236999936635
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 624,
+        "completion_tokens": 1174,
+        "total_tokens": 1798,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 6.027865500000189
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 609,
+        "completion_tokens": 976,
+        "total_tokens": 1585,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 5.120817199989688
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 666,
+        "completion_tokens": 1340,
+        "total_tokens": 2006,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 6.580749200002174
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 618,
+        "completion_tokens": 1236,
+        "total_tokens": 1854,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 7.964497799999663
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 619,
+        "completion_tokens": 882,
+        "total_tokens": 1501,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 4.759570599999279
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 610,
+        "completion_tokens": 956,
+        "total_tokens": 1566,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 4.440125599998282
+    },
+    {
+      "kind": "chat",
+      "error_type": "ReadTimeout",
+      "seconds": 0.42510190000757575
+    }
+  ]
+}

@@ -1,0 +1,1631 @@
+{
+  "live_provider": true,
+  "base": "http://127.0.0.1:3000",
+  "file": "C:\\Users\\user\\Documents\\GitHub\\b2b\\scripts\\fixtures\\load\\spec_1000.xlsx",
+  "job": {
+    "id": "a82a13f4-0355-446b-8d07-b49642990593",
+    "filename": "spec_1000.xlsx",
+    "status": "done",
+    "total": 1000,
+    "processed": 1000,
+    "error": null,
+    "include_inactive": false,
+    "created_at": "2026-10-17T13:50:19.953397+00:00",
+    "started_at": "2026-10-17T13:50:20.264518+00:00",
+    "finished_at": "2026-10-17T13:54:33.502373+00:00",
+    "stage_seconds": {
+      "read": 0.5,
+      "extract": 150.0,
+      "search": 102.22,
+      "confidence": 0.0,
+      "total": 253.24
+    },
+    "counts": {
+      "auto": 4,
+      "needs_review": 996,
+      "corrected": 0,
+      "accepted": 0,
+      "failed": 0
+    },
+    "fallback": 980
+  },
+  "upload_to_terminal_seconds": 253.76709959999425,
+  "under_200_seconds": false,
+  "under_300_seconds": true,
+  "records": 1000,
+  "unique_texts": 995,
+  "sources": {
+    "rules": 980,
+    "llm": 20
+  },
+  "fallback_reasons": {
+    "budget": 980
+  },
+  "all_rows_from_llm": false,
+  "statuses": {
+    "needs_review": 996,
+    "auto": 4
+  },
+  "health_before": {
+    "status": "ok",
+    "catalog": "ready",
+    "codes": 81509,
+    "llm": "on"
+  },
+  "health_after": {
+    "status": "ok",
+    "catalog": "ready",
+    "codes": 81509,
+    "llm": "on"
+  },
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "status": 200,
+      "seconds": 0.007434300001477823
+    },
+    {
+      "method": "POST",
+      "path": "/api/jobs",
+      "status": 202,
+      "seconds": 0.10065330000361428
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.022513900010380894
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007027900006505661
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007215700010419823
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007747199997538701
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.00691240000014659
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006765899990568869
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.0068256999948062
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007057799986796454
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006688699999358505
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007722299997112714
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007099900001776405
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007513799995649606
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007031799992546439
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.0070106000057421625
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007591200002934784
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.010810299994773231
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006824099997174926
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007165399991208687
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.0070244999951682985
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.008134700008668005
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.00706569998874329
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006766300008166581
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007121699993149377
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007322799996472895
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.008285500007332303
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007455700004356913
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.00696649999008514
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007175099992309697
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007047099992632866
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.0073413000063737854
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007805400004144758
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007640399999218062
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006994800001848489
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.008150199995725416
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006968700006837025
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.008300999994389713
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007086199999321252
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007670599996345118
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007563699997263029
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.008774200003244914
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007056399990688078
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007091599996783771
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007832899995264597
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.008489300002111122
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.00705980000202544
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007244499996886589
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006716999996569939
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007655199995497242
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.00786579999839887
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007442200003424659
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007808399997884408
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006992300011916086
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.009107199992286041
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007361900003161281
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.011356499991961755
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.00679979998676572
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007192399993073195
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006575599996722303
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.00775249999423977
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006861499990918674
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006869900011224672
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006829000005382113
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007262400002218783
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007883099999162368
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007317499999771826
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.00810289999935776
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006918800005223602
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007086700003128499
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006799499999033287
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007035499991616234
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.008086100002401508
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007080900002620183
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006661599996732548
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007122499999240972
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006769100000383332
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007363900003838353
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006694800002151169
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007027700004982762
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006752000001142733
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.00679909999598749
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.0071266000013565645
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.0072149000043282285
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007085899997036904
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.009597499985829927
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006538500005262904
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007682399998884648
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006746300001395866
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007003899998380803
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006746500002918765
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006796400004532188
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007197399987489916
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006860500012408011
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006935600002179854
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.012978400001884438
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.0076582000037888065
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.0071964000089792535
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007538299993029796
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006682899998850189
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.0071447999944211915
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007012200003373437
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007474100013496354
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007330099993851036
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007557299992186017
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.012680599989835173
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007075699992128648
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007474199999705888
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.009438000008231029
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006780299998354167
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.00704799999948591
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007245000000693835
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007127399992896244
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.00984069998958148
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007807199988747016
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.01101580000249669
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007634200010215864
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007680999988224357
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.008736500007216819
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007260399986989796
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007914500005426817
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.0072035000048344955
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.010760700009996071
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.008281699992949143
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007110800012014806
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.008274199994048104
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.00809700001263991
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007686700002523139
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.009334999995189719
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007426600001053885
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.00693459999456536
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007145600000512786
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006614200014155358
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.00762140000006184
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007124900002963841
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007005000006756745
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007384399999864399
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007241900006192736
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.0072130999906221405
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007491600001230836
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007802099993568845
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007390899991150945
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007445200011716224
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007690099999308586
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007930699997814372
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007223299995530397
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.006659999999101274
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007332799999858253
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.00767469999846071
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007342700002482161
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007340399999520741
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.007060400006594136
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.01034300000173971
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.015329800007748418
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.011011499998858199
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.011896399999386631
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.011552199997822754
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.010046499999589287
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.012084999994840473
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.011985899996943772
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.013567399990279227
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.014638900000136346
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.020088099990971386
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.11472279998997692
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.01797499999520369
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.014586799996322952
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.01429590000770986
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.013138299997081049
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.01604500001121778
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.01613670001097489
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.013761499998508953
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.01364050000847783
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.012932800003909506
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.014708700007759035
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.01743049999640789
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.014393300007213838
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.013566900001023896
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.017000299994833767
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.015610500006005168
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.01607009999861475
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.016322800001944415
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.01656080000975635
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.016946500007179566
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.02045409999846015
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.024621899996418506
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.017492200000560842
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.01814070000546053
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.018965700000990182
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.017469500002334826
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.01982660000794567
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.016195799995330162
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.021759900002507493
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.02057889998832252
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.02923450000525918
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.022183099994435906
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.02308199999970384
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.021396899988758378
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.01918249999289401
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.018215899995993823
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.017119099997216836
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.01656859999638982
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.022543800005223602
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.019072099996265024
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.020334200002253056
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.025146300002234057
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.022789700000430457
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.021931199997197837
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.023389300011331216
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.021292499994160607
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.023460700002033263
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.023129099994548596
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.02295469999080524
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.0421621999994386
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.029809400002704933
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.022628199993050657
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.024109699996188283
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.023046800008160062
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.02323429999523796
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.022523400009959005
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.01968240000132937
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.024255800002720207
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.024807800000417046
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.1763760000030743
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.03885240000090562
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.02758160000666976
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.02601909999793861
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.023902500004624017
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.02553990000160411
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.022307199993520044
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.02930759999435395
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.022108200006186962
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.028888600005302578
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.030737300010514446
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.04589690000284463
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.027771200009738095
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.031048200005898252
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.030869499998516403
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.024465400012559257
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.024837000004481524
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.03028449999692384
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.025198399991495535
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.02628289999847766
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.017019699997035787
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.03132590001041535
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.029311199992662296
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.028080399992177263
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.027113400006783195
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.03219050000188872
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.029012500002863817
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.031190900001092814
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.02456289999827277
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.02444780000951141
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593",
+      "status": 200,
+      "seconds": 0.01931509999849368
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593/items",
+      "status": 200,
+      "seconds": 0.11574589999509044
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593/items",
+      "status": 200,
+      "seconds": 0.2242982000025222
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593/items",
+      "status": 200,
+      "seconds": 0.14474800000607502
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593/items",
+      "status": 200,
+      "seconds": 0.09762649999174755
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593/items",
+      "status": 200,
+      "seconds": 0.1077303999918513
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "status": 200,
+      "seconds": 0.003308900006231852
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593/export",
+      "status": 200,
+      "seconds": 0.19107840000651777
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a82a13f4-0355-446b-8d07-b49642990593/export",
+      "status": 200,
+      "seconds": 0.3179913999920245
+    }
+  ],
+  "export_csv_bytes": 302708,
+  "export_xlsx_bytes": 141324
+}

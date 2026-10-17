@@ -1,0 +1,134 @@
+{
+  "job_id": "a98de3bb-9df0-4914-81a6-1ac597f632f7",
+  "changed_rows": 25,
+  "code_changes": 0,
+  "new_llm_calls": 0,
+  "changes": [
+    {
+      "row": 8,
+      "before": 0.2,
+      "after": 0.6
+    },
+    {
+      "row": 48,
+      "before": 0.2,
+      "after": 0.7
+    },
+    {
+      "row": 88,
+      "before": 0.2,
+      "after": 0.6
+    },
+    {
+      "row": 128,
+      "before": 0.2,
+      "after": 0.6
+    },
+    {
+      "row": 168,
+      "before": 0.1,
+      "after": 0.3
+    },
+    {
+      "row": 208,
+      "before": 0.1,
+      "after": 0.4
+    },
+    {
+      "row": 248,
+      "before": 0.2,
+      "after": 0.6
+    },
+    {
+      "row": 288,
+      "before": 0.2,
+      "after": 0.8
+    },
+    {
+      "row": 328,
+      "before": 0.2,
+      "after": 0.7
+    },
+    {
+      "row": 368,
+      "before": 0.1,
+      "after": 0.5
+    },
+    {
+      "row": 408,
+      "before": 0.3,
+      "after": 0.9
+    },
+    {
+      "row": 448,
+      "before": 0.1,
+      "after": 0.5
+    },
+    {
+      "row": 488,
+      "before": 0.1,
+      "after": 0.2
+    },
+    {
+      "row": 528,
+      "before": 0.1,
+      "after": 0.3
+    },
+    {
+      "row": 568,
+      "before": 0.2,
+      "after": 0.5
+    },
+    {
+      "row": 608,
+      "before": 0.0,
+      "after": 0.2
+    },
+    {
+      "row": 648,
+      "before": 0.2,
+      "after": 0.6
+    },
+    {
+      "row": 688,
+      "before": 0.3,
+      "after": 0.9
+    },
+    {
+      "row": 728,
+      "before": 0.1,
+      "after": 0.3
+    },
+    {
+      "row": 768,
+      "before": 0.2,
+      "after": 0.6
+    },
+    {
+      "row": 808,
+      "before": 0.2,
+      "after": 0.6
+    },
+    {
+      "row": 848,
+      "before": 0.2,
+      "after": 0.7
+    },
+    {
+      "row": 888,
+      "before": 0.1,
+      "after": 0.5
+    },
+    {
+      "row": 928,
+      "before": 0.2,
+      "after": 0.7
+    },
+    {
+      "row": 968,
+      "before": 0.1,
+      "after": 0.2
+    }
+  ],
+  "limitation": "Legacy confidence scale remains uncalibrated for hybrid search; no uniform inflation applied."
+}

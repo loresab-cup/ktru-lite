@@ -143,6 +143,42 @@ def stems(text: str) -> set[str]:
     return {word[:5] for word in words(text)}
 
 
+def identity_stems(text: str) -> set[str]:
+    """Small terminology equivalences; never map a source directly to a KTRU code."""
+    result = stems(text)
+    if "гречк" in result:
+        result.update(("крупа", "гречн"))
+    if "мешки" in result:
+        result.add("пакет")
+    if "архив" in result:
+        result.add("докум")
+    if "картр" in result and "лазер" in result:
+        result.update(("элект", "печат"))
+    if "термо" in result and "медиц" in result:
+        result.update(("тела", "пацие"))
+    if "цифро" in result:
+        result.add("элект")
+    if re.search(r"\bip\b", text.lower()) and "телеф" in result:
+        result.add("терми")
+    return result
+
+
+def product_head(text: str) -> str:
+    """Skip leading adjectives, keeping the product rather than an accessory noun."""
+    tokens = _WORD.findall(text.lower().replace("ё", "е").translate(_LOOKALIKE))
+    if re.search(r"\bip\b", text.lower()) and any(t.startswith("телеф") for t in tokens):
+        return "ipphone"
+    for token in tokens:
+        if len(token) < 3 or token.isdigit():
+            continue
+        if token.endswith(("ый", "ий", "ой", "ая", "ое", "ые", "ее", "ие", "его", "ого")):
+            continue
+        alias = {"гречк": "круп", "мешки": "пакет"}.get(token[:5])
+        root = re.sub(r"(?:ями|ами|ов|ев|ей|ия|ие|а|я|ы|и|о|ь)$", "", token)
+        return alias or root[:6]
+    return ""
+
+
 @dataclass
 class Catalog:
     vectors: np.ndarray  # (n, DIM) float32, L2-normalized
@@ -164,6 +200,7 @@ class Catalog:
         self.active = np.array([s == "ACTIVE" for s in self.statuses], dtype=bool)
         self._names_lower = [name.lower().replace("ё", "е") for name in self.names]
         self._postings: dict[str, np.ndarray] | None = None
+        self._stem_postings: dict[str, np.ndarray] | None = None
         self._lock = threading.Lock()
 
     # --- search ----------------------------------------------------------------------------
@@ -174,6 +211,7 @@ class Catalog:
         texts: list[str],
         include_inactive: bool = False,
         units: list[str | None] | None = None,
+        names: list[str] | None = None,
     ) -> list[list[dict]]:
         """Top-5 candidates for every text; vectors=None -> by words only."""
         query_words = [words(text) for text in texts]
@@ -181,12 +219,75 @@ class Catalog:
             nearest = self._nearest_by_vectors(vectors, include_inactive)
         else:
             nearest = [self._nearest_by_words(qw, include_inactive) for qw in query_words]
+        product_names = names if names is not None else [""] * len(texts)
+        if len(product_names) != len(texts):
+            raise ValueError("names and texts must have equal length")
+        # Name retrieval can recover a category absent from the vector top-50.
+        if names is not None:
+            nearest = [
+                self._hybrid_candidates(near, name, vector, include_inactive)
+                for near, name, vector in zip(
+                    nearest,
+                    product_names,
+                    vectors if vectors is not None else [None] * len(texts),
+                    strict=True,
+                )
+            ]
         return [
-            self._rank(qw, query_bounds(text), stems(text), near, unit)
-            for qw, text, near, unit in zip(
-                query_words, texts, nearest, units or [None] * len(texts), strict=True
+            self._rank(qw, query_bounds(text), stems(text), near, unit, name)
+            for qw, text, near, unit, name in zip(
+                query_words,
+                texts,
+                nearest,
+                units or [None] * len(texts),
+                product_names,
+                strict=True,
             )
         ]
+
+    def _hybrid_candidates(self, nearest, name, vector, include_inactive):
+        query = identity_stems(name)
+        if not query:
+            return nearest
+        with self._lock:
+            if self._stem_postings is None:
+                postings = {}
+                for i, title in enumerate(self.names):
+                    for stem in identity_stems(title):
+                        postings.setdefault(stem, []).append(i)
+                self._stem_postings = {
+                    stem: np.asarray(indices, dtype=np.int32) for stem, indices in postings.items()
+                }
+        counts = np.zeros(len(self.codes), dtype=np.float32)
+        for stem in query:
+            indices = self._stem_postings.get(stem)
+            if indices is not None:
+                counts[indices] += 1.0
+        if not include_inactive:
+            counts[~self.active] = 0
+        indices = np.flatnonzero(counts)
+        # Include all equally matching names up to a bounded shortlist; semantic
+        # similarity breaks ties rather than catalog storage order.
+        cosines = self.vectors[indices] @ vector if vector is not None else np.zeros(len(indices))
+        sorted_positions = np.argsort(-(counts[indices] + 0.1 * cosines), kind="stable")
+        # A common medical name must not crowd every printer cartridge out of
+        # the shortlist. Preserve representatives of distinct matching titles.
+        representatives = {}
+        for position in sorted_positions:
+            representatives.setdefault(self.names[int(indices[position])], position)
+        order = list(
+            dict.fromkeys([*sorted_positions[:200], *list(representatives.values())[:200]])
+        )
+        merged = dict(nearest)
+        for position in order:
+            i = int(indices[position])
+            merged.setdefault(
+                i,
+                float(cosines[position])
+                if vector is not None
+                else WORDS_ONLY_BASE * float(counts[i]) / len(query),
+            )
+        return list(merged.items())
 
     def _nearest_by_vectors(self, queries: np.ndarray, include_inactive: bool) -> list[list]:
         limit = min(VECTOR_LIMIT, len(self.codes))
@@ -253,9 +354,14 @@ class Catalog:
         query_stems: set[str],
         nearest: list,
         unit: str | None = None,
+        product_name: str = "",
     ) -> list[dict]:
         scored = []
+        product_stems = identity_stems(product_name)
+        head = product_head(product_name)
         for i, cosine in nearest:
+            if product_name and self._identity_clash(i, product_name):
+                continue
             shared = query_words & set(self.code_words[i].split())
             matches, clashes = self._numeric_fit(i, query)
             score = cosine + WORD_BONUS * len(shared) + NUMERIC_BONUS * matches
@@ -265,20 +371,74 @@ class Catalog:
             score -= TEMPLATE_PENALTY * self.templates[i]
             score -= NAME_EXTRA_PENALTY * len(stems(self.names[i]) - query_stems)
             score += UNIT_BONUS * (unit is not None and unit in self.units[i])
-            scored.append((score, cosine, i, shared, matches))
+            evidence_score = score
+            name_stems = identity_stems(self.names[i])
+            if product_stems:
+                score += 0.18 * len(product_stems & name_stems) / len(product_stems)
+                # The first noun distinguishes the product from an accessory:
+                # «степлер» versus «скобы для степлера».
+                first = product_head(self.names[i])
+                score += 0.12 * (bool(head) and head == first)
+                if "детск" in name_stems and "детск" not in query_stems:
+                    score -= 0.15
+            scored.append((score, cosine, i, shared, matches, evidence_score))
         # Sorted by the raw sum: the cap at 1.0 must not make near-perfect matches equal
         scored.sort(key=lambda row: row[0], reverse=True)
         return [
             {
                 **self.brief(i),
-                "score": round(min(1.0, score), 4),
+                "score": round(min(1.0, evidence_score), 4),
+                "rank_score": round(score, 4),
                 "cosine": round(cosine, 4),
                 "shared_words": sorted(shared)[:12],
                 "matched_characteristics": self._matched_chars(i, query_words),
                 "numeric_matches": matches,
+                "review_reasons": self._name_review(i, product_name, query_stems),
             }
-            for score, cosine, i, shared, matches in scored[:TOP_K]
+            for score, cosine, i, shared, matches, evidence_score in scored[:TOP_K]
         ]
+
+    def _identity_clash(self, i: int, product_name: str) -> bool:
+        """Reject clear identity/material contradictions instead of inventing a code."""
+        source = identity_stems(product_name)
+        target = identity_stems(self.names[i])
+        head = product_head(product_name)
+        if head and head != product_head(self.names[i]):
+            return True
+        # Mutually exclusive materials or applications explicitly stated by the user.
+        if "метал" in source and "дерев" in target:
+            return True
+        if "докум" in source and "одежд" in target:
+            return True
+        if "мусор" in source and "мусор" not in target:
+            return True
+        if "марле" in source and not {"марле", "марля"} & (target | stems(self.code_words[i])):
+            return True
+        if "картр" in source and "лазер" in source and not {"элект", "печат"} & target:
+            return True
+        # VVG is a power cable with PVC insulation, not optical fiber or rubber.
+        # https://kamkabel.ru/catalog/categories/silovye/pvh_do3kv/vvgng-28-a-29--2d-ls_pvh_do3kv/
+        if ("кабел" in source and re.search(r"\bа?ввг", product_name.lower())
+                and not {"силов", "пласт"} <= target):
+            return True
+        return bool("термо" in source and "медиц" in source and not {"тела", "пацие"} & target)
+
+    def _name_review(self, i: int, product_name: str, query_stems: set[str]) -> list[str]:
+        if not product_name:
+            return []
+        reasons = []
+        if product_head(product_name) != product_head(self.names[i]):
+            reasons.append("Тип товара по наименованию требует подтверждения")
+        if "детск" in stems(self.names[i]) and "детск" not in query_stems:
+            reasons.append("В исходной строке не указано детское назначение")
+        if "офтал" in stems(self.names[i]) and "офтал" not in stems(product_name):
+            reasons.append("Офтальмологическое назначение требует подтверждения")
+        if self.templates[i]:
+            reasons.append("Выбран общий шаблон каталога")
+        _, clashes, flags = self._fixed_fit(i, query_stems)
+        if clashes or flags:
+            reasons.append("Фиксированные характеристики каталога требуют подтверждения")
+        return reasons
 
     def _matched_chars(self, i: int, query_words: set[str]) -> list[str]:
         matched = []
@@ -358,7 +518,10 @@ def brief_chars(characteristics: list) -> tuple[list, list[str]]:
         texts.extend(values)
         if len(brief) < BRIEF_CHARS:
             brief.append(
-                [characteristic.get("name") or "", [v[:80] for v in values[:BRIEF_VALUES]]]
+                [
+                    characteristic.get("name") or "",
+                    [v[:80] for v in values[:BRIEF_VALUES]],
+                ]
             )
     return brief, texts
 

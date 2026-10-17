@@ -1,0 +1,25 @@
+{
+  "responses": [
+    {
+      "status": 200,
+      "seconds": 83.177
+    },
+    {
+      "status": 200,
+      "seconds": 86.109
+    },
+    {
+      "status": 200,
+      "seconds": 87.624
+    },
+    {
+      "status": 200,
+      "seconds": 87.822
+    }
+  ],
+  "status_counts": {
+    "200": 4
+  },
+  "budget_warning_chunks": 96,
+  "outage_warning_chunks": 0
+}

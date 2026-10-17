@@ -18,6 +18,15 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ktru}:${POSTGRES_PASSWORD:-ktru}@db:5432/${POSTGRES_DB:-ktru}
       OLLAMA_URL: http://ollama:11434
+      LLM_PROVIDER: ${LLM_PROVIDER:-gigachat}
+      LLM_PARALLEL: ${LLM_PARALLEL:-${GIGACHAT_PARALLEL:-1}}
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
+      YANDEX_BASE_URL: ${YANDEX_BASE_URL:-https://ai.api.cloud.yandex.net/v1}
+      YANDEX_API_KEY: ${YANDEX_API_KEY:-}
+      YANDEX_FOLDER_ID: ${YANDEX_FOLDER_ID:-}
+      YANDEX_MODEL: ${YANDEX_MODEL:-qwen3.6-35b-a3b}
       GIGACHAT_BASE_URL: ${GIGACHAT_BASE_URL:-https://api.giga.chat/v1}
       GIGACHAT_CREDENTIALS: ${GIGACHAT_CREDENTIALS:-}
       GIGACHAT_SCOPE: ${GIGACHAT_SCOPE:-GIGACHAT_API_PERS}

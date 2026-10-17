@@ -1,6 +1,6 @@
 """Positions -> attributes: name, brand, model, characteristics, search_text.
 
-GigaChat (REST API of Sber) does the work; every value it returns must be present in the
+GigaChat, Yandex or an Anthropic-compatible API does the work; returned values must be in the
 source row (guard against invented values and prompt injection).
 No key, the budget is over or the request failed -> simple rules. A job never fails here.
 
@@ -21,24 +21,54 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+PROVIDER = os.getenv("LLM_PROVIDER", "gigachat").strip().lower()
+ANTHROPIC_BASE_URL = os.getenv(
+    "ANTHROPIC_BASE_URL", "https://api.anthropic.com"
+).rstrip("/")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
+YANDEX_BASE_URL = os.getenv(
+    "YANDEX_BASE_URL", "https://ai.api.cloud.yandex.net/v1"
+).rstrip("/")
+YANDEX_API_KEY = os.getenv("YANDEX_API_KEY", "").strip()
+YANDEX_FOLDER_ID = os.getenv("YANDEX_FOLDER_ID", "").strip()
 BASE_URL = os.getenv("GIGACHAT_BASE_URL", "https://api.giga.chat/v1").rstrip("/")
-AUTH_URL = os.getenv("GIGACHAT_AUTH_URL", "https://ngw.devices.sberbank.ru:9443/api/v2/oauth")
-CREDENTIALS = os.getenv("GIGACHAT_CREDENTIALS", "")  # authorization key from the Sber cabinet
+AUTH_URL = os.getenv(
+    "GIGACHAT_AUTH_URL", "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
+)
+CREDENTIALS = os.getenv(
+    "GIGACHAT_CREDENTIALS", ""
+)  # authorization key from the Sber cabinet
 SCOPE = os.getenv("GIGACHAT_SCOPE", "GIGACHAT_API_PERS")
-MODEL = os.getenv("GIGACHAT_MODEL", "GigaChat-3-Ultra")
+MODEL = (
+    os.getenv("ANTHROPIC_MODEL", "").strip()
+    if PROVIDER == "anthropic"
+    else os.getenv("GIGACHAT_MODEL", "GigaChat-3-Ultra")
+)
+if PROVIDER == "yandex":
+    MODEL = os.getenv("YANDEX_MODEL", "qwen3.6-35b-a3b").strip()
 # GigaChat certificates are signed by the Russian root CA (Минцифры), missing from the usual
 # trust stores. "false" turns the check off (as in the Sber example) - traffic with the key can
 # then be intercepted by a forged certificate; a path to that CA bundle keeps the check on.
 _VERIFY = os.getenv("GIGACHAT_VERIFY_SSL", "true")
 VERIFY_SSL: bool | str = (
-    _VERIFY if _VERIFY.endswith((".pem", ".crt")) else (_VERIFY.lower() not in ("0", "false", "no"))
+    _VERIFY
+    if _VERIFY.endswith((".pem", ".crt"))
+    else (_VERIFY.lower() not in ("0", "false", "no"))
 )
+if PROVIDER in ("anthropic", "yandex"):
+    VERIFY_SSL = True
 TEMPERATURE = 0.0001  # below 0.001 GigaChat answers the same way every time
-TOKEN_MARGIN = 60.0  # seconds: a token that expires sooner is replaced before the request
+TOKEN_MARGIN = (
+    60.0  # seconds: a token that expires sooner is replaced before the request
+)
 BATCH_SIZE = 10
-PARALLEL = 16  # rows of a job are prepared in parallel; requests wait for a free slot below
+PARALLEL = (
+    16  # rows of a job are prepared in parallel; requests wait for a free slot below
+)
 # Requests to GigaChat at the same moment: the Freemium tariff answers 429 to a second one
-PARALLEL_REQUESTS = max(1, int(os.getenv("GIGACHAT_PARALLEL", "1")))
+PARALLEL_REQUESTS = max(
+    1, int(os.getenv("LLM_PARALLEL", os.getenv("GIGACHAT_PARALLEL", "1")))
+)
 REQUEST_TIMEOUT = 90.0
 RETRIES = 2
 JOB_BUDGET = 150.0  # seconds for all LLM requests of one job
@@ -48,7 +78,13 @@ DOWN_PAUSE = 120.0
 _down_until = 0.0
 
 # Why the rules were used for a row (shown to the user)
-NO_KEY, UNAVAILABLE, BUDGET, ERROR, MISSING = "no_key", "unavailable", "budget", "error", "missing"
+NO_KEY, UNAVAILABLE, BUDGET, ERROR, MISSING = (
+    "no_key",
+    "unavailable",
+    "budget",
+    "error",
+    "missing",
+)
 MAX_SEARCH_TEXT = 400
 
 SYSTEM_PROMPT = """Ты извлекаешь атрибуты товаров из строк спецификации для подбора кода КТРУ.
@@ -90,6 +126,10 @@ def in_source(value: str, source: str) -> bool:
 
 def accept(proposed: dict, source: str) -> dict:
     """One answer object -> attributes; values that are not in the source row are dropped."""
+    if not isinstance(proposed.get("name"), str):
+        raise TypeError("missing or invalid product name")
+    if not isinstance(proposed.get("characteristics", []), list):
+        raise TypeError("invalid characteristics")
     fallback = rules(source)
 
     def checked(key: str) -> str:
@@ -114,7 +154,9 @@ def accept(proposed: dict, source: str) -> dict:
     model = checked("model")
     if any(norm(model) == norm(c["value"]) for c in characteristics):
         model = ""  # "A4" is a paper format, not a model
-    search_text = " ".join(str(proposed.get("search_text") or "").split())[:MAX_SEARCH_TEXT]
+    search_text = " ".join(str(proposed.get("search_text") or "").split())[
+        :MAX_SEARCH_TEXT
+    ]
     # An explicit "" means "not a product"; a name that is not in the row comes from rules
     proposed_name = str(proposed.get("name") or "").strip()
     return {
@@ -208,9 +250,15 @@ def rules(text: str, reason: str = ERROR) -> dict:
 # --- requests ------------------------------------------------------------------------------
 
 
-def access_token(renew: bool = False) -> str:
+def access_token(renew: bool = False, deadline: float | None = None) -> str:
     """GigaChat access token: cached for its 30 minutes, renewed a minute before the end."""
-    with _token_lock:
+    left = 30.0 if deadline is None else max(0.0, deadline - time.monotonic())
+    if not _token_lock.acquire(timeout=left):
+        raise TimeoutError("LLM budget is over while waiting for OAuth")
+    try:
+        left = 30.0 if deadline is None else deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError("LLM budget is over before OAuth")
         if renew or time.time() > _token["expires"] - TOKEN_MARGIN:
             response = _client.post(
                 AUTH_URL,
@@ -220,28 +268,65 @@ def access_token(renew: bool = False) -> str:
                     "Accept": "application/json",
                 },
                 data={"scope": SCOPE},
-                timeout=30.0,
+                timeout=min(30.0, left),
             )
             response.raise_for_status()
             body = response.json()
             _token["value"] = body["access_token"]
             _token["expires"] = body["expires_at"] / 1000  # milliseconds in the answer
         return _token["value"]
+    except httpx.TimeoutException as exc:
+        if left < 30.0:
+            raise TimeoutError("LLM budget is over during OAuth") from exc
+        raise
+    finally:
+        _token_lock.release()
 
 
 def post_chat(body: dict, deadline: float) -> httpx.Response:
-    """POST /chat/completions as soon as a request slot is free, within the job budget."""
+    """Send the selected protocol within the same concurrency and job budget limits."""
     if not _slots.acquire(timeout=max(0.0, deadline - time.monotonic())):
         raise TimeoutError("LLM budget is over while waiting for a free request slot")
     try:
-        headers = {"Authorization": f"Bearer {access_token()}", "Accept": "application/json"}
-        timeout = min(REQUEST_TIMEOUT, max(1.0, deadline - time.monotonic()))
+        if PROVIDER == "anthropic":
+            headers = {
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "Accept": "application/json",
+            }
+            base = ANTHROPIC_BASE_URL
+            url = f"{base}/messages" if base.endswith("/v1") else f"{base}/v1/messages"
+        elif PROVIDER == "yandex":
+            headers = {
+                "Authorization": f"Bearer {YANDEX_API_KEY}",
+                "OpenAI-Project": YANDEX_FOLDER_ID,
+                "Accept": "application/json",
+            }
+            url = f"{YANDEX_BASE_URL}/chat/completions"
+        elif PROVIDER == "gigachat":
+            token = access_token(deadline=deadline)
+            headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+            url = f"{BASE_URL}/chat/completions"
+        else:
+            raise ValueError("Unknown LLM_PROVIDER")
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError("LLM budget is over before chat")
+        timeout = min(REQUEST_TIMEOUT, left)
+        started = time.monotonic()
         try:
-            return _client.post(
-                f"{BASE_URL}/chat/completions", json=body, headers=headers, timeout=timeout
+            response = _client.post(url, json=body, headers=headers, timeout=timeout)
+            logger.info(
+                "LLM response provider=%s status=%s seconds=%.3f",
+                PROVIDER,
+                response.status_code,
+                time.monotonic() - started,
             )
+            return response
         except httpx.TimeoutException as exc:
-            if timeout < REQUEST_TIMEOUT:  # cut by the job budget: the network itself may be fine
+            if (
+                timeout < REQUEST_TIMEOUT
+            ):  # cut by the job budget: the network itself may be fine
                 raise TimeoutError("LLM budget is over: the request was cut") from exc
             raise
     finally:
@@ -259,6 +344,15 @@ def call_llm(rows: list[dict], deadline: float) -> str:
             {"role": "user", "content": json.dumps(rows, ensure_ascii=False)},
         ],
     }
+    if PROVIDER == "anthropic":
+        body["system"] = SYSTEM_PROMPT
+        body["messages"] = body["messages"][1:]
+    elif PROVIDER == "yandex":
+        body["model"] = (
+            MODEL if MODEL.startswith("gpt://") else f"gpt://{YANDEX_FOLDER_ID}/{MODEL}"
+        )
+        if body["model"].split("/")[-1].startswith("qwen"):
+            body["reasoning_effort"] = "none"
     renewed = False
     timeout_error = None
     for attempt in range(RETRIES + 1):
@@ -273,7 +367,9 @@ def call_llm(rows: list[dict], deadline: float) -> str:
                 raise
             timeout_error = exc
             continue
-        except TimeoutError:  # the budget ended while waiting for a slot or during a request
+        except (
+            TimeoutError
+        ):  # the budget ended while waiting for a slot or during a request
             if timeout_error:
                 raise timeout_error from None  # the network had kept silent before: unavailable
             raise
@@ -282,19 +378,46 @@ def call_llm(rows: list[dict], deadline: float) -> str:
                 response.raise_for_status()
             time.sleep(min(2.0 * (attempt + 1), max(0.0, deadline - time.monotonic())))
             continue
-        if response.status_code == 401 and not renewed:
-            access_token(renew=True)  # the token was revoked or ended early: one more try
+        if PROVIDER == "gigachat" and response.status_code == 401 and not renewed:
+            access_token(renew=True, deadline=deadline)
             renewed = True
             continue
         response.raise_for_status()
-        choices = response.json().get("choices") or [{}]
+        if PROVIDER == "anthropic":
+            message = response.json()
+            if message.get("stop_reason") not in ("end_turn", "stop_sequence"):
+                raise ValueError("Incomplete Anthropic answer")
+            return "".join(
+                block.get("text", "")
+                for block in message.get("content", [])
+                if block.get("type") == "text"
+            )
+        message = response.json()
+        choices = message.get("choices") or [{}]
+        if PROVIDER == "yandex":
+            usage = message.get("usage") or {}
+            logger.info(
+                "LLM usage provider=yandex input_tokens=%s output_tokens=%s",
+                usage.get("prompt_tokens", 0),
+                usage.get("completion_tokens", 0),
+            )
+            if choices[0].get("finish_reason") != "stop":
+                raise ValueError("Incomplete Yandex answer")
         return choices[0].get("message", {}).get("content") or ""
     raise RuntimeError("unreachable")
 
 
 def llm_state() -> str:
     """off - no key, down - did not answer a moment ago, on - in use."""
-    if not CREDENTIALS:
+    if PROVIDER == "anthropic":
+        configured = bool(ANTHROPIC_API_KEY and MODEL and ANTHROPIC_BASE_URL)
+    elif PROVIDER == "yandex":
+        configured = bool(
+            YANDEX_API_KEY and YANDEX_FOLDER_ID and MODEL and YANDEX_BASE_URL
+        )
+    else:
+        configured = PROVIDER == "gigachat" and bool(CREDENTIALS)
+    if not configured:
         return "off"
     return "down" if time.monotonic() < _down_until else "on"
 
@@ -303,12 +426,16 @@ def extract_chunk(texts: list[str], deadline: float) -> list[dict]:
     global _down_until
     state = llm_state()
     if state != "on":
-        return [rules(text, NO_KEY if state == "off" else UNAVAILABLE) for text in texts]
+        return [
+            rules(text, NO_KEY if state == "off" else UNAVAILABLE) for text in texts
+        ]
     try:
         answer = call_llm([{"id": i, "text": t} for i, t in enumerate(texts)], deadline)
         by_id = answer_by_id(parse_json_answer(answer))
     except httpx.TransportError as exc:  # no connection or no answer in time
-        logger.warning("LLM is unavailable for %s rows: %s", len(texts), type(exc).__name__)
+        logger.warning(
+            "LLM is unavailable for %s rows: %s", len(texts), type(exc).__name__
+        )
         _down_until = time.monotonic() + DOWN_PAUSE
         return [rules(text, UNAVAILABLE) for text in texts]
     except TimeoutError:
@@ -316,9 +443,19 @@ def extract_chunk(texts: list[str], deadline: float) -> list[dict]:
         return [rules(text, BUDGET) for text in texts]
     except Exception as exc:  # noqa: BLE001 - HTTP error or a broken answer: rules for this chunk
         status = getattr(getattr(exc, "response", None), "status_code", "")
-        logger.warning("LLM failed for %s rows: %s %s", len(texts), type(exc).__name__, status)
+        logger.warning(
+            "LLM failed for %s rows: %s %s", len(texts), type(exc).__name__, status
+        )
         return [rules(text, ERROR) for text in texts]
-    return [accept(by_id[i], t) if i in by_id else rules(t, MISSING) for i, t in enumerate(texts)]
+    result = []
+    for i, text in enumerate(texts):
+        try:
+            result.append(
+                accept(by_id[i], text) if i in by_id else rules(text, MISSING)
+            )
+        except (TypeError, ValueError):
+            result.append(rules(text, ERROR))
+    return result
 
 
 class JobExtractor:

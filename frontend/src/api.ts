@@ -85,22 +85,26 @@ export function ktruUrl(code: string): string | null {
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  let response: Response
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 150_000)
   try {
-    response = await fetch(url, init)
-  } catch {
-    throw new ApiError(T.errors.network)
-  }
-  if (!response.ok) {
-    let detail = ''
-    try {
-      detail = (await response.json()).detail
-    } catch {
-      // not JSON: nginx error page
+    const response = await fetch(url, { ...init, signal: controller.signal })
+    if (!response.ok) {
+      let detail = ''
+      try {
+        detail = (await response.json()).detail
+      } catch {
+        // not JSON: nginx error page
+      }
+      throw new ApiError(typeof detail === 'string' && detail ? detail : T.errors.http(response.status))
     }
-    throw new ApiError(typeof detail === 'string' && detail ? detail : T.errors.http(response.status))
+    return await response.json() as T
+  } catch (error) {
+    if (error instanceof ApiError) throw error
+    throw new ApiError(T.errors.network)
+  } finally {
+    clearTimeout(timer)
   }
-  return response.json() as Promise<T>
 }
 
 const json = (method: string, body?: unknown): RequestInit => ({

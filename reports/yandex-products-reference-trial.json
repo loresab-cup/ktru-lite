@@ -1,0 +1,146 @@
+{
+  "live_provider": true,
+  "base": "http://127.0.0.1:3000",
+  "file": "C:\\Users\\user\\Downloads\\produkty_1__kopia.xlsx",
+  "job": {
+    "id": "a44de170-b709-4836-a795-cfa80391ea8f",
+    "filename": "produkty_1__kopia.xlsx",
+    "status": "done",
+    "total": 12,
+    "processed": 12,
+    "error": null,
+    "include_inactive": false,
+    "created_at": "2026-10-17T14:13:22.093254+00:00",
+    "started_at": "2026-10-17T14:13:22.319847+00:00",
+    "finished_at": "2026-10-17T14:13:28.935134+00:00",
+    "stage_seconds": {
+      "read": 0.01,
+      "extract": 3.57,
+      "search": 3.0,
+      "confidence": 0.0,
+      "total": 6.61
+    },
+    "counts": {
+      "auto": 10,
+      "needs_review": 2,
+      "corrected": 0,
+      "accepted": 0,
+      "failed": 0
+    },
+    "fallback": 0
+  },
+  "upload_to_terminal_seconds": 7.169209200001205,
+  "under_200_seconds": true,
+  "under_300_seconds": true,
+  "records": 12,
+  "unique_texts": 12,
+  "sources": {
+    "llm": 12
+  },
+  "fallback_reasons": {},
+  "all_rows_from_llm": true,
+  "statuses": {
+    "auto": 10,
+    "needs_review": 2
+  },
+  "health_before": {
+    "status": "ok",
+    "catalog": "ready",
+    "codes": 81509,
+    "llm": "on"
+  },
+  "health_after": {
+    "status": "ok",
+    "catalog": "ready",
+    "codes": 81509,
+    "llm": "on"
+  },
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "status": 200,
+      "seconds": 0.029748800006927922
+    },
+    {
+      "method": "POST",
+      "path": "/api/jobs",
+      "status": 202,
+      "seconds": 0.09010079999279696
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a44de170-b709-4836-a795-cfa80391ea8f",
+      "status": 200,
+      "seconds": 0.009117399997194298
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a44de170-b709-4836-a795-cfa80391ea8f",
+      "status": 200,
+      "seconds": 0.007985999996890314
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a44de170-b709-4836-a795-cfa80391ea8f",
+      "status": 200,
+      "seconds": 0.00717620000068564
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a44de170-b709-4836-a795-cfa80391ea8f",
+      "status": 200,
+      "seconds": 0.007687399993301369
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a44de170-b709-4836-a795-cfa80391ea8f",
+      "status": 200,
+      "seconds": 0.010724699997808784
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a44de170-b709-4836-a795-cfa80391ea8f",
+      "status": 200,
+      "seconds": 0.011859999998705462
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a44de170-b709-4836-a795-cfa80391ea8f",
+      "status": 200,
+      "seconds": 0.012880100010079332
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a44de170-b709-4836-a795-cfa80391ea8f",
+      "status": 200,
+      "seconds": 0.00835910000023432
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a44de170-b709-4836-a795-cfa80391ea8f/items",
+      "status": 200,
+      "seconds": 0.017303799992077984
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "status": 200,
+      "seconds": 0.0033854999928735197
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a44de170-b709-4836-a795-cfa80391ea8f/export",
+      "status": 200,
+      "seconds": 0.010765800005174242
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/a44de170-b709-4836-a795-cfa80391ea8f/export",
+      "status": 200,
+      "seconds": 0.02242110000224784
+    }
+  ],
+  "export_csv_bytes": 5785,
+  "export_xlsx_bytes": 7086
+}

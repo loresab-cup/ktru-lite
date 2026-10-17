@@ -1,0 +1,58 @@
+{
+  "live_provider": true,
+  "model": "GigaChat-3-Ultra",
+  "parallel_limit": 1,
+  "job_budget_seconds": 150.0,
+  "records": 1,
+  "unique_texts": 1,
+  "seconds": 3.1141562000120757,
+  "sources": {
+    "llm": 1
+  },
+  "fallback_reasons": {},
+  "all_rows_from_llm": true,
+  "under_200_seconds": true,
+  "under_300_seconds": true,
+  "scope": "real extraction only; excludes embeddings, search, queue, storage, HTTP upload",
+  "calls": [
+    {
+      "kind": "oauth",
+      "status": 200,
+      "usage": {},
+      "seconds": 1.060199300001841
+    },
+    {
+      "kind": "chat",
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 370,
+        "completion_tokens": 143,
+        "total_tokens": 513,
+        "precached_prompt_tokens": 0
+      },
+      "seconds": 2.0515081999910763
+    }
+  ],
+  "synthetic_smoke_attributes": [
+    {
+      "name": "Бумага офисная",
+      "brand": "TestBrand",
+      "model": "А4",
+      "characteristics": [
+        {
+          "name": "Плотность",
+          "value": "80",
+          "unit": "г/м2"
+        },
+        {
+          "name": "Количество листов",
+          "value": "500",
+          "unit": "листов"
+        }
+      ],
+      "search_text": "Бумага офисная. Плотность: 80 г/м2. Формат: А4",
+      "measure": "шт",
+      "source": "llm"
+    }
+  ]
+}
