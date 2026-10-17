@@ -9,6 +9,10 @@ import math
 # code is right) of every row and fit a logistic regression on the two features; its
 # coefficients go here. Then check the high zone: at least ~95 % of its codes must be right,
 # otherwise raise BIAS a little.
+# Check of these values (gold draft of the old project, 291 rows, no LLM): high zone 234 rows,
+# the right group (name + OKPD2) in 99.6 %, the exact code in 70 % - neighbours of one group
+# share vector and values there. The margin is ~0 inside such groups, so its weight is small
+# in a fit; it stays here for the rows where two different products compete.
 W_SCORE = 20.0
 W_MARGIN = 40.0
 BIAS = -16.0

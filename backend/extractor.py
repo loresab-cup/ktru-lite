@@ -158,7 +158,7 @@ def rules(text: str) -> dict:
             "unit": m.group("unit") or "",
         }
         for m in _CHARACTERISTIC.finditer(text)
-        if m.group("value") != model
+        if m.group("value") != model and (m.group("name") or m.group("unit"))
     ][:10]
     return {
         "name": name or text[:100],
