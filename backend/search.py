@@ -31,7 +31,7 @@ QUERY_CHUNK = 128  # 128 x 81 509 float32 = 42 MB of similarities at a time
 WORDS_ONLY_BASE = 0.6  # without vectors the score stays low: nothing goes to auto
 MAX_CODE_WORDS = 400
 BRIEF_CHARS, BRIEF_VALUES = 12, 20
-CACHE_VERSION = 4  # bump when the cached metadata changes
+CACHE_VERSION = 5  # bump when the cached metadata changes
 # Neighbour codes of one group often differ only by a range: "> 1.25" vs "<= 1.25".
 # A bound of the row equal to a bound of the code adds NUMERIC_BONUS; the same number on the
 # other side ("не менее 1.25" against "<= 1.25") takes NUMERIC_CLASH off.
@@ -53,6 +53,56 @@ MAX_FIXED_VALUES = 30
 # a template is a little lower - less than one shared word, so it wins only when no specific
 # code fits the row as well.
 TEMPLATE_PENALTY = 0.015
+# Words of the code name that the row does not have: «Мясо птицы охлажденное для детского
+# питания» must lose to «Мясо птицы охлажденное» for a row about chickens, not baby food.
+# A/B on stored rows: no change on the draft gold (73.9 %) and the real file (12/12); it
+# fixes the near tie of such codes when the network is down and the row itself is the query.
+NAME_EXTRA_PENALTY = 0.01
+# Twin codes differ only by the unit: «Кефир» in litres and in kilograms. The unit of the row
+# (the «Ед. изм.» column, else the unit the product is usually bought in) decides such a tie;
+# the bonus is smaller than any other rule, so it never overrules them.
+UNIT_BONUS = 0.005
+
+# Lowercased unit -> key; full names by prefix (longer first), short forms exactly
+_UNIT_PREFIXES = (
+    ("квадратный метр", "m2"),
+    ("кубический метр", "m3"),
+    ("кубический дециметр", "l"),
+    ("миллилитр", "ml"),
+    ("литр", "l"),
+    ("килограмм", "kg"),
+    ("грамм", "g"),
+    ("тонн", "t"),
+    ("штук", "pcs"),
+    ("упаков", "pack"),
+    ("комплект", "set"),
+    ("пар", "pair"),
+    ("человеко-час", "manhour"),
+    ("условн", "unit"),
+    ("метр", "m"),
+)
+_UNIT_SHORT = {
+    "кг": "kg",
+    "г": "g",
+    "гр": "g",
+    "т": "t",
+    "л": "l",
+    "мл": "ml",
+    "дм3": "l",
+    "шт": "pcs",
+    "упак": "pack",
+    "уп": "pack",
+    "компл": "set",
+    "к-т": "set",
+    "пара": "pair",
+    "м": "m",
+    "м2": "m2",
+    "м3": "m3",
+    "чел.-ч": "manhour",
+    "чел.-час": "manhour",
+    "усл. ед": "unit",
+    "усл.ед": "unit",
+}
 
 # Latin letters that look like Cyrillic ones: "A4" and "А4" must be the same word
 _LOOKALIKE = str.maketrans("aceopxkmhbty", "асеорхкмнвту")
@@ -80,6 +130,14 @@ def query_bounds(text: str) -> tuple[set[float], set[float]]:
     return lower, upper
 
 
+def unit_key(text: str) -> str | None:
+    """«Литр», «л», «кубический дециметр» -> "l"; unknown units -> None."""
+    text = " ".join((text or "").lower().replace("ё", "е").split()).strip(" .")
+    if text in _UNIT_SHORT:
+        return _UNIT_SHORT[text]
+    return next((key for prefix, key in _UNIT_PREFIXES if text.startswith(prefix)), None)
+
+
 def stems(text: str) -> set[str]:
     """First 5 letters of the words: «коровье» and «коровьего» are the same."""
     return {word[:5] for word in words(text)}
@@ -97,6 +155,7 @@ class Catalog:
     bounds: list[list]  # [[min values], [max values]] of the numeric characteristic values
     fixed: list[list]  # [[name, [values]]] of the fixed characteristics
     templates: list[bool]  # is_template: the general code of a group
+    units: list[list[str]]  # unit keys of the code: ["l"], ["kg"]
     index: dict[str, int] = field(init=False)
     active: np.ndarray = field(init=False)
 
@@ -110,7 +169,11 @@ class Catalog:
     # --- search ----------------------------------------------------------------------------
 
     def search(
-        self, vectors: np.ndarray | None, texts: list[str], include_inactive: bool = False
+        self,
+        vectors: np.ndarray | None,
+        texts: list[str],
+        include_inactive: bool = False,
+        units: list[str | None] | None = None,
     ) -> list[list[dict]]:
         """Top-5 candidates for every text; vectors=None -> by words only."""
         query_words = [words(text) for text in texts]
@@ -119,8 +182,10 @@ class Catalog:
         else:
             nearest = [self._nearest_by_words(qw, include_inactive) for qw in query_words]
         return [
-            self._rank(qw, query_bounds(text), stems(text), near)
-            for qw, text, near in zip(query_words, texts, nearest, strict=True)
+            self._rank(qw, query_bounds(text), stems(text), near, unit)
+            for qw, text, near, unit in zip(
+                query_words, texts, nearest, units or [None] * len(texts), strict=True
+            )
         ]
 
     def _nearest_by_vectors(self, queries: np.ndarray, include_inactive: bool) -> list[list]:
@@ -187,6 +252,7 @@ class Catalog:
         query: tuple[set[float], set[float]],
         query_stems: set[str],
         nearest: list,
+        unit: str | None = None,
     ) -> list[dict]:
         scored = []
         for i, cosine in nearest:
@@ -197,6 +263,8 @@ class Catalog:
             fixed_matches, fixed_clashes, flags = self._fixed_fit(i, query_stems)
             score += FIXED_BONUS * fixed_matches - FIXED_CLASH * fixed_clashes - FIXED_FLAG * flags
             score -= TEMPLATE_PENALTY * self.templates[i]
+            score -= NAME_EXTRA_PENALTY * len(stems(self.names[i]) - query_stems)
+            score += UNIT_BONUS * (unit is not None and unit in self.units[i])
             scored.append((score, cosine, i, shared, matches))
         # Sorted by the raw sum: the cap at 1.0 must not make near-perfect matches equal
         scored.sort(key=lambda row: row[0], reverse=True)
@@ -264,6 +332,12 @@ def fixed_characteristics(characteristics: list) -> list[list]:
     return fixed
 
 
+def code_units(units: list | None) -> list[str]:
+    """Unit keys of a code: ["Литр; кубический дециметр"] -> ["l"]."""
+    keys = {unit_key(part) for unit in units or [] for part in str(unit).split(";")}
+    return sorted(key for key in keys if key)
+
+
 def numeric_bounds(characteristics: list) -> list[list[float]]:
     """[[min values], [max values]] of all numeric values: "≥ 3000 и < 4000" -> 3000, 4000."""
     lower, upper = set(), set()
@@ -304,6 +378,7 @@ def build(path: Path) -> tuple[np.ndarray, dict]:
             "bounds",
             "fixed",
             "templates",
+            "units",
         )
     }
     n = 0
@@ -326,6 +401,7 @@ def build(path: Path) -> tuple[np.ndarray, dict]:
             meta["bounds"].append(numeric_bounds(record.get("characteristics")))
             meta["fixed"].append(fixed_characteristics(record.get("characteristics")))
             meta["templates"].append(bool(record.get("is_template")))
+            meta["units"].append(code_units(record.get("units")))
             n += 1
     return vectors[:n], meta  # a view: no second 334 MB copy
 
@@ -364,4 +440,5 @@ def load_catalog(path: Path | None = None, cache_dir: Path | None = None) -> Cat
         bounds=meta["bounds"],
         fixed=meta["fixed"],
         templates=meta["templates"],
+        units=meta["units"],
     )

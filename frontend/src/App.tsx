@@ -100,7 +100,7 @@ function HealthBadge() {
   return (
     <div className="health num">
       <span className={`dot ${tone}`} aria-hidden="true" />
-      {text} · {health.llm ? T.app.llm.on : T.app.llm.off}
+      {text} · {T.app.llm[health.llm] ?? T.app.llm.off}
     </div>
   )
 }

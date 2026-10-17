@@ -73,7 +73,7 @@
 | Контракт | Источник → кто читает | Где описан |
 |---|---|---|
 | `parser.Item(row_number, text, columns)` | Кирилл → Женя | `backend/parser.py` |
-| атрибуты `{name, brand, model, characteristics, search_text, source}` | Кирилл → Женя, Лёша | `backend/extractor.py`, тип `Item.attributes` в `api.ts` |
+| атрибуты `{name, brand, model, characteristics, search_text, measure, source, fallback}` | Кирилл → Женя, Лёша | `backend/extractor.py`, тип `Item.attributes` в `api.ts` |
 | кандидат `{code, name, okpd2_code, status, score, cosine, shared_words, matched_characteristics, numeric_matches, characteristics}` | Кирилл → Егор, Женя, Лёша | `Catalog._rank` в `search.py`, тип `Candidate` в `api.ts` |
 | вердикт `{confidence, zone, needs_review, status, summary}` | Егор → Женя | `confidence.assess` |
 | JSON API (задание, позиция, ошибки) | Женя → Лёша | `api.py`, `api.ts`, Swagger `/api/docs` |

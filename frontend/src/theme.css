@@ -1120,6 +1120,10 @@ body {
   color: var(--text);
 }
 
+.alert.warn {
+  background: var(--medium-soft);
+}
+
 .alert {
   display: flex;
   align-items: flex-start;

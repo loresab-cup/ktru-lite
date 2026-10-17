@@ -287,6 +287,7 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
         job_id = response.json()["job_id"]
         job = wait(client, f"/api/jobs/{job_id}", lambda body: body["status"] == "done")
         assert job["filename"] == "spec.csv" and job["total"] == job["processed"] == 2
+        assert job["fallback"] == 2  # no key in the tests: every row by the rules
         assert not list((TMP / "uploads").iterdir())  # the file is deleted
 
         items = client.get(f"/api/jobs/{job_id}/items").json()["items"]
@@ -296,7 +297,8 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
         assert paper["attributes"]["columns"]["Кол-во"] == "10"
 
         assert client.patch(f"/api/items/{paper['id']}", json={"ktru_code": "0"}).status_code == 400
-        fixed = client.patch(f"/api/items/{paper['id']}", json={"ktru_code": CODES[0][0]})
+        spaced = CODES[0][0].replace("-", "- ") + chr(10)  # as typed in a spreadsheet
+        fixed = client.patch(f"/api/items/{paper['id']}", json={"ktru_code": spaced})
         assert fixed.json()["status"] == "corrected"
         filtered = client.get(f"/api/jobs/{job_id}/items", params={"status": "corrected"})
         assert filtered.json()["total"] == 1
@@ -370,6 +372,7 @@ def test_search_numeric_range_picks_neighbour():
         bounds=[search.numeric_bounds(r["characteristics"]) for r in records],
         fixed=[search.fixed_characteristics(r["characteristics"]) for r in records],
         templates=[False] * len(records),
+        units=[[]] * len(records),
     )
     assert search.query_bounds("не менее 3000 и менее 4000 мм, до 5,5") == ({3000.0}, {4000.0, 5.5})
     [found] = catalog.search(
@@ -392,6 +395,7 @@ def small_catalog(records: list[dict]) -> search.Catalog:
         bounds=[search.numeric_bounds(c) for c in characteristics],
         fixed=[search.fixed_characteristics(c) for c in characteristics],
         templates=[bool(r.get("is_template")) for r in records],
+        units=[search.code_units(r.get("units")) for r in records],
     )
 
 
@@ -462,3 +466,81 @@ def test_search_prefers_specific_code_to_template():
     )
     [found] = catalog.search(np.stack([unit([1, 0])]), ["Сыр полутвердый, коровье молоко"])
     assert found[0]["code"].endswith("02")
+
+
+def test_search_penalizes_extra_name_words():
+    catalog = small_catalog(
+        [
+            {
+                "code": "10.12.10.170-00000004",
+                "name": "Мясо сельскохозяйственной птицы охлажденное для детского питания",
+                "characteristics": [],
+            },
+            {
+                "code": "10.12.10.000-00000005",
+                "name": "Мясо сельскохозяйственной птицы охлажденное",
+                "characteristics": [],
+            },
+        ]
+    )
+    catalog.code_words = ["мясо птицы охлажденное"] * 2  # equal words: only the name differs
+    row = "Мясо сельскохозяйственной птицы охлажденное. тушка, цыплята-бройлеры"
+    [found] = catalog.search(np.stack([unit([1, 0])]), [row])
+    assert found[0]["code"].endswith("05")
+
+
+def test_rules_tell_why_the_network_was_not_used(monkeypatch):
+    assert extractor.llm_state() == "off"
+    [row] = extractor.extract_chunk(["Бумага А4"], deadline=0)
+    assert row["source"] == "rules" and row["fallback"] == extractor.NO_KEY
+
+    monkeypatch.setattr(extractor, "API_KEY", "test-key")
+    monkeypatch.setattr(extractor, "_down_until", 0.0)
+
+    def no_answer(rows, deadline):
+        raise extractor.httpx.ReadTimeout("no answer")
+
+    monkeypatch.setattr(extractor, "call_llm", no_answer)
+    [row] = extractor.extract_chunk(["Бумага А4"], deadline=0)
+    assert row["fallback"] == extractor.UNAVAILABLE
+    assert extractor.llm_state() == "down"  # the next chunks skip the network at once
+
+
+def test_silent_network_is_unavailable_not_slow(monkeypatch):
+    """Timeouts until the budget ends: the network is paused, not just "too slow"."""
+    monkeypatch.setattr(extractor, "API_KEY", "test-key")
+    monkeypatch.setattr(extractor, "_down_until", 0.0)
+    clock = iter([0.0, 0.0, 100.0, 100.0, 200.0, 200.0, 200.0])
+    monkeypatch.setattr(extractor.time, "monotonic", lambda: next(clock, 200.0))
+
+    def silent(*args, **kwargs):
+        raise extractor.httpx.ReadTimeout("no answer")
+
+    monkeypatch.setattr(extractor._client, "post", silent)
+    [row] = extractor.extract_chunk(["Бумага А4"], deadline=150.0)
+    assert row["fallback"] == extractor.UNAVAILABLE
+
+
+def test_units_decide_between_twin_codes():
+    assert search.unit_key("л") == search.unit_key("Литр") == "l"
+    assert search.code_units(["Литр; кубический дециметр"]) == ["l"]
+    assert search.unit_key("кг") == "kg" and search.unit_key("непонятно") is None
+    twins = small_catalog(
+        [
+            {
+                "code": "10.51.52.140-00000008",
+                "name": "Кефир",
+                "units": ["Килограмм"],
+                "characteristics": [],
+            },
+            {
+                "code": "10.51.52.140-00000005",
+                "name": "Кефир",
+                "units": ["Литр; кубический дециметр"],
+                "characteristics": [],
+            },
+        ]
+    )
+    vectors = np.stack([unit([1, 0])] * 2)
+    by_litre, by_kilo = twins.search(vectors, ["Кефир 2,5 %"] * 2, units=["l", "kg"])
+    assert by_litre[0]["code"].endswith("05") and by_kilo[0]["code"].endswith("08")

@@ -15,6 +15,7 @@ export interface Job {
   created_at: string
   stage_seconds: Record<string, number>
   counts?: Record<ItemStatus, number>
+  fallback?: number // rows whose attributes came from the rules
 }
 
 export interface CatalogCode {
@@ -48,6 +49,7 @@ export interface Item {
     model?: string
     characteristics?: Characteristic[]
     source?: string
+    fallback?: string // why the rules were used
   }
   candidates: Candidate[]
   ktru_code: string | null
@@ -61,7 +63,7 @@ export interface Item {
 export interface Health {
   catalog: 'ready' | 'loading' | 'error'
   codes: number
-  llm: boolean
+  llm: 'on' | 'off' | 'down'
 }
 
 export interface AttributesInput {

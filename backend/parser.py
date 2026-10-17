@@ -207,7 +207,8 @@ def parse_rows(raw_rows) -> list[Item]:
     header_index = find_header(rows)
     if header_index is None:
         # No header: a table of one text column is the same as lines of text
-        return parse_lines([" ".join(cell for cell in row if cell) for row in rows])
+        # Cells are joined with '. ': the name stays apart from the characteristics
+        return parse_lines([". ".join(cell for cell in row if cell) for row in rows])
     header = rows[header_index]
     body = rows[header_index + 1 :]
     name_index = name_column(header, body)

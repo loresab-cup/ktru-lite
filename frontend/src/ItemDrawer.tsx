@@ -8,6 +8,7 @@ import {
   type CatalogCode,
   type Characteristic,
   type Item,
+  ktruUrl,
 } from './api'
 import { T } from './texts'
 import { Confidence, KtruCode, Skeleton, StatusChip } from './ui'
@@ -146,7 +147,8 @@ function AttributesView({ item }: { item: Item }) {
       </dl>
       {attrs.source === 'rules' && (
         <div className="cell-sub" style={{ marginTop: 8 }}>
-          <Info size={13} aria-hidden="true" style={{ verticalAlign: -2 }} /> {T.drawer.byRules}
+          <Info size={13} aria-hidden="true" style={{ verticalAlign: -2 }} />{' '}
+          {T.drawer.fallback[attrs.fallback ?? ''] ?? T.drawer.byRules}
         </div>
       )}
       {attrs.source === 'manual' && (
@@ -270,6 +272,82 @@ function AttributesForm({ item, busy, onSave, onCancel }: {
   )
 }
 
+/** The current code and its manual input: any code of the catalog, typed or pasted. */
+function CodeEditor({ item, busy, onSave }: {
+  item: Item
+  busy: boolean
+  onSave: (code: string) => Promise<boolean>
+}) {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState('')
+  const [error, setError] = useState(false)
+
+  const save = async () => {
+    const code = value.replace(/\s+/g, '') // "10.12.10.000- 00000005" from a spreadsheet
+    if (!ktruUrl(code)) return setError(true)
+    if (await onSave(code)) {
+      setOpen(false)
+      setValue('')
+    }
+  }
+
+  return (
+    <div className="section">
+      <div className="section-head">
+        <div className="section-title">{T.drawer.code}</div>
+        {!open && (
+          <button type="button" className="btn small" onClick={() => setOpen(true)}>
+            <PenLine size={15} aria-hidden="true" /> {T.drawer.enterCode}
+          </button>
+        )}
+      </div>
+      {item.ktru_code ? (
+        <div className="cand-name">
+          <KtruCode code={item.ktru_code} />
+          <div>{item.ktru_name}</div>
+        </div>
+      ) : (
+        <div className="cell-sub">{T.drawer.noCode}</div>
+      )}
+      {open && (
+        <form
+          className="edit-form"
+          style={{ marginTop: 12 }}
+          onSubmit={(e) => {
+            e.preventDefault()
+            void save()
+          }}
+        >
+          <label>
+            {T.drawer.enterCode}
+            <Input
+              autoFocus
+              value={value}
+              maxLength={40}
+              placeholder={T.drawer.codePlaceholder}
+              status={error ? 'error' : undefined}
+              aria-invalid={error}
+              onChange={(e) => {
+                setValue(e.target.value)
+                setError(false)
+              }}
+            />
+            {error && <span role="alert">{T.drawer.codeFormat}</span>}
+          </label>
+          <div className="edit-actions">
+            <button type="submit" className="btn primary" disabled={busy || !value.trim()}>
+              <Check size={15} aria-hidden="true" /> {T.drawer.saveCode}
+            </button>
+            <button type="button" className="btn" onClick={() => setOpen(false)}>
+              {T.drawer.cancel}
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  )
+}
+
 export function ItemDrawer({ item, onClose, onChanged }: {
   item: Item | null
   onClose: () => void
@@ -294,7 +372,8 @@ export function ItemDrawer({ item, onClose, onChanged }: {
     }
   }
 
-  const choose = (code: string) => item && run(() => api.correct(item.id, code), T.drawer.saved)
+  const choose = (code: string) =>
+    item ? run(() => api.correct(item.id, code), T.drawer.saved) : Promise.resolve(false)
   const saveAttributes = async (attributes: AttributesInput) => {
     if (!item) return
     // On an error the form stays open with what the person typed
@@ -331,6 +410,8 @@ export function ItemDrawer({ item, onClose, onChanged }: {
             <Confidence value={item.confidence} zone={item.zone} />
             <StatusChip status={item.status} />
           </div>
+
+          <CodeEditor key={item.id} item={item} busy={busy} onSave={choose} />
 
           <div className="section">
             <div className="section-title">{T.drawer.source}</div>

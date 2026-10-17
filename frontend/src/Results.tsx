@@ -3,6 +3,7 @@ import {
   CheckCheck,
   Download,
   Eye,
+  Info,
   FileSpreadsheet,
   FileText,
   PenLine,
@@ -174,6 +175,12 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
           {seconds !== undefined && ` · ${T.results.took(seconds)}`}
         </div>
       </div>
+      {Boolean(job.fallback) && (
+        <div className="alert warn" role="status" style={{ margin: '0 0 20px' }}>
+          <Info size={18} aria-hidden="true" style={{ flex: 'none' }} />
+          {T.results.fallback(job.fallback ?? 0, job.total)}
+        </div>
+      )}
 
       <div className="tiles" role="group" aria-label={T.results.tileHint}>
         {TILES.map(({ key, icon: Icon }) => {

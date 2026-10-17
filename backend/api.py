@@ -9,6 +9,7 @@ import csv
 import io
 import logging
 import os
+import re
 import threading
 import time
 import uuid
@@ -178,6 +179,15 @@ def build_item(job_id: uuid.UUID, row: parser.Item, attributes: dict, found: lis
     return item
 
 
+def unit_hint(row: parser.Item, attributes: dict) -> str | None:
+    """Unit of the row: the «Ед. изм.» column, else the unit the network says it is bought in."""
+    for title, value in row.columns.items():
+        key = search.unit_key(value) if title.lower().startswith("ед") else None
+        if key:
+            return key
+    return search.unit_key(attributes.get("measure") or "")
+
+
 def process_items(
     job_id: uuid.UUID, rows: list[parser.Item], include_inactive: bool, stages: dict
 ) -> None:
@@ -191,7 +201,9 @@ def process_items(
         queries = [
             f"{a['search_text']}. {row.text}" for a, row in zip(attributes, batch, strict=True)
         ]
-        found = state.catalog.search(embedder.embed(queries), queries, include_inactive)
+        units = [unit_hint(row, a) for a, row in zip(attributes, batch, strict=True)]
+        vectors = embedder.embed(queries)
+        found = state.catalog.search(vectors, queries, include_inactive, units)
         tick(stages, "search", started)
         started = time.monotonic()
         items = [build_item(job_id, *args) for args in zip(batch, attributes, found, strict=True)]
@@ -362,7 +374,10 @@ def get_job(job_id: str):
             select(Item.status, func.count()).where(Item.job_id == job.id).group_by(Item.status)
         )
         counts = {status: 0 for status in ITEM_STATUSES} | dict(rows.all())
-        return to_dict(job) | {"counts": counts}
+        # Rows whose attributes came from the rules: the UI warns that the network was not used
+        attributes = session.scalars(select(Item.attributes).where(Item.job_id == job.id))
+        fallback = sum((a or {}).get("source") == "rules" for a in attributes)
+        return to_dict(job) | {"counts": counts, "fallback": fallback}
 
 
 def like_pattern(q: str) -> str:
@@ -402,7 +417,8 @@ class Correction(BaseModel):
 
 @app.patch("/api/items/{item_id}")
 def correct_item(item_id: int, body: Correction):
-    code = require_catalog().get(body.ktru_code)
+    # "10.12.10.000- 00000005" from a spreadsheet: spaces and line breaks are dropped
+    code = require_catalog().get(re.sub(r"\s+", "", body.ktru_code))
     if code is None:
         raise HTTPException(400, "Такого кода нет в каталоге КТРУ")
     with SessionLocal() as session:
@@ -499,7 +515,7 @@ def health():
         "status": "ok",
         "catalog": catalog,
         "codes": len(state.catalog.codes) if state.catalog else 0,
-        "llm": bool(extractor.API_KEY),
+        "llm": extractor.llm_state(),
     }
 
 
