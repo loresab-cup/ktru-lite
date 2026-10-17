@@ -2,76 +2,77 @@ import { Checkbox } from 'antd'
 import {
   AlertTriangle,
   FileSearch,
-  FileSpreadsheet,
+  ListChecks,
   ScanSearch,
   Sparkles,
   UploadCloud,
-  UserCheck,
+  type LucideIcon,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type DragEvent } from 'react'
-import { api, ApiError, type Job } from './api'
-import { Mountains } from './Mountains'
-import { formatDate, T } from './texts'
-import { EmptyState, JobStatusChip, Skeleton } from './ui'
+import { api, ApiError, type Health, type Job } from './api'
+import { Sparkline, Waves } from './Art'
+import { T } from './texts'
+import { Skeleton } from './ui'
 
 const EXTENSIONS = ['.xlsx', '.csv', '.docx', '.pdf', '.txt']
 const MAX_BYTES = 10 * 1024 * 1024
+const FEATURE_ICONS: LucideIcon[] = [FileSearch, Sparkles, ScanSearch, ListChecks]
 
-function RecentJobs({ onJob }: { onJob: (id: string) => void }) {
-  const [jobs, setJobs] = useState<Job[] | null>(null)
-  useEffect(() => {
-    api.jobs().then(setJobs).catch(() => setJobs([]))
-  }, [])
-
+function Features() {
   return (
-    <aside className="side glass" aria-labelledby="recent-title">
-      <h2 id="recent-title">{T.upload.recent}</h2>
-      {jobs === null &&
-        [0, 1, 2].map((i) => <Skeleton key={i} height={64} style={{ marginBottom: 10 }} />)}
-      {jobs?.length === 0 && (
-        <EmptyState title={T.upload.recentEmpty} hint={T.upload.recentEmptyHint} />
-      )}
-      {jobs?.map((job) => (
-        <button key={job.id} type="button" className="job-card" onClick={() => onJob(job.id)}>
-          <div className="job-name" title={job.filename}>
-            <FileSpreadsheet size={14} aria-hidden="true" style={{ verticalAlign: -2 }} />{' '}
-            {job.filename}
+    <section className="features card" aria-label={T.upload.features.map((f) => f[0]).join(', ')}>
+      {T.upload.features.map(([title, text], i) => {
+        const Icon = FEATURE_ICONS[i]
+        return (
+          <div key={title} className="feature">
+            <Icon className="feature-icon" size={34} strokeWidth={1.4} aria-hidden="true" />
+            <b>{title}</b>
+            <span>{text}</span>
           </div>
-          <div className="job-meta num">
-            <span>{formatDate(job.created_at)}</span>
-            <span>{T.upload.positions(job.total)}</span>
-            <JobStatusChip status={job.status} />
-          </div>
-        </button>
-      ))}
-    </aside>
-  )
-}
-
-const HOW_ICONS = [FileSearch, Sparkles, ScanSearch, UserCheck]
-
-function HowItWorks() {
-  return (
-    <section className="side glass" aria-labelledby="how-title">
-      <h2 id="how-title">{T.upload.how}</h2>
-      <ol className="how">
-        {T.upload.howSteps.map((step, i) => {
-          const Icon = HOW_ICONS[i]
-          return (
-            <li key={step}>
-              <span className="tile-icon" aria-hidden="true">
-                <Icon size={17} />
-              </span>
-              {step}
-            </li>
-          )
-        })}
-      </ol>
+        )
+      })}
     </section>
   )
 }
 
-export function UploadScreen({ onJob }: { onJob: (id: string) => void }) {
+/** Real numbers only: catalog size from /health, jobs and positions from the recent jobs. */
+function Stats({ jobs, onChoose }: { jobs: Job[] | null; onChoose: () => void }) {
+  const [health, setHealth] = useState<Health | null>(null)
+  useEffect(() => {
+    api.health().then(setHealth).catch(() => setHealth(null))
+  }, [])
+  const done = (jobs ?? []).filter((job) => job.status === 'done')
+  const totals = done.map((job) => job.total).reverse()
+  const rows: [string, number | undefined, number[]][] = [
+    [T.upload.statCodes, health?.codes, []],
+    [T.upload.statJobs, jobs?.length, done.map((_, i) => i + 1)],
+    [T.upload.statPositions, totals.reduce((sum, n) => sum + n, 0), totals],
+  ]
+  return (
+    <aside className="side card" aria-labelledby="stats-title">
+      <h2 id="stats-title" className="card-title">
+        {T.upload.stats}
+      </h2>
+      {jobs === null
+        ? [0, 1, 2].map((i) => <Skeleton key={i} height={30} style={{ margin: '10px 0' }} />)
+        : rows.map(([label, value, series]) => (
+            <div key={label} className="stat-row">
+              <span>{label}</span>
+              <span className="stat-value num">{(value ?? 0).toLocaleString('ru-RU')}</span>
+              {series.length ? <Sparkline values={series} /> : <span />}
+            </div>
+          ))}
+      <button type="button" className="btn primary" onClick={onChoose}>
+        <UploadCloud size={16} aria-hidden="true" /> {T.upload.choose}
+      </button>
+    </aside>
+  )
+}
+
+export function UploadScreen({ jobs, onJob }: {
+  jobs: Job[] | null
+  onJob: (id: string) => void
+}) {
   const input = useRef<HTMLInputElement>(null)
   const [over, setOver] = useState(false)
   const [inactive, setInactive] = useState(false)
@@ -101,17 +102,23 @@ export function UploadScreen({ onJob }: { onJob: (id: string) => void }) {
   }
 
   return (
-    <div className="upload-grid">
-      <section className="hero glass" aria-labelledby="hero-title">
-        <Mountains className="hero-art" sky={false} />
-        <div className="hero-top">
-          <div className="eyebrow">{T.upload.eyebrow}</div>
-          <h1 id="hero-title">{T.upload.title}</h1>
-          <p>{T.upload.lead}</p>
-        </div>
-        <div>
+    <>
+      <div className="upload-grid">
+        <section className="hero card" aria-labelledby="hero-title">
+          <div className="hero-chart">
+            <Waves />
+            <div className="hero-band num" aria-hidden="true">
+              <small>{T.upload.bandLabel}</small>
+              <b>{T.upload.bandValue}</b>
+              <small>{T.upload.bandHint}</small>
+            </div>
+            <div className="hero-text">
+              <div className="eyebrow">{T.upload.eyebrow}</div>
+              <h2 id="hero-title">{T.upload.title}</h2>
+            </div>
+          </div>
           <div
-            className={`drop glass ${over ? 'over' : ''}`}
+            className={`drop ${over ? 'over' : ''}`}
             role="button"
             tabIndex={0}
             aria-label={T.upload.inputLabel}
@@ -131,7 +138,7 @@ export function UploadScreen({ onJob }: { onJob: (id: string) => void }) {
             onDrop={onDrop}
           >
             <span className="round drop-icon" aria-hidden="true">
-              <UploadCloud size={32} strokeWidth={1.6} />
+              <UploadCloud size={30} strokeWidth={1.6} />
             </span>
             <div>
               <div className="drop-title">
@@ -169,12 +176,11 @@ export function UploadScreen({ onJob }: { onJob: (id: string) => void }) {
               }}
             />
           </div>
-        </div>
-      </section>
-      <div className="side-stack">
-        <RecentJobs onJob={onJob} />
-        <HowItWorks />
+          <p className="lead">{T.upload.lead}</p>
+        </section>
+        <Stats jobs={jobs} onChoose={() => input.current?.click()} />
       </div>
-    </div>
+      <Features />
+    </>
   )
 }

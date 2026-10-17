@@ -64,7 +64,23 @@ export interface Health {
   llm: boolean
 }
 
+export interface AttributesInput {
+  name: string
+  brand: string
+  model: string
+  characteristics: Characteristic[]
+}
+
 export class ApiError extends Error {}
+
+const KTRU_CODE = /^\d{2}\.\d{2}\.\d{2}\.\d{3}-\d{5,8}$/
+
+/** Search page of the KTRU registry in the official procurement system (EIS) for the code. */
+export function ktruUrl(code: string): string | null {
+  if (!KTRU_CODE.test(code)) return null // only real-looking codes become links
+  const query = new URLSearchParams({ searchString: code, morphology: 'on' })
+  return `https://zakupki.gov.ru/epz/ktru/search/results.html?${query}`
+}
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   let response: Response
@@ -114,6 +130,8 @@ export const api = {
   },
   correct: (itemId: number, code: string) =>
     request<Item>(`/api/items/${itemId}`, json('PATCH', { ktru_code: code })),
+  editAttributes: (itemId: number, attributes: AttributesInput) =>
+    request<Item>(`/api/items/${itemId}/attributes`, json('PUT', attributes)),
   accept: (itemId: number) => request<Item>(`/api/items/${itemId}/accept`, json('POST')),
   acceptAll: (jobId: string, minConfidence: number) =>
     request<{ accepted: number }>(

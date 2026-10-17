@@ -4,14 +4,15 @@ import {
   CircleAlert,
   CircleCheck,
   CircleX,
+  ExternalLink,
   Eye,
   Loader,
   PenLine,
   Sparkles,
 } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
-import type { ItemStatus, Zone } from './api'
-import { Mountains } from './Mountains'
+import { ktruUrl, type ItemStatus, type Zone } from './api'
+import { Waves } from './Art'
 import { T } from './texts'
 
 const ZONE_ICONS = { high: CircleCheck, medium: CircleAlert, low: CircleX }
@@ -92,10 +93,64 @@ export function EmptyState({ title, hint, children }: {
 }) {
   return (
     <div className="empty">
-      <Mountains trees={18} />
+      <Waves line={false} />
       <b>{title}</b>
       {hint && <span>{hint}</span>}
       {children}
     </div>
+  )
+}
+
+/** The code as a link to the KTRU registry of the EIS; opens in a new tab. */
+export function KtruCode({ code }: { code: string }) {
+  const url = ktruUrl(code)
+  if (!url) return <span className="code">{code}</span>
+  return (
+    <a
+      className="code link"
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={T.results.openEis}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      {code}
+      <ExternalLink size={12} aria-hidden="true" />
+      <span className="sr-only">{T.results.openEis}</span>
+    </a>
+  )
+}
+
+const RADIUS = 80
+const CIRCLE = 2 * Math.PI * RADIUS
+
+export function Ring({ percent, label, size = 200 }: {
+  percent: number
+  label: string
+  size?: number
+}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 200 200" role="img" aria-label={`${percent} % ${label}`}>
+      <circle className="ring-track" cx="100" cy="100" r={RADIUS} fill="none" strokeWidth="10" />
+      <circle
+        className="ring-value"
+        cx="100"
+        cy="100"
+        r={RADIUS}
+        fill="none"
+        strokeWidth="10"
+        strokeLinecap="round"
+        strokeDasharray={CIRCLE}
+        strokeDashoffset={CIRCLE * (1 - percent / 100)}
+        transform="rotate(-90 100 100)"
+      />
+      <text className="ring-text num" x="100" y="106" textAnchor="middle">
+        {percent} %
+      </text>
+      <text className="ring-sub" x="100" y="132" textAnchor="middle">
+        {label}
+      </text>
+    </svg>
   )
 }

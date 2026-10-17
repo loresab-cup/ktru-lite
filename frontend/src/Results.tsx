@@ -8,13 +8,12 @@ import {
   PenLine,
   Search,
   Sparkles,
-  Upload,
 } from 'lucide-react'
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { api, ApiError, type Item, type Job } from './api'
 import { ItemDrawer } from './ItemDrawer'
 import { T } from './texts'
-import { Confidence, EmptyState, Skeleton, StatusChip } from './ui'
+import { Confidence, EmptyState, KtruCode, Skeleton, StatusChip } from './ui'
 
 const PAGE_SIZE = 50
 const TILES = [
@@ -60,7 +59,7 @@ const columns: TableColumnsType<Item> = [
     render: (_, item) =>
       item.ktru_code ? (
         <>
-          <div className="code">{item.ktru_code}</div>
+          <KtruCode code={item.ktru_code} />
           <div className="cell-sub cell-raw">{item.ktru_name}</div>
         </>
       ) : (
@@ -79,8 +78,9 @@ const columns: TableColumnsType<Item> = [
   },
 ]
 
-/** Arrow keys move between rows, Enter opens the row. */
+/** Arrow keys move between rows, Enter opens the row (keys of a link inside are its own). */
 function rowKeys(event: KeyboardEvent<HTMLElement>, open: () => void) {
+  if (event.target !== event.currentTarget) return
   const row = event.currentTarget
   const target =
     event.key === 'ArrowDown'
@@ -104,16 +104,12 @@ function ExportButton({ jobId }: { jobId: string }) {
     <Dropdown
       trigger={['click']}
       placement="topRight"
+      autoFocus // keyboard: the menu takes focus, arrows and Enter pick the format
       menu={{
-        items: items.map((item) => ({
-          key: item.key,
-          icon: item.icon,
-          label: (
-            <a href={api.exportUrl(jobId, item.key)} download>
-              {item.label}
-            </a>
-          ),
-        })),
+        items: items.map(({ key, icon, label }) => ({ key, icon, label })),
+        // A menu item, not a link inside it: works with the mouse and with Enter alike;
+        // the file is an attachment, so the page stays where it is
+        onClick: ({ key }) => window.location.assign(api.exportUrl(jobId, key as 'xlsx' | 'csv')),
       }}
     >
       <button type="button" className="round fab" aria-label={T.results.export} title={T.results.export}>
@@ -123,11 +119,7 @@ function ExportButton({ jobId }: { jobId: string }) {
   )
 }
 
-export function Results({ job, onChanged, onHome }: {
-  job: Job
-  onChanged: () => void
-  onHome: () => void
-}) {
+export function Results({ job, onChanged }: { job: Job; onChanged: () => void }) {
   const [filter, setFilter] = useState('')
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
@@ -177,16 +169,10 @@ export function Results({ job, onChanged, onHome }: {
     <>
       {toastHolder}
       <div className="results-head">
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h1>{job.filename}</h1>
-          <div className="meta num">
-            {T.results.positions(job.total)}
-            {seconds !== undefined && ` · ${T.results.took(seconds)}`}
-          </div>
+        <div className="meta num">
+          {T.results.positions(job.total)}
+          {seconds !== undefined && ` · ${T.results.took(seconds)}`}
         </div>
-        <button type="button" className="btn" onClick={onHome}>
-          <Upload size={16} aria-hidden="true" /> {T.results.newFile}
-        </button>
       </div>
 
       <div className="tiles" role="group" aria-label={T.results.tileHint}>
@@ -197,7 +183,7 @@ export function Results({ job, onChanged, onHome }: {
             <button
               key={key}
               type="button"
-              className="tile glass"
+              className="tile card"
               aria-pressed={filter === key}
               title={T.results.tileHint}
               onClick={() => {
@@ -217,7 +203,7 @@ export function Results({ job, onChanged, onHome }: {
         })}
       </div>
 
-      <section className="table-panel glass glass-strong">
+      <section className="table-panel card">
         <div className="toolbar">
           <Input
             allowClear

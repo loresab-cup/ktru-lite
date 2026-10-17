@@ -3,35 +3,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { api, ApiError, type Job } from './api'
 import { Results } from './Results'
 import { T } from './texts'
-import { Skeleton } from './ui'
+import { Ring, Skeleton } from './ui'
 
-const RADIUS = 80
-const CIRCLE = 2 * Math.PI * RADIUS
-
-function Ring({ percent }: { percent: number }) {
-  return (
-    <svg width="200" height="200" viewBox="0 0 200 200" role="img" aria-label={`${percent} %`}>
-      <circle className="ring-track" cx="100" cy="100" r={RADIUS} fill="none" strokeWidth="12" />
-      <circle
-        className="ring-value"
-        cx="100"
-        cy="100"
-        r={RADIUS}
-        fill="none"
-        strokeWidth="12"
-        strokeLinecap="round"
-        strokeDasharray={CIRCLE}
-        strokeDashoffset={CIRCLE * (1 - percent / 100)}
-        transform="rotate(-90 100 100)"
-      />
-      <text className="ring-text num" x="100" y="104" textAnchor="middle">
-        {percent} %
-      </text>
-      <text className="ring-sub" x="100" y="128" textAnchor="middle">
-        {T.progress.ringLabel}
-      </text>
-    </svg>
-  )
+/** What the shell shows for the page: the title in the top bar and the ring in the sidebar. */
+export interface PageInfo {
+  title?: string
+  ring?: { percent: number; label: string }
 }
 
 /** Step states from the job counters: read -> extract -> search -> confidence. */
@@ -43,16 +20,23 @@ function stepStates(job: Job): ('done' | 'active' | 'wait')[] {
   return ['done', 'done', 'active', 'active']
 }
 
+/** Share of positions whose code needs no more work: auto, corrected and accepted. */
+function readyPercent(job: Job): number {
+  const c = job.counts
+  if (!c || !job.total) return 0
+  return Math.round((100 * (c.auto + c.corrected + c.accepted)) / job.total)
+}
+
 function ProgressCard({ job }: { job: Job }) {
   const percent = job.total ? Math.floor((100 * job.processed) / job.total) : 0
   const states = stepStates(job)
   return (
-    <section className="progress glass" aria-live="polite" aria-labelledby="progress-title">
-      <Ring percent={percent} />
+    <section className="progress card" aria-live="polite" aria-labelledby="progress-title">
+      <Ring percent={percent} label={T.progress.ringLabel} />
       <div>
-        <h1 id="progress-title" className="panel-title" style={{ fontSize: 22 }}>
+        <h2 id="progress-title" className="panel-title">
           {T.progress.title}
-        </h1>
+        </h2>
         <div className="cell-sub">{job.filename}</div>
         <ol className="steps">
           {T.progress.steps.map((step, i) => (
@@ -85,14 +69,12 @@ function Problem({ title, text, onRetry, onHome }: {
   onHome: () => void
 }) {
   return (
-    <section className="progress glass" role="alert">
+    <section className="progress card" role="alert">
       <span className="round" style={{ width: 96, height: 96 }} aria-hidden="true">
         <AlertTriangle size={40} />
       </span>
       <div>
-        <h1 className="panel-title" style={{ fontSize: 22 }}>
-          {title}
-        </h1>
+        <h2 className="panel-title">{title}</h2>
         <p className="summary" style={{ fontSize: 15 }}>
           {text}
         </p>
@@ -111,7 +93,11 @@ function Problem({ title, text, onRetry, onHome }: {
   )
 }
 
-export function JobScreen({ jobId, onHome }: { jobId: string; onHome: () => void }) {
+export function JobScreen({ jobId, onHome, onInfo }: {
+  jobId: string
+  onHome: () => void
+  onInfo: (info: PageInfo) => void
+}) {
   const [job, setJob] = useState<Job | null>(null)
   const [lost, setLost] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
@@ -129,7 +115,9 @@ export function JobScreen({ jobId, onHome }: { jobId: string; onHome: () => void
           timer = window.setTimeout(poll, 1000)
         }
       } catch (e) {
-        if (alive) setLost(e instanceof ApiError && e.message !== T.errors.network ? e.message : T.progress.lost)
+        if (!alive) return
+        const own = e instanceof ApiError && e.message !== T.errors.network
+        setLost(own ? e.message : T.progress.lost)
       }
     }
     void poll()
@@ -138,6 +126,12 @@ export function JobScreen({ jobId, onHome }: { jobId: string; onHome: () => void
       window.clearTimeout(timer)
     }
   }, [jobId, attempt])
+
+  useEffect(() => {
+    if (!job) return
+    const ring = job.status === 'done' ? { percent: readyPercent(job), label: T.app.ringLabel } : undefined
+    onInfo({ title: job.filename, ring })
+  }, [job, onInfo])
 
   const refresh = useCallback(() => {
     api.job(jobId).then(setJob).catch(() => undefined)
@@ -155,7 +149,7 @@ export function JobScreen({ jobId, onHome }: { jobId: string; onHome: () => void
   }
   if (!job) {
     return (
-      <section className="progress glass" aria-busy="true">
+      <section className="progress card" aria-busy="true">
         <Skeleton height={160} width={160} style={{ borderRadius: '50%' }} />
         <div>
           <Skeleton height={24} width="60%" />
@@ -167,14 +161,8 @@ export function JobScreen({ jobId, onHome }: { jobId: string; onHome: () => void
     )
   }
   if (job.status === 'failed') {
-    return (
-      <Problem
-        title={T.progress.failed}
-        text={job.error ?? ''}
-        onHome={onHome}
-      />
-    )
+    return <Problem title={T.progress.failed} text={job.error ?? ''} onHome={onHome} />
   }
-  if (job.status === 'done') return <Results job={job} onChanged={refresh} onHome={onHome} />
+  if (job.status === 'done') return <Results job={job} onChanged={refresh} />
   return <ProgressCard job={job} />
 }

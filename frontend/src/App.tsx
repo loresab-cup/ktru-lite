@@ -1,11 +1,12 @@
 import { ConfigProvider, theme as antTheme } from 'antd'
 import ruRU from 'antd/locale/ru_RU'
-import { Moon, Mountain, Sun } from 'lucide-react'
+import { FileStack, Moon, Plus, Sun } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { api, type Health } from './api'
-import { JobScreen } from './JobScreen'
-import { Mountains } from './Mountains'
+import { api, type Health, type Job } from './api'
+import { Deco } from './Art'
+import { JobScreen, type PageInfo } from './JobScreen'
 import { T } from './texts'
+import { Ring } from './ui'
 import { UploadScreen } from './UploadScreen'
 
 type Theme = 'light' | 'dark'
@@ -36,21 +37,21 @@ function readTokens(theme: Theme) {
       colorText: v('text'),
       colorTextSecondary: v('text-2'),
       colorTextDescription: v('text-2'),
-      colorBgContainer: v('panel-strong'),
-      colorBgElevated: v('panel-solid'),
-      colorBorder: v('panel-border'),
-      colorBorderSecondary: v('track'),
+      colorBgContainer: v('surface'),
+      colorBgElevated: v('surface'),
+      colorBorder: v('border'),
+      colorBorderSecondary: v('border'),
       colorSuccess: v('high'),
       colorWarning: v('medium'),
       colorError: v('low'),
-      borderRadius: 12,
+      borderRadius: 10,
       fontFamily: "'Inter', system-ui, sans-serif",
     },
     components: {
       Table: {
-        headerBg: 'transparent',
-        rowHoverBg: v('panel-hover'),
-        rowSelectedBg: v('accent-soft'),
+        headerBg: v('surface-2'),
+        headerColor: v('text-2'),
+        rowHoverBg: v('surface-2'),
       },
     },
   }
@@ -104,6 +105,92 @@ function HealthBadge() {
   )
 }
 
+/** Recent jobs; refreshed on every page change and every 3 s while one of them runs. */
+function useRecentJobs(path: string) {
+  const [jobs, setJobs] = useState<Job[] | null>(null)
+  useEffect(() => {
+    let alive = true
+    let timer = 0
+    const load = () =>
+      api
+        .jobs()
+        .then((list) => {
+          if (!alive) return
+          setJobs(list)
+          if (list.some((job) => job.status === 'queued' || job.status === 'processing')) {
+            timer = window.setTimeout(load, 3000)
+          }
+        })
+        .catch(() => alive && setJobs([]))
+    load()
+    return () => {
+      alive = false
+      window.clearTimeout(timer)
+    }
+  }, [path])
+  return jobs
+}
+
+function Sidebar({ jobs, jobId, ring, navigate }: {
+  jobs: Job[] | null
+  jobId?: string
+  ring?: PageInfo['ring']
+  navigate: (path: string) => void
+}) {
+  return (
+    <nav className="sidebar" aria-label={T.app.title}>
+      <a
+        className="brand"
+        href="/"
+        aria-label={T.app.home}
+        onClick={(e) => {
+          e.preventDefault()
+          navigate('/')
+        }}
+      >
+        <span className="brand-mark" aria-hidden="true">
+          <FileStack size={20} />
+        </span>
+        <span>
+          <div className="brand-title">{T.app.title}</div>
+          <div className="brand-sub">{T.app.subtitle}</div>
+        </span>
+      </a>
+      <button type="button" className="side-button" onClick={() => navigate('/')}>
+        <Plus size={17} aria-hidden="true" /> {T.app.newFile}
+      </button>
+      <div className="side-title">{T.app.recent}</div>
+      <div className="side-jobs">
+        {jobs?.length === 0 && <div className="side-empty">{T.app.recentEmpty}</div>}
+        {jobs?.map((job) => (
+          <button
+            key={job.id}
+            type="button"
+            className="side-job"
+            aria-current={job.id === jobId ? 'page' : undefined}
+            onClick={() => navigate(`/jobs/${job.id}`)}
+          >
+            <span className="side-bullet" aria-hidden="true" />
+            <span>
+              <div className="side-job-name" title={job.filename}>
+                {job.filename}
+              </div>
+              <div className="side-job-meta num">
+                {T.upload.positions(job.total)} · {T.jobStatus[job.status] ?? job.status}
+              </div>
+            </span>
+          </button>
+        ))}
+      </div>
+      {ring && (
+        <div className="side-ring">
+          <Ring percent={ring.percent} label={ring.label} size={150} />
+        </div>
+      )}
+    </nav>
+  )
+}
+
 export function App() {
   const [theme, setTheme] = useState<Theme>(() => {
     const initial = savedTheme()
@@ -111,7 +198,14 @@ export function App() {
     return initial
   })
   const [path, navigate] = usePath()
+  // Page info belongs to the path it was reported for: another page starts with none
+  const [reported, setReported] = useState<PageInfo & { path?: string }>({})
+  const jobs = useRecentJobs(path)
   const config = useMemo(() => readTokens(theme), [theme])
+  const jobId = path.match(/^\/jobs\/([\w-]+)/)?.[1]
+
+  const info: PageInfo = reported.path === path ? reported : {}
+  const onInfo = useCallback((next: PageInfo) => setReported({ ...next, path }), [path])
 
   const toggleTheme = () => {
     const next = theme === 'light' ? 'dark' : 'light'
@@ -124,49 +218,34 @@ export function App() {
     }
   }
 
-  const jobId = path.match(/^\/jobs\/([\w-]+)/)?.[1]
-
   return (
     <ConfigProvider theme={config} locale={ruRU}>
-      <Mountains className="backdrop" sky={false} sun={false} />
-      <div className="app">
-        <header className="header glass">
-          <a
-            className="brand"
-            href="/"
-            aria-label={T.app.home}
-            onClick={(e) => {
-              e.preventDefault()
-              navigate('/')
-            }}
-          >
-            <span className="round small" aria-hidden="true">
-              <Mountain size={18} />
-            </span>
-            <span>
-              <div className="brand-title">{T.app.title}</div>
-              <div className="brand-sub">{T.app.subtitle}</div>
-            </span>
-          </a>
-          <div className="header-spacer" />
-          <HealthBadge />
-          <button
-            type="button"
-            className="round ghost small"
-            onClick={toggleTheme}
-            aria-label={theme === 'light' ? T.app.themeDark : T.app.themeLight}
-            title={theme === 'light' ? T.app.themeDark : T.app.themeLight}
-          >
-            {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
-          </button>
-        </header>
-        <main className="page" key={jobId ?? 'home'}>
-          {jobId ? (
-            <JobScreen jobId={jobId} onHome={() => navigate('/')} />
-          ) : (
-            <UploadScreen onJob={(id) => navigate(`/jobs/${id}`)} />
-          )}
-        </main>
+      <div className="shell">
+        <Sidebar jobs={jobs} jobId={jobId} ring={info.ring} navigate={navigate} />
+        <div className="main">
+          <Deco />
+          <header className="topbar">
+            <h1>{jobId ? (info.title ?? T.progress.pageTitle) : T.app.pageUpload}</h1>
+            <div className="topbar-spacer" />
+            <HealthBadge />
+            <button
+              type="button"
+              className="round ghost small"
+              onClick={toggleTheme}
+              aria-label={theme === 'light' ? T.app.themeDark : T.app.themeLight}
+              title={theme === 'light' ? T.app.themeDark : T.app.themeLight}
+            >
+              {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
+            </button>
+          </header>
+          <main className="page" key={jobId ?? 'home'}>
+            {jobId ? (
+              <JobScreen jobId={jobId} onHome={() => navigate('/')} onInfo={onInfo} />
+            ) : (
+              <UploadScreen jobs={jobs} onJob={(id) => navigate(`/jobs/${id}`)} />
+            )}
+          </main>
+        </div>
       </div>
     </ConfigProvider>
   )
