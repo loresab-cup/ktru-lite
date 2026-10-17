@@ -1,0 +1,20 @@
+# Secrets
+.env
+*.local
+
+# Catalog dump and its caches (hundreds of MB)
+db/*.gz
+db/*.sha256
+*.npy
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Frontend
+node_modules/
+dist/
+*.tsbuildinfo
