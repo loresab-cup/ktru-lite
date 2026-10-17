@@ -225,11 +225,14 @@ def run_job(job_id: uuid.UUID) -> None:
 
 def worker_loop() -> None:
     while not state.stop.is_set():
-        job_id = claim_job() if state.catalog is not None else None
-        if job_id is None:
-            state.stop.wait(POLL_SECONDS)
-            continue
-        run_job(job_id)
+        try:
+            job_id = claim_job() if state.catalog is not None else None
+            if job_id is not None:
+                run_job(job_id)
+                continue
+        except Exception:  # the database restarts: the worker must survive and retry
+            logger.exception("worker error, retrying")
+        state.stop.wait(POLL_SECONDS)
 
 
 def load_catalog() -> None:

@@ -128,7 +128,7 @@ export function App() {
 
   return (
     <ConfigProvider theme={config} locale={ruRU}>
-      <Mountains className="backdrop" sun={false} />
+      <Mountains className="backdrop" sky={false} sun={false} />
       <div className="app">
         <header className="header glass">
           <a

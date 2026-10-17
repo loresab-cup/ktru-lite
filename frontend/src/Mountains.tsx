@@ -30,10 +30,12 @@ function treesPath(count: number, seed: number) {
 interface Props {
   className?: string
   trees?: number
+  /** false: transparent sky, the ranges lie over what is behind the picture */
+  sky?: boolean
   sun?: boolean
 }
 
-export function Mountains({ className, trees = 46, sun = true }: Props) {
+export function Mountains({ className, trees = 46, sky = true, sun = true }: Props) {
   const id = useId().replace(/[^a-zA-Z0-9]/g, '')
   const firs = useMemo(() => treesPath(trees, 7), [trees])
   const stop = (name: string, opacity = 1) => ({ stopColor: `var(--${name})`, stopOpacity: opacity })
@@ -66,7 +68,7 @@ export function Mountains({ className, trees = 46, sun = true }: Props) {
         </linearGradient>
       </defs>
 
-      <rect width="1200" height="600" fill={`url(#${id}sky)`} />
+      {sky && <rect width="1200" height="600" fill={`url(#${id}sky)`} />}
       {sun && (
         <g>
           <circle cx="830" cy="190" r="170" fill={`url(#${id}glow)`} />

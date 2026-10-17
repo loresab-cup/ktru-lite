@@ -135,7 +135,7 @@ _MODEL = re.compile(r"\b[\w-]*\d[\w-]*\b")
 _UNITS = r"мм|см|м|км|мкм|кг|г|мг|мл|л|гб|тб|мб|вт|квт|в|а|°c|г/м2|%|шт|дюйм\w*|листов"
 _CHARACTERISTIC = re.compile(
     rf"(?P<name>[а-яё]{{3,}}(?:\s[а-яё]{{3,}})?)?[\s:]*"
-    rf"(?P<value>\d+(?:[.,]\d+)?(?:x\d+)?)\s*(?P<unit>{_UNITS})?(?![\w/])",
+    rf"(?<!\w)(?P<value>\d+(?:[.,]\d+)?(?:x\d+)?)\s*(?P<unit>{_UNITS})?(?![\w/])",
     re.IGNORECASE,
 )
 

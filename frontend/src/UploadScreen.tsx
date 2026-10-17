@@ -1,5 +1,13 @@
 import { Checkbox } from 'antd'
-import { AlertTriangle, FileSpreadsheet, UploadCloud } from 'lucide-react'
+import {
+  AlertTriangle,
+  FileSearch,
+  FileSpreadsheet,
+  ScanSearch,
+  Sparkles,
+  UploadCloud,
+  UserCheck,
+} from 'lucide-react'
 import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { api, ApiError, type Job } from './api'
 import { Mountains } from './Mountains'
@@ -40,6 +48,29 @@ function RecentJobs({ onJob }: { onJob: (id: string) => void }) {
   )
 }
 
+const HOW_ICONS = [FileSearch, Sparkles, ScanSearch, UserCheck]
+
+function HowItWorks() {
+  return (
+    <section className="side glass" aria-labelledby="how-title">
+      <h2 id="how-title">{T.upload.how}</h2>
+      <ol className="how">
+        {T.upload.howSteps.map((step, i) => {
+          const Icon = HOW_ICONS[i]
+          return (
+            <li key={step}>
+              <span className="tile-icon" aria-hidden="true">
+                <Icon size={17} />
+              </span>
+              {step}
+            </li>
+          )
+        })}
+      </ol>
+    </section>
+  )
+}
+
 export function UploadScreen({ onJob }: { onJob: (id: string) => void }) {
   const input = useRef<HTMLInputElement>(null)
   const [over, setOver] = useState(false)
@@ -72,7 +103,7 @@ export function UploadScreen({ onJob }: { onJob: (id: string) => void }) {
   return (
     <div className="upload-grid">
       <section className="hero glass" aria-labelledby="hero-title">
-        <Mountains className="hero-art" />
+        <Mountains className="hero-art" sky={false} />
         <div className="hero-top">
           <div className="eyebrow">{T.upload.eyebrow}</div>
           <h1 id="hero-title">{T.upload.title}</h1>
@@ -140,7 +171,10 @@ export function UploadScreen({ onJob }: { onJob: (id: string) => void }) {
           </div>
         </div>
       </section>
-      <RecentJobs onJob={onJob} />
+      <div className="side-stack">
+        <RecentJobs onJob={onJob} />
+        <HowItWorks />
+      </div>
     </div>
   )
 }

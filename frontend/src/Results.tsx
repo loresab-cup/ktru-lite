@@ -34,6 +34,7 @@ const columns: TableColumnsType<Item> = [
   {
     title: T.results.columns.raw,
     dataIndex: 'raw_text',
+    responsive: ['lg'], // narrow screens: the raw text is in the item panel
     render: (value: string) => (
       <span className="cell-raw" title={value}>
         {value}

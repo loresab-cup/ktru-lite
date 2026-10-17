@@ -39,6 +39,7 @@ services:
 
   db:
     image: postgres:16-alpine
+    user: postgres  # the server runs without root from the start
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ktru}

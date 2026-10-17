@@ -309,3 +309,22 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
         xlsx = client.get(f"/api/jobs/{job_id}/export", params={"format": "xlsx"})
         assert xlsx.content.startswith(b"PK")
         assert client.get("/api/jobs/not-a-uuid").status_code == 404
+
+
+def test_worker_survives_database_errors(monkeypatch):
+    api = importlib.import_module("api")
+    calls = []
+
+    def broken_claim():
+        calls.append(1)
+        if len(calls) >= 2:
+            api.state.stop.set()
+        raise RuntimeError("database is restarting")
+
+    monkeypatch.setattr(api, "claim_job", broken_claim)
+    monkeypatch.setattr(api, "POLL_SECONDS", 0.01)
+    monkeypatch.setattr(api.state, "catalog", object())
+    api.state.stop.clear()
+    api.worker_loop()  # returns only because of stop, not because of the exception
+    assert len(calls) == 2
+    api.state.stop.clear()

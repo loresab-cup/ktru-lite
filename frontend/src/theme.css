@@ -32,11 +32,11 @@
   --sky-bottom: #d4cbf3;
   --sun: #ffffff;
   --sun-glow: rgba(255, 255, 255, 0.55);
-  --mtn-far: #c3b8ee;
-  --mtn-mid: #a495e0;
-  --mtn-near: #7f6fc9;
-  --tree: #5c4fa6;
-  --fog: rgba(244, 241, 255, 0.85);
+  --mtn-far: #bcb0ec;
+  --mtn-mid: #9a89dc;
+  --mtn-near: #6f5fbf;
+  --tree: #4a3e94;
+  --fog: rgba(244, 241, 255, 0.7);
   --line: rgba(255, 255, 255, 0.85);
 }
 
@@ -118,7 +118,9 @@ body {
 
 .backdrop {
   position: fixed;
-  inset: auto 0 0 0;
+  left: 0;
+  bottom: 0;
+  width: 100%;
   height: 46vh;
   z-index: 0;
   opacity: 0.55;
@@ -301,11 +303,43 @@ body {
   justify-content: space-between;
 }
 
+.glass.hero {
+  background: linear-gradient(180deg, var(--sky-top), var(--sky-bottom));
+}
+
+/* The ranges start below the heading so the text never lies on a peak */
 .hero-art {
   position: absolute;
-  inset: 0;
+  left: 0;
+  top: 170px;
   width: 100%;
-  height: 100%;
+  height: calc(100% - 170px);
+}
+
+.side-stack {
+  display: grid;
+  gap: 24px;
+}
+
+.how {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.how li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13.5px;
+  line-height: 1.35;
+}
+
+.how .tile-icon {
+  width: 36px;
+  height: 36px;
 }
 
 .hero-top {
