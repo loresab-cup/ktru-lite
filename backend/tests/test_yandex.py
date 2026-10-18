@@ -13,9 +13,7 @@ import extractor
 @pytest.fixture
 def yandex(monkeypatch):
     monkeypatch.setattr(extractor, "PROVIDER", "yandex")
-    monkeypatch.setattr(
-        extractor, "YANDEX_BASE_URL", "https://ai.api.cloud.yandex.net/v1"
-    )
+    monkeypatch.setattr(extractor, "YANDEX_BASE_URL", "https://ai.api.cloud.yandex.net/v1")
     monkeypatch.setattr(extractor, "YANDEX_API_KEY", "test-yandex-key")
     monkeypatch.setattr(extractor, "YANDEX_FOLDER_ID", "test-folder")
     monkeypatch.setattr(extractor, "MODEL", "qwen3.6-35b-a3b")
@@ -43,9 +41,7 @@ def response(finish="stop"):
     }
 
 
-@pytest.mark.parametrize(
-    "model", ["qwen3.6-35b-a3b", "gpt://test-folder/qwen3.6-35b-a3b"]
-)
+@pytest.mark.parametrize("model", ["qwen3.6-35b-a3b", "gpt://test-folder/qwen3.6-35b-a3b"])
 def test_yandex_protocol_and_guard(yandex, model):
     yandex.setattr(extractor, "MODEL", model)
 
@@ -83,9 +79,7 @@ def test_missing_yandex_configuration_stays_off(yandex, field):
 @pytest.mark.parametrize("finish", ["length", None])
 def test_yandex_incomplete_answer_is_not_accepted(yandex, finish):
     with httpx.Client(
-        transport=httpx.MockTransport(
-            lambda _: httpx.Response(200, json=response(finish))
-        )
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=response(finish)))
     ) as client:
         yandex.setattr(extractor, "_client", client)
         [row] = extractor.extract_chunk(["Бумага"], time.monotonic() + 5)

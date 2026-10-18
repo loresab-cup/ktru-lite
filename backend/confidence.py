@@ -70,7 +70,8 @@ def assess(candidates: list[dict], is_product: bool = True) -> dict:
     score_key = "rank_score" if all("rank_score" in c for c in candidates) else "score"
     margin = (
         max(0.0, best[score_key] - max(c[score_key] for c in candidates[1:]))
-        if len(candidates) > 1 else 0.0
+        if len(candidates) > 1
+        else 0.0
     )
     confidence = round(probability(best["score"], margin), 1)
     zone = zone_of(confidence)

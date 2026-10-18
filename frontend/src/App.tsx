@@ -110,7 +110,7 @@ function HealthBadge() {
   )
 }
 
-/** Recent jobs; refreshed on every page change and every 3 s while one of them runs. */
+/** Refresh recent jobs even when an uploaded job starts without a page change. */
 function useRecentJobs(path: string) {
   const [jobs, setJobs] = useState<Job[] | null>(null)
   useEffect(() => {
@@ -122,9 +122,7 @@ function useRecentJobs(path: string) {
         .then((list) => {
           if (!alive) return
           setJobs(list)
-          if (list.some((job) => job.status === 'queued' || job.status === 'processing')) {
-            timer = window.setTimeout(load, 3000)
-          }
+          timer = window.setTimeout(load, 3000)
         })
         .catch(() => alive && setJobs([]))
     load()

@@ -138,7 +138,7 @@ def main():
     extractor.CREDENTIALS = "synthetic-not-a-secret"
     extractor._token = {"value": "", "expires": 0}
     extractor._down_until = 0
-    embedder.embed = lambda texts: None  # word search, explicitly not embedding performance
+    embedder.embed = lambda texts, **kwargs: None  # explicitly not embedding performance
     report = {
         "provider": "httpx.MockTransport; 5 ms synthetic service delay; no real inference",
         "model_configuration": extractor.MODEL,
@@ -228,6 +228,7 @@ def main():
                     if response.status_code != 202:
                         return time.perf_counter() - begin, False, False
                     url = f"/api/jobs/{response.json()['job_id']}"
+                    client.post(f"{url}/start").raise_for_status()
                     while time.perf_counter() - begin < 180:
                         job = client.get(url).json()
                         if job["status"] in ("done", "failed"):

@@ -38,9 +38,7 @@ def answer(stop="end_turn"):
     }
 
 
-@pytest.mark.parametrize(
-    "base", ["https://gateway.example", "https://gateway.example/v1"]
-)
+@pytest.mark.parametrize("base", ["https://gateway.example", "https://gateway.example/v1"])
 def test_messages_protocol_and_secret_separation(anthropic, base):
     anthropic.setattr(extractor, "ANTHROPIC_BASE_URL", base)
     seen = []
@@ -56,9 +54,7 @@ def test_messages_protocol_and_secret_separation(anthropic, base):
         assert body["system"] == extractor.SYSTEM_PROMPT
         assert body["model"] == "gpt-5.6-luna"
         assert [m["role"] for m in body["messages"]] == ["user"]
-        assert json.loads(body["messages"][0]["content"]) == [
-            {"id": 0, "text": "Бумага А4"}
-        ]
+        assert json.loads(body["messages"][0]["content"]) == [{"id": 0, "text": "Бумага А4"}]
         assert body["max_tokens"] == 4096
         assert 0 < request.extensions["timeout"]["read"] <= 5
         return httpx.Response(200, json=answer())
@@ -99,9 +95,7 @@ def test_messages_retries_server_overload(anthropic):
     statuses = iter([429, 503, 200])
     anthropic.setattr(extractor.time, "sleep", lambda _: None)
     with httpx.Client(
-        transport=httpx.MockTransport(
-            lambda _: httpx.Response(next(statuses), json=answer())
-        )
+        transport=httpx.MockTransport(lambda _: httpx.Response(next(statuses), json=answer()))
     ) as client:
         anthropic.setattr(extractor, "_client", client)
         assert extractor.call_llm([], time.monotonic() + 5).startswith('[{"id":0')

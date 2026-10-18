@@ -15,6 +15,7 @@ import os
 import re
 import threading
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -118,8 +119,13 @@ _UPPER = re.compile(
 
 def words(text: str) -> set[str]:
     """Words for matching: 3+ letters or with a digit, lowercase, ё=е, Latin lookalikes."""
+    return set(_word_tokens(text))
+
+
+@lru_cache(maxsize=30_000)
+def _word_tokens(text: str) -> frozenset[str]:
     text = (text or "").lower().replace("ё", "е").translate(_LOOKALIKE)
-    return {w for w in _WORD.findall(text) if len(w) >= 3 or any(c.isdigit() for c in w)}
+    return frozenset(w for w in _WORD.findall(text) if len(w) >= 3 or any(c.isdigit() for c in w))
 
 
 def query_bounds(text: str) -> tuple[set[float], set[float]]:
@@ -140,11 +146,21 @@ def unit_key(text: str) -> str | None:
 
 def stems(text: str) -> set[str]:
     """First 5 letters of the words: «коровье» and «коровьего» are the same."""
-    return {word[:5] for word in words(text)}
+    return set(_stem_tokens(text))
+
+
+@lru_cache(maxsize=30_000)
+def _stem_tokens(text: str) -> frozenset[str]:
+    return frozenset(word[:5] for word in _word_tokens(text))
 
 
 def identity_stems(text: str) -> set[str]:
     """Small terminology equivalences; never map a source directly to a KTRU code."""
+    return set(_identity_tokens(text))
+
+
+@lru_cache(maxsize=30_000)
+def _identity_tokens(text: str) -> frozenset[str]:
     result = stems(text)
     if "гречк" in result:
         result.update(("крупа", "гречн"))
@@ -160,9 +176,10 @@ def identity_stems(text: str) -> set[str]:
         result.add("элект")
     if re.search(r"\bip\b", text.lower()) and "телеф" in result:
         result.add("терми")
-    return result
+    return frozenset(result)
 
 
+@lru_cache(maxsize=30_000)
 def product_head(text: str) -> str:
     """Skip leading adjectives, keeping the product rather than an accessory noun."""
     tokens = _WORD.findall(text.lower().replace("ё", "е").translate(_LOOKALIKE))
@@ -418,8 +435,11 @@ class Catalog:
             return True
         # VVG is a power cable with PVC insulation, not optical fiber or rubber.
         # https://kamkabel.ru/catalog/categories/silovye/pvh_do3kv/vvgng-28-a-29--2d-ls_pvh_do3kv/
-        if ("кабел" in source and re.search(r"\bа?ввг", product_name.lower())
-                and not {"силов", "пласт"} <= target):
+        if (
+            "кабел" in source
+            and re.search(r"\bа?ввг", product_name.lower())
+            and not {"силов", "пласт"} <= target
+        ):
             return True
         return bool("термо" in source and "медиц" in source and not {"тела", "пацие"} & target)
 

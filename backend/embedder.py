@@ -6,7 +6,7 @@ Ollama is down or answers garbage -> None: the search then works by words only.
 import logging
 import os
 import threading
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import CancelledError, ThreadPoolExecutor
 
 import httpx
 import numpy as np
@@ -40,7 +40,7 @@ def _request(texts: list[str]) -> np.ndarray:
     return vectors / np.maximum(norms, 1e-12)
 
 
-def embed(texts: list[str]) -> np.ndarray | None:
+def embed(texts: list[str], cancel: threading.Event | None = None) -> np.ndarray | None:
     """(len(texts), 1024) float32; equal texts are sent once and cached between jobs."""
     if not texts:
         return np.zeros((0, DIM), np.float32)
@@ -50,7 +50,15 @@ def embed(texts: list[str]) -> np.ndarray | None:
     if missing:
         chunks = [missing[i : i + BATCH_SIZE] for i in range(0, len(missing), BATCH_SIZE)]
         try:
-            results = list(_pool.map(_request, chunks))
+
+            def request_chunk(chunk):
+                if cancel is not None and cancel.is_set():
+                    raise CancelledError()
+                return _request(chunk)
+
+            results = list(_pool.map(request_chunk, chunks))
+        except CancelledError:
+            raise
         except Exception as exc:  # noqa: BLE001 - any failure means "no vectors"
             logger.warning("Ollama is unavailable, word search only: %s", type(exc).__name__)
             return None

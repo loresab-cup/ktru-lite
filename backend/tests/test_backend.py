@@ -271,7 +271,7 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
     monkeypatch.setattr(search, "CATALOG_PATH", TMP / "catalog.jsonl.gz")
     monkeypatch.setattr(search, "CACHE_DIR", TMP / "cache")
     api = importlib.import_module("api")  # reads the environment at import
-    monkeypatch.setattr(embedder, "embed", lambda texts: None)  # Ollama is down: words only
+    monkeypatch.setattr(embedder, "embed", lambda texts, **kwargs: None)  # words only
     spec = "Наименование;Кол-во\nБумага для офисной техники А4;10\n=HYPERLINK(1) ноутбук;1\n"
     with TestClient(api.app) as client:
         wait(client, "/api/health", lambda body: body["catalog"] == "ready")
@@ -285,6 +285,7 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
         )
         assert response.status_code == 202
         job_id = response.json()["job_id"]
+        assert client.post(f"/api/jobs/{job_id}/start").status_code == 200
         job = wait(client, f"/api/jobs/{job_id}", lambda body: body["status"] == "done")
         assert job["filename"] == "spec.csv" and job["total"] == job["processed"] == 2
         assert job["fallback"] == 2  # no key in the tests: every row by the rules
@@ -324,7 +325,7 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
         xlsx = client.get(f"/api/jobs/{job_id}/export", params={"format": "xlsx"})
         assert xlsx.content.startswith(b"PK")
         api.set_job(uuid.UUID(job_id), status="processing")
-        assert client.get(f"/api/jobs/{job_id}/export").status_code == 409
+        assert client.get(f"/api/jobs/{job_id}/export").status_code == 200
         api.set_job(uuid.UUID(job_id), status="done")
         assert client.get("/api/jobs/not-a-uuid").status_code == 404
 

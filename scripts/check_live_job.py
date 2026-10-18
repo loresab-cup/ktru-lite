@@ -44,6 +44,8 @@ def main():
         with options.file.open("rb") as source:
             response = request("POST", "/api/jobs", files={"file": (options.file.name, source)})
         job_id = response.json()["job_id"]
+        if request("GET", f"/api/jobs/{job_id}").json()["status"] == "uploaded":
+            request("POST", f"/api/jobs/{job_id}/start")
         last_print = 0
         while True:
             job = request("GET", f"/api/jobs/{job_id}").json()

@@ -1,0 +1,47 @@
+{
+  "scope": "search only; synthetic exact catalog names and catalog vectors",
+  "independent_accuracy_evaluation": false,
+  "live_llm_calls": 0,
+  "new_embedding_calls": 0,
+  "upload_to_result_seconds": null,
+  "under_200_seconds_verified": false,
+  "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.28000-SP0",
+  "cpu_logical": 12,
+  "numpy": "2.5.4",
+  "catalog_codes": 81509,
+  "catalog_load_seconds": 1.1973047999999835,
+  "batch_size": 100,
+  "simultaneous_jobs": 1,
+  "input_code_sha256": "702e744f7d58abf32a8b647a13cb92e543e7bf7425f1975802a8025ffbfc7778",
+  "runs": [
+    {
+      "search_seconds": 24.37020659999689,
+      "exact_full_code_count": 855,
+      "top5_count": 958,
+      "auto_count": 790,
+      "wrong_auto_count": 119,
+      "manual_review_count": 210,
+      "count": 1000,
+      "exact_full_code_rate": 0.855,
+      "top5_rate": 0.958,
+      "wrong_auto_fraction_of_all": 0.119,
+      "wrong_auto_fraction_of_auto": 0.15063291139240506,
+      "assignment_sha256": "96986743b7ac1c331776cb3e4ed78f2033d4b24c392deaaab7c1ce201034596d"
+    },
+    {
+      "search_seconds": 24.723009400000592,
+      "exact_full_code_count": 855,
+      "top5_count": 958,
+      "auto_count": 790,
+      "wrong_auto_count": 119,
+      "manual_review_count": 210,
+      "count": 1000,
+      "exact_full_code_rate": 0.855,
+      "top5_rate": 0.958,
+      "wrong_auto_fraction_of_all": 0.119,
+      "wrong_auto_fraction_of_auto": 0.15063291139240506,
+      "assignment_sha256": "96986743b7ac1c331776cb3e4ed78f2033d4b24c392deaaab7c1ce201034596d"
+    }
+  ]
+}

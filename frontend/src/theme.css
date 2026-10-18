@@ -1,5 +1,10 @@
 /* All colors of the app live here. Components use only these variables. */
 
+.upload-list { padding: 20px; display: grid; gap: 12px; }
+.upload-file { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+.upload-file > div { min-width: 0; overflow-wrap: anywhere; }
+.processing-controls { position: sticky; top: 80px; z-index: 9; padding: 16px 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; background: var(--surface); }
+
 :root,
 :root[data-theme='light'] {
   color-scheme: light;
@@ -915,6 +920,7 @@ body {
 }
 
 .table-panel {
+  min-width: 0;
   padding: 16px 16px 6px;
 }
 

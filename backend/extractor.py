@@ -15,29 +15,23 @@ import re
 import threading
 import time
 import uuid
-from concurrent.futures import Future, ThreadPoolExecutor
+from collections import deque
+from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
 PROVIDER = os.getenv("LLM_PROVIDER", "gigachat").strip().lower()
-ANTHROPIC_BASE_URL = os.getenv(
-    "ANTHROPIC_BASE_URL", "https://api.anthropic.com"
-).rstrip("/")
+ANTHROPIC_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com").rstrip("/")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
-YANDEX_BASE_URL = os.getenv(
-    "YANDEX_BASE_URL", "https://ai.api.cloud.yandex.net/v1"
-).rstrip("/")
+YANDEX_BASE_URL = os.getenv("YANDEX_BASE_URL", "https://ai.api.cloud.yandex.net/v1").rstrip("/")
 YANDEX_API_KEY = os.getenv("YANDEX_API_KEY", "").strip()
 YANDEX_FOLDER_ID = os.getenv("YANDEX_FOLDER_ID", "").strip()
 BASE_URL = os.getenv("GIGACHAT_BASE_URL", "https://api.giga.chat/v1").rstrip("/")
-AUTH_URL = os.getenv(
-    "GIGACHAT_AUTH_URL", "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
-)
-CREDENTIALS = os.getenv(
-    "GIGACHAT_CREDENTIALS", ""
-)  # authorization key from the Sber cabinet
+AUTH_URL = os.getenv("GIGACHAT_AUTH_URL", "https://ngw.devices.sberbank.ru:9443/api/v2/oauth")
+CREDENTIALS = os.getenv("GIGACHAT_CREDENTIALS", "")  # authorization key from the Sber cabinet
 SCOPE = os.getenv("GIGACHAT_SCOPE", "GIGACHAT_API_PERS")
 MODEL = (
     os.getenv("ANTHROPIC_MODEL", "").strip()
@@ -51,24 +45,16 @@ if PROVIDER == "yandex":
 # then be intercepted by a forged certificate; a path to that CA bundle keeps the check on.
 _VERIFY = os.getenv("GIGACHAT_VERIFY_SSL", "true")
 VERIFY_SSL: bool | str = (
-    _VERIFY
-    if _VERIFY.endswith((".pem", ".crt"))
-    else (_VERIFY.lower() not in ("0", "false", "no"))
+    _VERIFY if _VERIFY.endswith((".pem", ".crt")) else (_VERIFY.lower() not in ("0", "false", "no"))
 )
 if PROVIDER in ("anthropic", "yandex"):
     VERIFY_SSL = True
 TEMPERATURE = 0.0001  # below 0.001 GigaChat answers the same way every time
-TOKEN_MARGIN = (
-    60.0  # seconds: a token that expires sooner is replaced before the request
-)
+TOKEN_MARGIN = 60.0  # seconds: a token that expires sooner is replaced before the request
 BATCH_SIZE = 10
-PARALLEL = (
-    16  # rows of a job are prepared in parallel; requests wait for a free slot below
-)
+PARALLEL = 16  # rows of a job are prepared in parallel; requests wait for a free slot below
 # Requests to GigaChat at the same moment: the Freemium tariff answers 429 to a second one
-PARALLEL_REQUESTS = max(
-    1, int(os.getenv("LLM_PARALLEL", os.getenv("GIGACHAT_PARALLEL", "1")))
-)
+PARALLEL_REQUESTS = max(1, int(os.getenv("LLM_PARALLEL", os.getenv("GIGACHAT_PARALLEL", "1"))))
 REQUEST_TIMEOUT = 90.0
 RETRIES = 2
 JOB_BUDGET = 150.0  # seconds for all LLM requests of one job
@@ -154,9 +140,7 @@ def accept(proposed: dict, source: str) -> dict:
     model = checked("model")
     if any(norm(model) == norm(c["value"]) for c in characteristics):
         model = ""  # "A4" is a paper format, not a model
-    search_text = " ".join(str(proposed.get("search_text") or "").split())[
-        :MAX_SEARCH_TEXT
-    ]
+    search_text = " ".join(str(proposed.get("search_text") or "").split())[:MAX_SEARCH_TEXT]
     # An explicit "" means "not a product"; a name that is not in the row comes from rules
     proposed_name = str(proposed.get("name") or "").strip()
     return {
@@ -249,17 +233,37 @@ def rules(text: str, reason: str = ERROR) -> dict:
 
 # --- requests ------------------------------------------------------------------------------
 
+_job_context = threading.local()
+
+
+def check_cancelled() -> None:
+    event = getattr(_job_context, "cancel", None)
+    if event is not None and event.is_set():
+        raise CancelledError()
+
+
+def acquire_until(lock, deadline: float) -> bool:
+    while True:
+        check_cancelled()
+        left = deadline - time.monotonic()
+        if left <= 0:
+            return False
+        if lock.acquire(timeout=min(0.1, left)):
+            return True
+
 
 def access_token(renew: bool = False, deadline: float | None = None) -> str:
     """GigaChat access token: cached for its 30 minutes, renewed a minute before the end."""
     left = 30.0 if deadline is None else max(0.0, deadline - time.monotonic())
-    if not _token_lock.acquire(timeout=left):
+    lock_deadline = deadline if deadline is not None else time.monotonic() + left
+    if not acquire_until(_token_lock, lock_deadline):
         raise TimeoutError("LLM budget is over while waiting for OAuth")
     try:
         left = 30.0 if deadline is None else deadline - time.monotonic()
         if left <= 0:
             raise TimeoutError("LLM budget is over before OAuth")
         if renew or time.time() > _token["expires"] - TOKEN_MARGIN:
+            check_cancelled()
             response = _client.post(
                 AUTH_URL,
                 headers={
@@ -285,9 +289,10 @@ def access_token(renew: bool = False, deadline: float | None = None) -> str:
 
 def post_chat(body: dict, deadline: float) -> httpx.Response:
     """Send the selected protocol within the same concurrency and job budget limits."""
-    if not _slots.acquire(timeout=max(0.0, deadline - time.monotonic())):
+    if not acquire_until(_slots, deadline):
         raise TimeoutError("LLM budget is over while waiting for a free request slot")
     try:
+        check_cancelled()
         if PROVIDER == "anthropic":
             headers = {
                 "x-api-key": ANTHROPIC_API_KEY,
@@ -315,6 +320,7 @@ def post_chat(body: dict, deadline: float) -> httpx.Response:
         timeout = min(REQUEST_TIMEOUT, left)
         started = time.monotonic()
         try:
+            check_cancelled()
             response = _client.post(url, json=body, headers=headers, timeout=timeout)
             logger.info(
                 "LLM response provider=%s status=%s seconds=%.3f",
@@ -324,9 +330,7 @@ def post_chat(body: dict, deadline: float) -> httpx.Response:
             )
             return response
         except httpx.TimeoutException as exc:
-            if (
-                timeout < REQUEST_TIMEOUT
-            ):  # cut by the job budget: the network itself may be fine
+            if timeout < REQUEST_TIMEOUT:  # cut by the job budget: the network itself may be fine
                 raise TimeoutError("LLM budget is over: the request was cut") from exc
             raise
     finally:
@@ -348,14 +352,13 @@ def call_llm(rows: list[dict], deadline: float) -> str:
         body["system"] = SYSTEM_PROMPT
         body["messages"] = body["messages"][1:]
     elif PROVIDER == "yandex":
-        body["model"] = (
-            MODEL if MODEL.startswith("gpt://") else f"gpt://{YANDEX_FOLDER_ID}/{MODEL}"
-        )
+        body["model"] = MODEL if MODEL.startswith("gpt://") else f"gpt://{YANDEX_FOLDER_ID}/{MODEL}"
         if body["model"].split("/")[-1].startswith("qwen"):
             body["reasoning_effort"] = "none"
     renewed = False
     timeout_error = None
     for attempt in range(RETRIES + 1):
+        check_cancelled()
         left = deadline - time.monotonic()
         if left < 1:
             # The budget ran out while the network kept silent: that is "no answer", not "slow"
@@ -367,9 +370,7 @@ def call_llm(rows: list[dict], deadline: float) -> str:
                 raise
             timeout_error = exc
             continue
-        except (
-            TimeoutError
-        ):  # the budget ended while waiting for a slot or during a request
+        except TimeoutError:  # the budget ended while waiting for a slot or during a request
             if timeout_error:
                 raise timeout_error from None  # the network had kept silent before: unavailable
             raise
@@ -412,9 +413,7 @@ def llm_state() -> str:
     if PROVIDER == "anthropic":
         configured = bool(ANTHROPIC_API_KEY and MODEL and ANTHROPIC_BASE_URL)
     elif PROVIDER == "yandex":
-        configured = bool(
-            YANDEX_API_KEY and YANDEX_FOLDER_ID and MODEL and YANDEX_BASE_URL
-        )
+        configured = bool(YANDEX_API_KEY and YANDEX_FOLDER_ID and MODEL and YANDEX_BASE_URL)
     else:
         configured = PROVIDER == "gigachat" and bool(CREDENTIALS)
     if not configured:
@@ -426,16 +425,14 @@ def extract_chunk(texts: list[str], deadline: float) -> list[dict]:
     global _down_until
     state = llm_state()
     if state != "on":
-        return [
-            rules(text, NO_KEY if state == "off" else UNAVAILABLE) for text in texts
-        ]
+        return [rules(text, NO_KEY if state == "off" else UNAVAILABLE) for text in texts]
     try:
         answer = call_llm([{"id": i, "text": t} for i, t in enumerate(texts)], deadline)
         by_id = answer_by_id(parse_json_answer(answer))
+    except CancelledError:
+        raise
     except httpx.TransportError as exc:  # no connection or no answer in time
-        logger.warning(
-            "LLM is unavailable for %s rows: %s", len(texts), type(exc).__name__
-        )
+        logger.warning("LLM is unavailable for %s rows: %s", len(texts), type(exc).__name__)
         _down_until = time.monotonic() + DOWN_PAUSE
         return [rules(text, UNAVAILABLE) for text in texts]
     except TimeoutError:
@@ -443,41 +440,80 @@ def extract_chunk(texts: list[str], deadline: float) -> list[dict]:
         return [rules(text, BUDGET) for text in texts]
     except Exception as exc:  # noqa: BLE001 - HTTP error or a broken answer: rules for this chunk
         status = getattr(getattr(exc, "response", None), "status_code", "")
-        logger.warning(
-            "LLM failed for %s rows: %s %s", len(texts), type(exc).__name__, status
-        )
+        logger.warning("LLM failed for %s rows: %s %s", len(texts), type(exc).__name__, status)
         return [rules(text, ERROR) for text in texts]
     result = []
     for i, text in enumerate(texts):
         try:
-            result.append(
-                accept(by_id[i], text) if i in by_id else rules(text, MISSING)
-            )
+            result.append(accept(by_id[i], text) if i in by_id else rules(text, MISSING))
         except (TypeError, ValueError):
             result.append(rules(text, ERROR))
     return result
 
 
 class JobExtractor:
-    """Starts extraction of all distinct rows of a job at once; get() waits for one row.
+    """FIFO chunks, with a bounded request window; get() waits for one row.
 
     Batches of the job run in parallel with the search of earlier batches.
     """
 
-    def __init__(self, texts: list[str], budget: float = JOB_BUDGET) -> None:
+    def __init__(
+        self,
+        texts: list[str],
+        budget: float = JOB_BUDGET,
+        cancel: threading.Event | None = None,
+    ) -> None:
+        self.cancel = cancel or threading.Event()
         deadline = time.monotonic() + budget
         unique = list(dict.fromkeys(texts))
         self._where: dict[str, tuple[Future, int]] = {}
+        self._pending = deque()
         for start in range(0, len(unique), BATCH_SIZE):
             chunk = unique[start : start + BATCH_SIZE]
-            future = _pool.submit(extract_chunk, chunk, deadline)
+            future = Future()
+            self._pending.append((chunk, future))
             for index, text in enumerate(chunk):
                 self._where[text] = (future, index)
+        # More waiting tasks than provider slots can starve the first UI batch.
+        for _ in range(min(PARALLEL_REQUESTS, PARALLEL, len(self._pending))):
+            _pool.submit(self._consume, deadline)
+
+    def _consume(self, deadline: float) -> None:
+        while not self.cancel.is_set():
+            try:
+                chunk, future = self._pending.popleft()
+            except IndexError:
+                return
+            if future.set_running_or_notify_cancel():
+                try:
+                    future.set_result(self._extract(chunk, deadline))
+                except Exception as exc:  # noqa: BLE001 - complete the public future on worker errors
+                    future.set_exception(exc)
+
+    def _extract(self, chunk: list[str], deadline: float) -> list[dict]:
+        _job_context.cancel = self.cancel
+        try:
+            check_cancelled()
+            return extract_chunk(chunk, deadline)
+        finally:
+            _job_context.cancel = None
+
+    def close(self) -> None:
+        self.cancel.set()
+        for future, _ in self._where.values():
+            future.cancel()
 
     def get(self, text: str) -> dict:
         future, index = self._where[text]
         try:
-            return future.result()[index]
+            while not self.cancel.is_set():
+                try:
+                    return future.result(timeout=0.1)[index]
+                except FutureTimeout:
+                    continue
+            raise CancelledError()
+        except CancelledError:
+            raise
         except Exception:
             logger.exception("extraction failed")
             return rules(text)

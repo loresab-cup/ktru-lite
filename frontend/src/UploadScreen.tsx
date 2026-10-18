@@ -78,27 +78,75 @@ export function UploadScreen({ jobs, onJob }: {
   const [inactive, setInactive] = useState(false)
   const [uploading, setUploading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [files, setFiles] = useState<{ key: string; name: string; id?: string; status: string }[]>([])
+  const [starting, setStarting] = useState(false)
+  const busy = useRef(false)
 
-  const send = async (file: File | undefined) => {
-    if (!file || uploading) return
-    const name = file.name.toLowerCase()
-    if (!EXTENSIONS.some((ext) => name.endsWith(ext))) return setError(T.upload.badType)
-    if (file.size > MAX_BYTES) return setError(T.upload.tooBig)
+  const send = async (selected: FileList | null) => {
+    if (!selected?.length || busy.current) return
+    busy.current = true
     setError(null)
-    setUploading(file.name)
+    const entries = Array.from(selected).map((file) => ({ file, key: crypto.randomUUID() }))
+    setFiles((old) => [...old, ...entries.map(({ file, key }) => ({ key, name: file.name, status: T.upload.waiting }))])
+    for (const { file, key } of entries) {
+      setUploading(file.name)
+      let id: string | undefined
+      let status = T.upload.ready
+      try {
+        const name = file.name.toLowerCase()
+        if (!EXTENSIONS.some((ext) => name.endsWith(ext))) throw new ApiError(T.upload.badType)
+        if (file.size > MAX_BYTES) throw new ApiError(T.upload.tooBig)
+        setFiles((old) => old.map((f) => f.key === key ? { ...f, status: T.upload.uploading(file.name) } : f))
+        id = (await api.upload(file, inactive)).job_id
+      } catch (e) {
+        status = T.upload.uploadError
+        setError(e instanceof ApiError ? e.message : T.errors.network)
+      }
+      setFiles((old) => old.map((f) => f.key === key ? { ...f, id, status } : f))
+    }
+    setUploading(null)
+    busy.current = false
+  }
+
+  const remove = async (key: string, id?: string) => {
+    if (busy.current) return
+    busy.current = true
     try {
-      const { job_id } = await api.upload(file, inactive)
-      onJob(job_id)
+      if (id) await api.remove(id)
+      setFiles((old) => old.filter((f) => f.key !== key))
     } catch (e) {
       setError(e instanceof ApiError ? e.message : T.errors.network)
-      setUploading(null)
+    } finally {
+      busy.current = false
+    }
+  }
+
+  const start = async () => {
+    if (busy.current) return
+    busy.current = true
+    setStarting(true)
+    setError(null)
+    const launched: string[] = []
+    try {
+      for (const file of files) {
+        if (!file.id) continue
+        await api.start(file.id)
+        launched.push(file.id)
+      }
+      if (launched[0]) onJob(launched[0])
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : T.errors.network)
+    } finally {
+      setFiles((old) => old.filter((f) => !f.id || !launched.includes(f.id)))
+      setStarting(false)
+      busy.current = false
     }
   }
 
   const onDrop = (e: DragEvent) => {
     e.preventDefault()
     setOver(false)
-    void send(e.dataTransfer.files[0])
+    void send(e.dataTransfer.files)
   }
 
   return (
@@ -154,7 +202,7 @@ export function UploadScreen({ jobs, onJob }: {
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={(e) => e.stopPropagation()}
               >
-                <Checkbox checked={inactive} onChange={(e) => setInactive(e.target.checked)}>
+                <Checkbox disabled={files.length > 0 || Boolean(uploading)} checked={inactive} onChange={(e) => setInactive(e.target.checked)}>
                   {T.upload.inactive}
                 </Checkbox>
               </div>
@@ -169,13 +217,25 @@ export function UploadScreen({ jobs, onJob }: {
               ref={input}
               type="file"
               hidden
+              multiple
+              disabled={Boolean(uploading) || starting}
               accept={EXTENSIONS.join(',')}
               onChange={(e) => {
-                void send(e.target.files?.[0])
+                void send(e.target.files)
                 e.target.value = ''
               }}
             />
           </div>
+          {files.length > 0 && <div className="upload-list" aria-live="polite">
+            {files.map((file) => <div key={file.key} className="upload-file">
+              <div><b>{file.name}</b><div className="cell-sub">{file.status}</div></div>
+              <button type="button" className="btn" disabled={Boolean(uploading) || starting}
+                aria-label={`${T.upload.remove}: ${file.name}`}
+                onClick={() => void remove(file.key, file.id)}>{T.upload.remove}</button>
+            </div>)}
+            <button type="button" className="btn primary" disabled={Boolean(uploading) || starting || !files.some((f) => f.id)}
+              onClick={() => void start()}>{starting ? T.upload.starting : T.upload.process}</button>
+          </div>}
           <p className="lead">{T.upload.lead}</p>
         </section>
         <Stats jobs={jobs} onChoose={() => input.current?.click()} />

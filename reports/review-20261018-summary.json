@@ -1,0 +1,139 @@
+{
+  "hardware": {
+    "cpu": "AMD Ryzen 5 7535HS",
+    "cores": 6,
+    "logical_processors": 12,
+    "ram_bytes": 16325472256,
+    "docker_ram_gib": 7.362
+  },
+  "runtime": {
+    "python": "3.12",
+    "database": "isolated SQLite, same setup before/after; production PostgreSQL untouched",
+    "provider": "yandex",
+    "model": "qwen3.6-35b-a3b",
+    "llm_parallel": 4,
+    "llm_batch": 10,
+    "simultaneous_jobs": 1,
+    "embeddings": "bge-m3 via Ollama, CPU only",
+    "catalog_codes": 81509
+  },
+  "fixture": {
+    "type": "synthetic",
+    "rows": 1000,
+    "unique_texts": 995,
+    "base_product_names": 40,
+    "independent_gold_codes": false
+  },
+  "runs": [
+    {
+      "version": "before",
+      "cache": "cold",
+      "full_seconds": 164.98702000000048,
+      "upload_http_seconds": 0.16328119999889168,
+      "queue_seconds": 0.089209,
+      "stages": {
+        "read": 0.38,
+        "extract": 28.28,
+        "search": 130.92,
+        "confidence": 0.02,
+        "total": 162.97
+      },
+      "llm_calls": 100,
+      "llm_statuses": {
+        "200": 100
+      },
+      "llm_sum_request_seconds": 261.852,
+      "llm_mean_request_seconds": 2.6185199999999997,
+      "llm_rows": 1000,
+      "fallback_rows": 0,
+      "auto": 46,
+      "manual_review": 954,
+      "independent_full_code_accuracy": null
+    },
+    {
+      "version": "before",
+      "cache": "warm",
+      "full_seconds": 131.1486600999997,
+      "upload_http_seconds": 0.14536610000141081,
+      "queue_seconds": 0.12572,
+      "stages": {
+        "read": 0.11,
+        "extract": 48.33,
+        "search": 78.8,
+        "confidence": 0.03,
+        "total": 129.9
+      },
+      "llm_calls": 100,
+      "llm_statuses": {
+        "200": 100
+      },
+      "llm_sum_request_seconds": 247.806,
+      "llm_mean_request_seconds": 2.47806,
+      "llm_rows": 1000,
+      "fallback_rows": 0,
+      "auto": 44,
+      "manual_review": 956,
+      "independent_full_code_accuracy": null
+    },
+    {
+      "version": "after",
+      "cache": "cold",
+      "full_seconds": 125.17374950000158,
+      "upload_http_seconds": 0.1644231000027503,
+      "queue_seconds": 0.164956,
+      "stages": {
+        "upload": 0.0055,
+        "queue": 0.164956,
+        "read": 0.21,
+        "extract": 8.45,
+        "embed": 100.94,
+        "search": 11.49,
+        "confidence": 0.02,
+        "save": 2.14,
+        "total": 123.74
+      },
+      "llm_calls": 100,
+      "llm_statuses": {
+        "200": 100
+      },
+      "llm_sum_request_seconds": 274.256,
+      "llm_mean_request_seconds": 2.7425599999999997,
+      "llm_rows": 1000,
+      "fallback_rows": 0,
+      "auto": 44,
+      "manual_review": 956,
+      "independent_full_code_accuracy": null
+    },
+    {
+      "version": "after",
+      "cache": "warm",
+      "full_seconds": 79.53913879999891,
+      "upload_http_seconds": 0.15182329999879585,
+      "queue_seconds": 0.166229,
+      "stages": {
+        "upload": 0.0044,
+        "queue": 0.166229,
+        "read": 0.14,
+        "extract": 10.05,
+        "embed": 54.45,
+        "search": 11.03,
+        "confidence": 0.04,
+        "save": 2.06,
+        "total": 77.94
+      },
+      "llm_calls": 100,
+      "llm_statuses": {
+        "200": 100
+      },
+      "llm_sum_request_seconds": 253.84799999999998,
+      "llm_mean_request_seconds": 2.53848,
+      "llm_rows": 1000,
+      "fallback_rows": 0,
+      "auto": 44,
+      "manual_review": 956,
+      "independent_full_code_accuracy": null
+    }
+  ],
+  "cold_definition": "fresh application embedding cache and unloaded Ollama model; catalog already ready before file upload",
+  "under_200_seconds_on_final_runs": true
+}

@@ -13,10 +13,11 @@ import re
 import threading
 import time
 import uuid
+from concurrent.futures import CancelledError
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, ClassVar
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
@@ -29,6 +30,7 @@ from sqlalchemy import (
     String,
     Text,
     Uuid,
+    case,
     create_engine,
     delete,
     func,
@@ -108,6 +110,8 @@ class State:
     catalog: search.Catalog | None = None
     catalog_error: bool = False
     stop = threading.Event()
+    cancellations: ClassVar[dict[uuid.UUID, threading.Event]] = {}
+    cancel_lock = threading.Lock()
 
 
 state = State()
@@ -134,7 +138,7 @@ def claim_job() -> uuid.UUID | None:
         claimed = session.execute(
             update(Job)
             .where(Job.id == job_id, Job.status == "queued")
-            .values(status="processing", started_at=now(), processed=0, total=0, error=None)
+            .values(status="processing", started_at=now(), error=None)
         ).rowcount
         session.commit()
         return job_id if claimed else None
@@ -147,13 +151,31 @@ def set_job(job_id: uuid.UUID, **values) -> None:
 
 
 def finish(job_id: uuid.UUID, status: str, error: str | None, stages: dict) -> None:
-    set_job(
-        job_id,
-        status=status,
-        error=error,
-        finished_at=now(),
-        stage_seconds=dict(stages),
-    )
+    with SessionLocal() as session:
+        session.execute(
+            update(Job)
+            .where(Job.id == job_id, Job.status.in_(("processing", "stopping")))
+            .values(
+                status=case((Job.status == "stopping", "stopped"), else_=status),
+                error=error,
+                finished_at=now(),
+                stage_seconds=dict(stages),
+            )
+        )
+        session.commit()
+
+
+def cancellation(job_id: uuid.UUID) -> threading.Event:
+    with state.cancel_lock:
+        return state.cancellations.setdefault(job_id, threading.Event())
+
+
+def check_job(job_id: uuid.UUID) -> None:
+    with SessionLocal() as session:
+        status = session.scalar(select(Job.status).where(Job.id == job_id))
+    if status != "processing" or cancellation(job_id).is_set() or state.stop.is_set():
+        cancellation(job_id).set()
+        raise CancelledError()
 
 
 def tick(stages: dict, stage: str, started: float) -> None:
@@ -175,7 +197,11 @@ def build_item(job_id: uuid.UUID, row: parser.Item, attributes: dict, found: lis
         job_id=job_id,
         row_number=row.row_number,
         raw_text=row.text,
-        attributes={**attributes, "columns": row.columns},
+        attributes={
+            **attributes,
+            "columns": row.columns,
+            "source_index": row.source_index or row.row_number,
+        },
     )
     try:
         apply_candidates(item, found, is_product=bool(attributes.get("name")))
@@ -209,28 +235,48 @@ def product_name(row: parser.Item, attributes: dict) -> str:
 def process_items(
     job_id: uuid.UUID, rows: list[parser.Item], include_inactive: bool, stages: dict
 ) -> None:
-    llm = extractor.JobExtractor([row.text for row in rows])
+    llm = extractor.JobExtractor([row.text for row in rows], cancel=cancellation(job_id))
+    try:
+        process_batches(job_id, rows, include_inactive, stages, llm)
+    finally:
+        llm.close()
+
+
+def process_batches(job_id, rows, include_inactive, stages, llm) -> None:
+    with SessionLocal() as session:
+        completed = session.scalar(select(Job.processed).where(Job.id == job_id)) or 0
     for start in range(0, len(rows), BATCH):
+        check_job(job_id)
         batch = rows[start : start + BATCH]
         started = time.monotonic()
         attributes = [llm.get(row.text) for row in batch]
         tick(stages, "extract", started)
+        check_job(job_id)
         started = time.monotonic()
         queries = [
             f"{a['search_text']}. {row.text}" for a, row in zip(attributes, batch, strict=True)
         ]
         units = [unit_hint(row, a) for a, row in zip(attributes, batch, strict=True)]
-        vectors = embedder.embed(queries)
+        vectors = embedder.embed(queries, cancel=cancellation(job_id))
+        tick(stages, "embed", started)
+        check_job(job_id)
+        started = time.monotonic()
         names = [product_name(row, a) for a, row in zip(attributes, batch, strict=True)]
         found = state.catalog.search(vectors, queries, include_inactive, units, names=names)
         tick(stages, "search", started)
         started = time.monotonic()
         items = [build_item(job_id, *args) for args in zip(batch, attributes, found, strict=True)]
         tick(stages, "confidence", started)
+        started = time.monotonic()
         with SessionLocal() as session:
             session.add_all(items)
+            session.execute(
+                update(Job)
+                .where(Job.id == job_id)
+                .values(processed=completed + start + len(batch), stage_seconds=dict(stages))
+            )
             session.commit()
-        set_job(job_id, processed=start + len(batch), stage_seconds=dict(stages))
+        tick(stages, "save", started)
 
 
 def run_job(job_id: uuid.UUID) -> None:
@@ -239,15 +285,35 @@ def run_job(job_id: uuid.UUID) -> None:
     with SessionLocal() as session:
         job = session.get(Job, job_id)
         path, include_inactive = upload_path(job), job.include_inactive
-        session.execute(delete(Item).where(Item.job_id == job_id))  # rerun after a restart
-        session.commit()
+        completed_rows = set(
+            session.scalars(
+                select(
+                    func.coalesce(Item.attributes["source_index"].as_integer(), Item.row_number)
+                ).where(Item.job_id == job_id)
+            )
+        )
+        stages = dict(job.stage_seconds or {})
+        stages["queue"] = max(
+            0.0,
+            (
+                job.started_at.replace(tzinfo=UTC) - job.created_at.replace(tzinfo=UTC)
+            ).total_seconds(),
+        )
     try:
-        rows = parser.parse_file(path)
+        check_job(job_id)
+        rows = parser.parse_file(path, cancel=cancellation(job_id))
         tick(stages, "read", started)
+        check_job(job_id)
         set_job(job_id, total=len(rows))
-        process_items(job_id, rows, include_inactive, stages)
-        tick(stages, "total", started)
+        process_items(
+            job_id,
+            [r for r in rows if r.source_index not in completed_rows],
+            include_inactive,
+            stages,
+        )
         status, error = "done", None
+    except CancelledError:
+        status, error = "stopped", None
     except parser.ParseError as exc:
         status, error = "failed", str(exc)
     except FileNotFoundError:
@@ -255,10 +321,12 @@ def run_job(job_id: uuid.UUID) -> None:
     except Exception:
         logger.exception("job %s failed", job_id)
         status, error = "failed", "Не удалось обработать файл, попробуйте ещё раз"
-    # If this write fails (the database restarts), the file stays: after a restart the job is
-    # queued again and processed from the start
+    tick(stages, "total", started)
+    # Keep the upload on a database failure; a restart resumes uncommitted rows only.
     finish(job_id, status, error, stages)
     path.unlink(missing_ok=True)
+    with state.cancel_lock:
+        state.cancellations.pop(job_id, None)
 
 
 def worker_loop() -> None:
@@ -293,6 +361,9 @@ def init_db() -> None:
             time.sleep(2)
     with SessionLocal() as session:
         session.execute(update(Job).where(Job.status == "processing").values(status="queued"))
+        session.execute(
+            update(Job).where(Job.status == "stopping").values(status="stopped", finished_at=now())
+        )
         session.commit()
 
 
@@ -355,7 +426,9 @@ def require_catalog() -> search.Catalog:
 def create_job(
     file: Annotated[UploadFile, File()],
     include_inactive: Annotated[bool, Form()] = False,
+    auto_start: Annotated[bool, Form()] = False,
 ):
+    started = time.monotonic()
     filename = Path(file.filename or "file").name[:200]
     data = file.file.read(parser.MAX_FILE_BYTES + 1)
     if len(data) > parser.MAX_FILE_BYTES:
@@ -366,17 +439,77 @@ def create_job(
         parser.check_signature(Path(filename).suffix.lower(), data[:8])
     except parser.ParseError as exc:
         raise HTTPException(400, str(exc)) from exc
-    job = Job(id=uuid.uuid4(), filename=filename, include_inactive=include_inactive)
+    job = Job(
+        id=uuid.uuid4(),
+        filename=filename,
+        include_inactive=include_inactive,
+        status="queued" if auto_start else "uploaded",
+    )
     path = upload_path(job)
     path.write_bytes(data)  # the name on disk is the uuid, not the user's name
     try:
         with SessionLocal() as session:
+            job.stage_seconds = {"upload": round(time.monotonic() - started, 4)}
             session.add(job)
             session.commit()
     except Exception:
         path.unlink(missing_ok=True)
         raise
     return {"job_id": str(job.id)}
+
+
+@app.post("/api/jobs/{job_id}/start")
+def start_job(job_id: str):
+    with SessionLocal() as session:
+        job = get_or_404(session, Job, job_id, "Задание")
+        if job.status not in ("uploaded", "queued", "processing", "done"):
+            raise HTTPException(409, "Задание уже остановлено или завершилось с ошибкой")
+        session.execute(
+            update(Job)
+            .where(Job.id == job.id, Job.status == "uploaded")
+            .values(status="queued", created_at=now())
+        )
+        session.commit()
+    return get_job(job_id)
+
+
+@app.delete("/api/jobs/{job_id}")
+def remove_upload(job_id: str):
+    with SessionLocal() as session:
+        job = get_or_404(session, Job, job_id, "Задание")
+        path = upload_path(job)
+        removed = session.execute(
+            delete(Job).where(Job.id == job.id, Job.status == "uploaded")
+        ).rowcount
+        if not removed:
+            raise HTTPException(409, "Удалить можно только файл до запуска обработки")
+        session.commit()
+    path.unlink(missing_ok=True)
+    return {"removed": True}
+
+
+@app.post("/api/jobs/{job_id}/stop")
+def stop_job(job_id: str):
+    with SessionLocal() as session:
+        job = get_or_404(session, Job, job_id, "Задание")
+        stopping = session.execute(
+            update(Job)
+            .where(Job.id == job.id, Job.status == "processing")
+            .values(status="stopping")
+        ).rowcount
+        stopped = session.execute(
+            update(Job)
+            .where(Job.id == job.id, Job.status.in_(("queued", "uploaded")))
+            .values(status="stopped", finished_at=now())
+        ).rowcount
+        session.commit()
+        if stopping or job.status == "stopping":
+            cancellation(job.id).set()
+        if stopped:
+            upload_path(job).unlink(missing_ok=True)
+            with state.cancel_lock:
+                state.cancellations.pop(job.id, None)
+    return get_job(job_id)
 
 
 @app.get("/api/jobs")
@@ -430,7 +563,13 @@ def list_items(
                 )
             )
         total = session.scalar(select(func.count()).select_from(query.subquery()))
-        items = session.scalars(query.order_by(Item.id).limit(limit).offset(offset))
+        items = session.scalars(
+            query.order_by(
+                func.coalesce(Item.attributes["source_index"].as_integer(), Item.id), Item.id
+            )
+            .limit(limit)
+            .offset(offset)
+        )
         return {"total": total, "items": [to_dict(item) for item in items]}
 
 
@@ -492,8 +631,11 @@ def edit_attributes(item_id: int, body: AttributesIn):
             embedder.embed([query]), [query], include_inactive, names=[body.name]
         )
         columns = (item.attributes or {}).get("columns", {})
+        source_index = (item.attributes or {}).get("source_index")
         attributes = body.model_dump() | {"search_text": query, "source": "manual"}
         item.attributes = attributes | {"columns": columns}
+        if source_index is not None:
+            item.attributes = item.attributes | {"source_index": source_index}
         apply_candidates(item, found)
         item.summary = f"Атрибуты исправлены вручную. {item.summary}"
         session.commit()
@@ -632,8 +774,8 @@ def to_xlsx(rows: list[list]) -> bytes:
 def export(job_id: str, format: str = Query("xlsx", pattern="^(xlsx|csv)$")):
     with SessionLocal() as session:
         job = get_or_404(session, Job, job_id, "Задание")
-        if job.status != "done":
-            raise HTTPException(409, "Выгрузка доступна после окончания обработки")
+        if not job.processed:
+            raise HTTPException(409, "Пока нет готовых позиций для выгрузки")
         items = session.scalars(select(Item).where(Item.job_id == job.id).order_by(Item.id)).all()
     rows = export_rows(list(items))
     if format == "csv":

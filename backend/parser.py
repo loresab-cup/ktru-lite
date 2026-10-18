@@ -9,8 +9,20 @@ import io
 import logging
 import re
 import zipfile
+from concurrent.futures import CancelledError
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
+from threading import Event
+
+_cancel: ContextVar[Event | None] = ContextVar("parser_cancel", default=None)
+
+
+def check_cancelled() -> None:
+    event = _cancel.get()
+    if event is not None and event.is_set():
+        raise CancelledError()
+
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
 MAX_ITEMS = 1000
@@ -43,6 +55,7 @@ class Item:
     row_number: int
     text: str
     columns: dict[str, str] = field(default_factory=dict)
+    source_index: int = 0
 
 
 def check_signature(ext: str, head: bytes) -> None:
@@ -53,7 +66,16 @@ def check_signature(ext: str, head: bytes) -> None:
         raise ParseError(f"Файл не похож на {ext}: содержимое не совпадает с расширением")
 
 
-def parse_file(path: Path) -> list[Item]:
+def parse_file(path: Path, cancel: Event | None = None) -> list[Item]:
+    token = _cancel.set(cancel)
+    try:
+        check_cancelled()
+        return _parse_file(path)
+    finally:
+        _cancel.reset(token)
+
+
+def _parse_file(path: Path) -> list[Item]:
     ext = path.suffix.lower()
     data = path.read_bytes()
     if len(data) > MAX_FILE_BYTES:
@@ -65,6 +87,8 @@ def parse_file(path: Path) -> list[Item]:
         raise ParseError("Не найдено ни одной позиции: проверьте колонку с наименованием")
     if len(items) > MAX_ITEMS:
         raise ParseError(f"В файле {len(items)} позиций, допустимо не больше {MAX_ITEMS}")
+    for index, item in enumerate(items, 1):
+        item.source_index = index
     return items
 
 
@@ -104,6 +128,7 @@ def read_xlsx(path: Path) -> list[Item]:
         for sheet in workbook.worksheets:
             rows = []
             for row in sheet.iter_rows(values_only=True):
+                check_cancelled()
                 cells += len(row)
                 if cells > MAX_CELLS:
                     raise ParseError("В файле слишком много ячеек")
@@ -136,6 +161,7 @@ def read_docx(path: Path) -> list[Item]:
         raise ParseError("Файл docx повреждён: откройте и сохраните его заново") from exc
     items: list[Item] = []
     for table in document.tables:
+        check_cancelled()
         rows = [[cell.text for cell in row.cells] for row in table.rows]
         items.extend(parse_rows(rows))
     if items:
@@ -150,8 +176,11 @@ def read_pdf(path: Path) -> list[Item]:
         reader = PdfReader(str(path))
         if len(reader.pages) > MAX_PDF_PAGES:
             raise ParseError(f"В PDF больше {MAX_PDF_PAGES} страниц")
-        lines = [line for page in reader.pages for line in (page.extract_text() or "").split("\n")]
-    except ParseError:
+        lines = []
+        for page in reader.pages:
+            check_cancelled()
+            lines.extend((page.extract_text() or "").split("\n"))
+    except (ParseError, CancelledError):
         raise
     except Exception as exc:
         raise ParseError("PDF повреждён или защищён паролем") from exc
@@ -220,6 +249,7 @@ def parse_rows(raw_rows) -> list[Item]:
     header_key = [cell.lower() for cell in header if cell]
     items = []
     for offset, row in enumerate(body):
+        check_cancelled()
         name = row[name_index] if name_index < len(row) else ""
         if is_skipped(name) or [cell.lower() for cell in row if cell] == header_key:
             continue
@@ -236,6 +266,7 @@ def parse_lines(lines: list[str]) -> list[Item]:
     """Plain text: every non-empty line is a position; numbering «1.» is cut off."""
     items = []
     for number, line in enumerate(lines, start=1):
+        check_cancelled()
         text = clean(NUMBERING.sub("", line))
         lowered = text.lower()
         header_like = (

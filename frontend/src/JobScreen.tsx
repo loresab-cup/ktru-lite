@@ -101,6 +101,8 @@ export function JobScreen({ jobId, onHome, onInfo }: {
   const [job, setJob] = useState<Job | null>(null)
   const [lost, setLost] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
+  const [stopping, setStopping] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -111,7 +113,7 @@ export function JobScreen({ jobId, onHome, onInfo }: {
         if (!alive) return
         setJob(next)
         setLost(null)
-        if (next.status === 'queued' || next.status === 'processing') {
+        if (['queued', 'processing', 'stopping'].includes(next.status)) {
           timer = window.setTimeout(poll, 1000)
         }
       } catch (e) {
@@ -137,6 +139,20 @@ export function JobScreen({ jobId, onHome, onInfo }: {
     api.job(jobId).then(setJob).catch(() => undefined)
   }, [jobId])
 
+  const stop = async () => {
+    if (stopping) return
+    setStopping(true)
+    setActionError(null)
+    try {
+      setJob(await api.stop(jobId))
+      setAttempt((a) => a + 1)
+    } catch (e) {
+      setActionError(e instanceof ApiError ? e.message : T.errors.network)
+    } finally {
+      setStopping(false)
+    }
+  }
+
   if (lost) {
     return (
       <Problem
@@ -160,9 +176,27 @@ export function JobScreen({ jobId, onHome, onInfo }: {
       </section>
     )
   }
-  if (job.status === 'failed') {
-    return <Problem title={T.progress.failed} text={job.error ?? ''} onHome={onHome} />
-  }
-  if (job.status === 'done') return <Results job={job} onChanged={refresh} />
-  return <ProgressCard job={job} />
+  const active = ['queued', 'processing', 'stopping'].includes(job.status)
+  return (
+    <>
+      {active && <div className="processing-controls card">
+        <span className="num">{T.progress.processed} {job.processed} {T.progress.of} {job.total}</span>
+        <button type="button" className="btn" disabled={stopping || job.status === 'stopping'} onClick={() => void stop()}>
+          {stopping || job.status === 'stopping' ? T.progress.stopping : T.progress.stop}
+        </button>
+      </div>}
+      {actionError && <div className="alert" role="alert">{actionError}</div>}
+      {active && job.processed === 0 && <ProgressCard job={job} />}
+      {job.status === 'uploaded' && <button className="btn primary" type="button" onClick={() => {
+        void api.start(jobId).then((next) => { setJob(next); setAttempt((a) => a + 1) })
+          .catch((e) => setActionError(e instanceof ApiError ? e.message : T.errors.network))
+      }}>{T.upload.process}</button>}
+      {job.status === 'failed' && <Problem title={T.progress.failed} text={job.error ?? ''} onHome={onHome} />}
+      {job.status === 'stopped' && <div className="card processing-controls" role="status">
+        <div><b>{T.progress.stopped}</b><p>{T.progress.saved}</p>
+          <span className="num">{job.processed} {T.progress.of} {job.total}</span></div>
+      </div>}
+      {(job.processed > 0 || job.status === 'done') && <Results job={job} onChanged={refresh} />}
+    </>
+  )
 }

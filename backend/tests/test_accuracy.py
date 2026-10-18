@@ -7,6 +7,14 @@ import confidence
 import search
 
 
+def test_cached_tokens_do_not_share_mutable_results_between_queries():
+    for tokenize in (search.words, search.stems, search.identity_stems):
+        original = tokenize("Мешки для мусора")
+        changed = tokenize("Мешки для мусора")
+        changed.add("poison")
+        assert tokenize("Мешки для мусора") == original
+
+
 def catalog(titles, vectors=None, statuses=None):
     n = len(titles)
     return search.Catalog(

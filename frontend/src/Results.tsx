@@ -146,7 +146,7 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
     return () => {
       alive = false
     }
-  }, [job.id, filter, query, page, version, toast])
+  }, [job.id, job.processed, job.status, filter, query, page, version, toast])
 
   const reload = () => {
     setVersion((v) => v + 1)
@@ -252,6 +252,7 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
         ) : (
           <Table<Item>
             rowKey="id"
+            scroll={{ x: 1000 }}
             size="middle"
             columns={columns}
             dataSource={data.items}

@@ -1,6 +1,6 @@
 import { T } from './texts'
 
-export type JobStatus = 'queued' | 'processing' | 'done' | 'failed'
+export type JobStatus = 'uploaded' | 'queued' | 'processing' | 'stopping' | 'stopped' | 'done' | 'failed'
 export type ItemStatus = 'auto' | 'needs_review' | 'corrected' | 'accepted' | 'failed'
 export type Zone = 'high' | 'medium' | 'low'
 
@@ -128,10 +128,14 @@ export const api = {
       `/api/jobs/${encodeURIComponent(id)}/items?${query}`,
     )
   },
-  upload: (file: File, includeInactive: boolean) => {
+  start: (id: string) => request<Job>(`/api/jobs/${encodeURIComponent(id)}/start`, json('POST')),
+  stop: (id: string) => request<Job>(`/api/jobs/${encodeURIComponent(id)}/stop`, json('POST')),
+  remove: (id: string) => request<{ removed: boolean }>(`/api/jobs/${encodeURIComponent(id)}`, json('DELETE')),
+  upload: (file: File, includeInactive: boolean, autoStart = false) => {
     const form = new FormData()
     form.append('file', file)
     form.append('include_inactive', String(includeInactive))
+    form.append('auto_start', String(autoStart))
     return request<{ job_id: string }>('/api/jobs', { method: 'POST', body: form })
   },
   correct: (itemId: number, code: string) =>

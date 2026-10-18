@@ -79,7 +79,7 @@ def test_oauth_timeout_is_limited_by_remaining_budget(monkeypatch):
         monkeypatch.setattr(extractor, "_token", {"value": "", "expires": 0})
         with pytest.raises(TimeoutError):
             extractor.access_token(deadline=time.monotonic() + 0.2)
-    assert 0 < seen[0] <= 0.2
+    assert 0 < seen[0] <= 0.2 + 1e-9  # subtraction of floating-point clock readings
     assert not extractor._token_lock.locked()
 
 
@@ -223,7 +223,10 @@ def test_1000_dataset_matches_parser_and_is_reproducible(tmp_path):
     content = (tmp_path / "positions_1000.jsonl").read_bytes()
     actual = parser.parse_file(tmp_path / "positions_1000.csv")
     assert len(actual) == len(expected) == 1000
-    assert [vars(item) for item in actual] == expected
+    assert [
+        {k: v for k, v in vars(item).items() if k != "source_index"} for item in actual
+    ] == expected
+    assert [item.source_index for item in actual] == list(range(1, 1001))
     generate(tmp_path)
     assert (tmp_path / "positions_1000.jsonl").read_bytes() == content
 
