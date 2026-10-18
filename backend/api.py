@@ -44,6 +44,7 @@ import confidence
 import embedder
 import extractor
 import parser
+import review
 import search
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -533,7 +534,15 @@ def get_job(job_id: str):
             .select_from(Item)
             .where(Item.job_id == job.id, Item.attributes["source"].as_string() == "rules")
         )
-        return to_dict(job) | {"counts": counts, "fallback": fallback}
+        reused = session.scalar(
+            select(func.count())
+            .select_from(Item)
+            .where(
+                Item.job_id == job.id,
+                Item.attributes["cache_hit"].as_boolean().is_(True),
+            )
+        )
+        return to_dict(job) | {"counts": counts, "fallback": fallback, "reused": reused}
 
 
 def like_pattern(q: str) -> str:
@@ -577,6 +586,62 @@ class Correction(BaseModel):
     ktru_code: str = Field(min_length=1, max_length=32)
 
 
+def similar_items(session, item):
+    rows = session.scalars(
+        select(Item)
+        .where(Item.job_id == item.job_id, Item.status == "needs_review")
+        .order_by(Item.id)
+    ).all()
+    key = review.signature(item)
+    return [row for row in rows if key is not None and review.signature(row) == key]
+
+
+@app.get("/api/items/{item_id}/similar")
+def get_similar(item_id: int):
+    with SessionLocal() as session:
+        item = get_or_404(session, Item, item_id, "Позиция")
+        rows = similar_items(session, item)
+        return {
+            "token": review.snapshot(rows),
+            "items": [
+                {"id": r.id, "row_number": r.row_number, "raw_text": r.raw_text} for r in rows
+            ],
+        }
+
+
+class GroupCorrection(Correction):
+    token: str = Field(min_length=64, max_length=64)
+
+
+@app.post("/api/items/{item_id}/apply-similar")
+def correct_similar(item_id: int, body: GroupCorrection):
+    code = require_catalog().get(re.sub(r"\s+", "", body.ktru_code))
+    if code is None or code["status"] != "ACTIVE":
+        raise HTTPException(400, "Выберите действующий код КТРУ")
+    with SessionLocal() as session:
+        item = get_or_404(session, Item, item_id, "Позиция")
+        # Serialize with individual edits and reject any stale group preview.
+        session.scalars(
+            select(Item)
+            .where(Item.job_id == item.job_id)
+            .order_by(Item.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        ).all()
+        rows = similar_items(session, item)
+        if len(rows) < 2 or review.snapshot(rows) != body.token:
+            raise HTTPException(
+                409, "Группа изменилась. Откройте позицию заново и проверьте строки"
+            )
+        for row in rows:
+            row.ktru_code, row.ktru_name, row.status = code["code"], code["name"], "corrected"
+            row.summary = "Код выбран вручную для проверенной группы похожих строк"
+            row.confidence, row.zone = None, "low"
+            # A human decision is a status, not an estimated probability for the new code.
+        session.commit()
+        return {"updated": len(rows), "item": to_dict(item)}
+
+
 @app.patch("/api/items/{item_id}")
 def correct_item(item_id: int, body: Correction):
     # "10.12.10.000- 00000005" from a spreadsheet: spaces and line breaks are dropped
@@ -585,12 +650,13 @@ def correct_item(item_id: int, body: Correction):
         raise HTTPException(400, "Такого кода нет в каталоге КТРУ")
     with SessionLocal() as session:
         item = get_or_404(session, Item, item_id, "Позиция")
+        session.refresh(item, with_for_update=True)
         item.ktru_code, item.ktru_name, item.status = (
             code["code"],
             code["name"],
             "corrected",
         )
-        item.confidence, item.zone, item.summary = 100.0, "high", "Код выбран вручную"
+        item.confidence, item.zone, item.summary = None, "low", "Код выбран вручную"
         session.commit()
         return to_dict(item)
 
@@ -626,6 +692,7 @@ def edit_attributes(item_id: int, body: AttributesIn):
     query = manual_search_text(body)
     with SessionLocal() as session:
         item = get_or_404(session, Item, item_id, "Позиция")
+        session.refresh(item, with_for_update=True)
         include_inactive = session.get(Job, item.job_id).include_inactive
         [found] = catalog.search(
             embedder.embed([query]), [query], include_inactive, names=[body.name]
@@ -646,6 +713,7 @@ def edit_attributes(item_id: int, body: AttributesIn):
 def accept_item(item_id: int):
     with SessionLocal() as session:
         item = get_or_404(session, Item, item_id, "Позиция")
+        session.refresh(item, with_for_update=True)
         if not item.ktru_code:
             raise HTTPException(400, "У позиции нет кода: выберите его вручную")
         item.status = "accepted"
@@ -659,11 +727,13 @@ def accept_job(job_id: str, min_confidence: float = Query(85.0, ge=0, le=100)):
     with SessionLocal() as session:
         job = get_or_404(session, Job, job_id, "Задание")
         items = session.scalars(
-            select(Item).where(
+            select(Item)
+            .where(
                 Item.job_id == job.id,
                 Item.status.in_(("auto", "needs_review")),
                 Item.confidence >= min_confidence,
             )
+            .with_for_update()
         ).all()
         accepted = 0
         for item in items:

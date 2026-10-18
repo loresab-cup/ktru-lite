@@ -16,6 +16,7 @@ export interface Job {
   stage_seconds: Record<string, number>
   counts?: Record<ItemStatus, number>
   fallback?: number // rows whose attributes came from the rules
+  reused?: number
 }
 
 export interface CatalogCode {
@@ -71,6 +72,11 @@ export interface AttributesInput {
   brand: string
   model: string
   characteristics: Characteristic[]
+}
+
+export interface SimilarItems {
+  token: string
+  items: { id: number; row_number: number; raw_text: string }[]
 }
 
 export class ApiError extends Error {}
@@ -140,6 +146,10 @@ export const api = {
   },
   correct: (itemId: number, code: string) =>
     request<Item>(`/api/items/${itemId}`, json('PATCH', { ktru_code: code })),
+  similar: (itemId: number) => request<SimilarItems>(`/api/items/${itemId}/similar`),
+  applySimilar: (itemId: number, code: string, token: string) =>
+    request<{ updated: number; item: Item }>(`/api/items/${itemId}/apply-similar`,
+      json('POST', { ktru_code: code, token })),
   editAttributes: (itemId: number, attributes: AttributesInput) =>
     request<Item>(`/api/items/${itemId}/attributes`, json('PUT', attributes)),
   accept: (itemId: number) => request<Item>(`/api/items/${itemId}/accept`, json('POST')),

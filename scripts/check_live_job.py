@@ -87,6 +87,7 @@ def main():
             "records": len(items),
             "unique_texts": len({i["raw_text"] for i in items}),
             "sources": dict(Counter((i.get("attributes") or {}).get("source") for i in items)),
+            "cached_llm_rows": sum(bool(i["attributes"].get("cache_hit")) for i in items),
             "fallback_reasons": dict(
                 Counter(
                     i["attributes"].get("fallback")

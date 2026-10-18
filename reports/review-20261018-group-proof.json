@@ -1,0 +1,34 @@
+[
+  {
+    "id": 2010,
+    "row_number": 11,
+    "status": "corrected",
+    "ktru_code": "26.20.16.110-00000002",
+    "confidence": null,
+    "summary": "Код выбран вручную для проверенной группы похожих строк"
+  },
+  {
+    "id": 2210,
+    "row_number": 211,
+    "status": "corrected",
+    "ktru_code": "26.20.16.110-00000002",
+    "confidence": null,
+    "summary": "Код выбран вручную для проверенной группы похожих строк"
+  },
+  {
+    "id": 2290,
+    "row_number": 291,
+    "status": "corrected",
+    "ktru_code": "26.20.16.110-00000002",
+    "confidence": null,
+    "summary": "Код выбран вручную для проверенной группы похожих строк"
+  },
+  {
+    "id": 2370,
+    "row_number": 371,
+    "status": "corrected",
+    "ktru_code": "26.20.16.110-00000002",
+    "confidence": null,
+    "summary": "Код выбран вручную для проверенной группы похожих строк"
+  }
+]

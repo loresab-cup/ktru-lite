@@ -181,6 +181,7 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
           {T.results.fallback(job.fallback ?? 0, job.total)}
         </div>
       )}
+      {Boolean(job.reused) && <p className="cell-sub" role="status">{T.results.reused(job.reused ?? 0)}</p>}
 
       <div className="tiles" role="group" aria-label={T.results.tileHint}>
         {TILES.map(({ key, icon: Icon }) => {

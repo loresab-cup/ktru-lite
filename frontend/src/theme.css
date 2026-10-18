@@ -1273,3 +1273,6 @@ body {
     bottom: 20px;
   }
 }
+.group-rows { max-height: 240px; overflow-y: auto; padding-left: 24px; }
+.group-rows li { margin: 8px 0; }
+.group-check { display: flex; gap: 8px; align-items: start; margin: 16px 0; }

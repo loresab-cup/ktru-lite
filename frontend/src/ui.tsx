@@ -24,6 +24,7 @@ export function ZoneIcon({ zone, size = 15 }: { zone: Zone; size?: number }) {
 
 /** Percent + thin bar of the zone color; the zone is also said by the icon and its label. */
 export function Confidence({ value, zone }: { value: number | null; zone: Zone }) {
+  if (value === null) return <span className="cell-sub" title={T.drawer.noEstimate}>—</span>
   const percent = value ?? 0
   return (
     <div className="conf" title={`${T.drawer.similarity}: ${T.zone[zone]}`}>

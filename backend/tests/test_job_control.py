@@ -1,5 +1,6 @@
 """Job lifecycle and cancellation, using barriers rather than timing assumptions."""
 
+import copy
 import importlib
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -12,6 +13,100 @@ from fastapi.testclient import TestClient
 import embedder
 import extractor
 import parser
+
+
+def test_group_review_is_explicit_scoped_and_preserves_manual_edits(app):
+    from fastapi.testclient import TestClient
+
+    attrs = {
+        "name": "Бумага",
+        "brand": "",
+        "model": "",
+        "measure": "шт",
+        "characteristics": [{"name": "Формат", "value": "А4", "unit": ""}],
+        "source": "llm",
+        "columns": {"Наименование": "Бумага А4", "Ед.": "шт"},
+    }
+    with app.SessionLocal() as session:
+        job = app.Job(filename="group.txt", status="done", total=6, processed=6)
+        other = app.Job(filename="other.txt", status="done")
+        session.add_all([job, other])
+        session.flush()
+        rows = []
+        for i in range(6):
+            attributes = copy.deepcopy(attrs)
+            if i == 4:
+                attributes["characteristics"][0]["value"] = "А3"
+            rows.append(
+                app.Item(
+                    job_id=other.id if i == 5 else job.id,
+                    row_number=i + 1,
+                    raw_text=f"Бумага А4 {i}",
+                    attributes=attributes,
+                    candidates=[{"code": "old"}],
+                    ktru_code="old",
+                    ktru_name="Бумага",
+                    confidence=61,
+                    zone="medium",
+                    summary="test",
+                    status="corrected" if i == 3 else "needs_review",
+                )
+            )
+        session.add_all(rows)
+        session.commit()
+        ids = [r.id for r in rows]
+    with TestClient(app.app) as client:
+        group = client.get(f"/api/items/{ids[0]}/similar").json()
+        assert [r["id"] for r in group["items"]] == ids[:3]
+        body = {"ktru_code": "new", "token": group["token"]}
+        # An individual decision invalidates the preview rather than being overwritten.
+        client.patch(f"/api/items/{ids[1]}", json={"ktru_code": "individual"})
+        assert client.post(f"/api/items/{ids[0]}/apply-similar", json=body).status_code == 409
+        group = client.get(f"/api/items/{ids[0]}/similar").json()
+        body["token"] = group["token"]
+        response = client.post(f"/api/items/{ids[0]}/apply-similar", json=body)
+        assert response.status_code == 200 and response.json()["updated"] == 2
+        assert response.json()["item"]["confidence"] is None
+        assert client.post(f"/api/items/{ids[0]}/apply-similar", json=body).status_code == 409
+    with app.SessionLocal() as session:
+        assert [session.get(app.Item, i).ktru_code for i in ids] == [
+            "new",
+            "individual",
+            "new",
+            "old",
+            "old",
+            "old",
+        ]
+
+
+def test_embeddings_keep_full_source_for_search(app, monkeypatch):
+    recorded = {}
+    with app.SessionLocal() as session:
+        job = app.Job(filename="test.txt", status="processing")
+        session.add(job)
+        session.commit()
+        job_id = job.id
+
+    class Extractor:
+        def get(self, text):
+            return {"name": "Бумага", "search_text": "Бумага А4", "source": "llm"}
+
+    def embed(texts, **kwargs):
+        recorded["semantic"] = texts
+
+    def search(vectors, queries, *args, **kwargs):
+        recorded["full"] = queries
+        return [[]]
+
+    monkeypatch.setattr(embedder, "embed", embed)
+    monkeypatch.setattr(app.state.catalog, "search", search)
+    app.process_batches(
+        job_id, [parser.Item(1, "Бумага Brand 80 г/м2", {})], False, {}, Extractor()
+    )
+    assert recorded == {
+        "semantic": ["Бумага А4. Бумага Brand 80 г/м2"],
+        "full": ["Бумага А4. Бумага Brand 80 г/м2"],
+    }
 
 
 class Catalog:

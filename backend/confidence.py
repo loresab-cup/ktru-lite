@@ -83,11 +83,15 @@ def assess(candidates: list[dict], is_product: bool = True) -> dict:
         and best.get("status") == "ACTIVE"
         and is_product
         and not best.get("review_reasons")
+        and (len(candidates) == 1 or margin > 0.0)
     )
+    summary = explain(best, is_product)
+    if len(candidates) > 1 and margin == 0.0:
+        summary += "; кандидаты равны по оценке — полный код требует подтверждения"
     return {
         "confidence": confidence,
         "zone": zone,
         "needs_review": not auto,
         "status": "auto" if auto else "needs_review",
-        "summary": explain(best, is_product),
+        "summary": summary,
     }

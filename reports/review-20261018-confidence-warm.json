@@ -1,0 +1,217 @@
+{
+  "live_provider": true,
+  "base": "http://127.0.0.1:8019",
+  "file": ".benchmark\\spec_1000.xlsx",
+  "job": {
+    "id": "326288a0-0f02-4b45-84db-64b61f672d54",
+    "filename": "spec_1000.xlsx",
+    "status": "done",
+    "total": 1000,
+    "processed": 1000,
+    "error": null,
+    "include_inactive": false,
+    "created_at": "2026-10-18T13:20:20.984863",
+    "started_at": "2026-10-18T13:20:21.970493",
+    "finished_at": "2026-10-18T13:20:38.739083",
+    "stage_seconds": {
+      "upload": 0.0047,
+      "queue": 0.98563,
+      "read": 0.14,
+      "extract": 0.0,
+      "embed": 0.0,
+      "search": 11.1,
+      "confidence": 0.04,
+      "save": 5.28,
+      "total": 16.74
+    },
+    "counts": {
+      "auto": 40,
+      "needs_review": 960,
+      "corrected": 0,
+      "accepted": 0,
+      "failed": 0
+    },
+    "fallback": 0
+  },
+  "upload_to_terminal_seconds": 20.638357100000576,
+  "under_200_seconds": true,
+  "under_300_seconds": true,
+  "records": 1000,
+  "unique_texts": 995,
+  "sources": {
+    "llm": 1000
+  },
+  "cached_llm_rows": 1000,
+  "fallback_reasons": {},
+  "all_rows_from_llm": true,
+  "statuses": {
+    "needs_review": 960,
+    "auto": 40
+  },
+  "health_before": {
+    "status": "ok",
+    "catalog": "ready",
+    "codes": 81509,
+    "llm": "on"
+  },
+  "health_after": {
+    "status": "ok",
+    "catalog": "ready",
+    "codes": 81509,
+    "llm": "on"
+  },
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "status": 200,
+      "seconds": 0.008599299999332288
+    },
+    {
+      "method": "POST",
+      "path": "/api/jobs",
+      "status": 202,
+      "seconds": 0.15693170000304235
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54",
+      "status": 200,
+      "seconds": 0.01590849999774946
+    },
+    {
+      "method": "POST",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54/start",
+      "status": 200,
+      "seconds": 0.04060300000128336
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54",
+      "status": 200,
+      "seconds": 0.01319570000123349
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54",
+      "status": 200,
+      "seconds": 0.036390299999766285
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54",
+      "status": 200,
+      "seconds": 0.06923309999910998
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54",
+      "status": 200,
+      "seconds": 0.1345246999990195
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54",
+      "status": 200,
+      "seconds": 0.2315439999983937
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54",
+      "status": 200,
+      "seconds": 0.41034229999786476
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54",
+      "status": 200,
+      "seconds": 0.5233680999990611
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54",
+      "status": 200,
+      "seconds": 0.5411906999979692
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54",
+      "status": 200,
+      "seconds": 0.8493710000002466
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54",
+      "status": 200,
+      "seconds": 1.1817407000016829
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54",
+      "status": 200,
+      "seconds": 2.199226400000043
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54",
+      "status": 200,
+      "seconds": 1.381071299998439
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54",
+      "status": 200,
+      "seconds": 0.8479908000008436
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54/items",
+      "status": 200,
+      "seconds": 0.49873740000111866
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54/items",
+      "status": 200,
+      "seconds": 0.6425890999998956
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54/items",
+      "status": 200,
+      "seconds": 0.8135992999996233
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54/items",
+      "status": 200,
+      "seconds": 0.9784605999993801
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54/items",
+      "status": 200,
+      "seconds": 1.0772612000000663
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "status": 200,
+      "seconds": 0.0030423999996855855
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54/export",
+      "status": 200,
+      "seconds": 1.4932036999998672
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/326288a0-0f02-4b45-84db-64b61f672d54/export",
+      "status": 200,
+      "seconds": 1.1559990999994625
+    }
+  ],
+  "export_csv_bytes": 304619,
+  "export_xlsx_bytes": 147905
+}

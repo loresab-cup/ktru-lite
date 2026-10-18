@@ -1,0 +1,46 @@
+{
+  "independent_gold": false,
+  "manual_rows": 960,
+  "review_groups": 574,
+  "multirow_groups": 134,
+  "largest_group": 21,
+  "all_1000_cold_warm_assignments_equal": true,
+  "semantic_experiment_rejected": [
+    {
+      "mode": "legacy",
+      "seconds": 52.66040445999988,
+      "stages": {
+        "embed": 42.733116692000294,
+        "search": 9.924870026999997
+      },
+      "auto": 168,
+      "manual": 32,
+      "unique_embedding_queries": 200,
+      "exact": 154,
+      "top5": 198,
+      "wrong_auto": 25,
+      "with_tie_guard": {
+        "auto": 159,
+        "wrong_auto": 21
+      }
+    },
+    {
+      "mode": "compact",
+      "seconds": 28.585641444999965,
+      "stages": {
+        "embed": 21.377902986999743,
+        "search": 7.205428600000232
+      },
+      "auto": 174,
+      "manual": 26,
+      "unique_embedding_queries": 200,
+      "exact": 156,
+      "top5": 197,
+      "wrong_auto": 30,
+      "with_tie_guard": {
+        "auto": 163,
+        "wrong_auto": 23
+      }
+    }
+  ]
+}

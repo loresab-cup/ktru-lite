@@ -21,6 +21,8 @@ from concurrent.futures import TimeoutError as FutureTimeout
 
 import httpx
 
+from extraction_cache import ValidatedCache
+
 logger = logging.getLogger(__name__)
 
 PROVIDER = os.getenv("LLM_PROVIDER", "gigachat").strip().lower()
@@ -96,6 +98,7 @@ _client = httpx.Client(timeout=REQUEST_TIMEOUT, verify=VERIFY_SSL)
 _token = {"value": "", "expires": 0.0}  # access token and its end, unix seconds
 _token_lock = threading.Lock()
 _slots = threading.BoundedSemaphore(PARALLEL_REQUESTS)
+_validated_cache = ValidatedCache()
 
 # --- guard ---------------------------------------------------------------------------------
 
@@ -464,12 +467,35 @@ class JobExtractor:
         cancel: threading.Event | None = None,
     ) -> None:
         self.cancel = cancel or threading.Event()
+        self.context = json.dumps(
+            [
+                PROVIDER,
+                MODEL,
+                SYSTEM_PROMPT,
+                BASE_URL,
+                ANTHROPIC_BASE_URL,
+                YANDEX_BASE_URL,
+                CREDENTIALS,
+                ANTHROPIC_API_KEY,
+                YANDEX_API_KEY,
+                YANDEX_FOLDER_ID,
+            ]
+        )
         deadline = time.monotonic() + budget
         unique = list(dict.fromkeys(texts))
         self._where: dict[str, tuple[Future, int]] = {}
         self._pending = deque()
-        for start in range(0, len(unique), BATCH_SIZE):
-            chunk = unique[start : start + BATCH_SIZE]
+        missing = []
+        for text in unique:
+            cached = _validated_cache.get(text, self.context)
+            if cached is None:
+                missing.append(text)
+            else:
+                future = Future()
+                future.set_result([cached])
+                self._where[text] = (future, 0)
+        for start in range(0, len(missing), BATCH_SIZE):
+            chunk = missing[start : start + BATCH_SIZE]
             future = Future()
             self._pending.append((chunk, future))
             for index, text in enumerate(chunk):
@@ -494,7 +520,11 @@ class JobExtractor:
         _job_context.cancel = self.cancel
         try:
             check_cancelled()
-            return extract_chunk(chunk, deadline)
+            result = extract_chunk(chunk, deadline)
+            check_cancelled()
+            for text, attributes in zip(chunk, result, strict=True):
+                _validated_cache.put(text, self.context, attributes)
+            return result
         finally:
             _job_context.cancel = None
 

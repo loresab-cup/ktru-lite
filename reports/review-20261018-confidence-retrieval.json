@@ -1,0 +1,47 @@
+{
+  "scope": "search only; synthetic exact catalog names and catalog vectors",
+  "independent_accuracy_evaluation": false,
+  "live_llm_calls": 0,
+  "new_embedding_calls": 0,
+  "upload_to_result_seconds": null,
+  "under_200_seconds_verified": false,
+  "python": "3.12.15 (main, Oct  6 2026, 02:02:22) [GCC 14.2.0]",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.41",
+  "cpu_logical": 12,
+  "numpy": "2.5.4",
+  "catalog_codes": 81509,
+  "catalog_load_seconds": 3.759439984999972,
+  "batch_size": 100,
+  "simultaneous_jobs": 1,
+  "input_code_sha256": "702e744f7d58abf32a8b647a13cb92e543e7bf7425f1975802a8025ffbfc7778",
+  "runs": [
+    {
+      "search_seconds": 31.47869622899998,
+      "exact_full_code_count": 855,
+      "top5_count": 958,
+      "auto_count": 746,
+      "wrong_auto_count": 92,
+      "manual_review_count": 254,
+      "count": 1000,
+      "exact_full_code_rate": 0.855,
+      "top5_rate": 0.958,
+      "wrong_auto_fraction_of_all": 0.092,
+      "wrong_auto_fraction_of_auto": 0.12332439678284182,
+      "assignment_sha256": "96986743b7ac1c331776cb3e4ed78f2033d4b24c392deaaab7c1ce201034596d"
+    },
+    {
+      "search_seconds": 36.428392653000174,
+      "exact_full_code_count": 855,
+      "top5_count": 958,
+      "auto_count": 746,
+      "wrong_auto_count": 92,
+      "manual_review_count": 254,
+      "count": 1000,
+      "exact_full_code_rate": 0.855,
+      "top5_rate": 0.958,
+      "wrong_auto_fraction_of_all": 0.092,
+      "wrong_auto_fraction_of_auto": 0.12332439678284182,
+      "assignment_sha256": "96986743b7ac1c331776cb3e4ed78f2033d4b24c392deaaab7c1ce201034596d"
+    }
+  ]
+}

@@ -12,6 +12,7 @@ import {
 } from './api'
 import { T } from './texts'
 import { Confidence, KtruCode, Skeleton, StatusChip } from './ui'
+import { SimilarReview } from './SimilarReview'
 
 function CodeCard({ code, current, score, matched, onChoose }: {
   code: CatalogCode
@@ -411,7 +412,9 @@ export function ItemDrawer({ item, onClose, onChanged }: {
             <StatusChip status={item.status} />
           </div>
 
-          <CodeEditor key={item.id} item={item} busy={busy} onSave={choose} />
+          <CodeEditor key={`code-${item.id}`} item={item} busy={busy} onSave={choose} />
+
+          <SimilarReview key={`similar-${item.id}`} item={item} onChanged={onChanged} />
 
           <div className="section">
             <div className="section-title">{T.drawer.source}</div>
@@ -460,7 +463,7 @@ export function ItemDrawer({ item, onClose, onChanged }: {
             ))}
           </div>
 
-          <CatalogSearch key={item.id} item={item} onChoose={choose} />
+          <CatalogSearch key={`catalog-${item.id}`} item={item} onChoose={choose} />
         </>
       )}
     </Drawer>
