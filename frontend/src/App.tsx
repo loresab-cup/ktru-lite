@@ -38,7 +38,7 @@ function readTokens(theme: Theme) {
       colorTextSecondary: v('text-2'),
       colorTextDescription: v('text-2'),
       colorBgContainer: v('surface'),
-      colorBgElevated: v('surface'),
+      colorBgElevated: v('surface-solid'), // drawers and menus stay opaque over the glass
       colorBorder: v('border'),
       colorBorderSecondary: v('border'),
       colorSuccess: v('high'),
