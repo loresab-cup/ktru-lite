@@ -149,6 +149,24 @@ def stems(text: str) -> set[str]:
     return {word[:5] for word in words(text)}
 
 
+def written_value(text: str, name: str) -> set[str] | None:
+    """Stems written right after «name:» in the row, up to the next colon; None if absent.
+
+    «Объем установленной памяти: ≥ 48 ГБ ... объем увеличения памяти: 16 ГБ» - the value of
+    the first characteristic is 48, not 16, although both numbers are in the row.
+    text and name are lowercase with ё = е."""
+    at = text.find(name)
+    while at >= 0:
+        rest = text[at + len(name) :].lstrip()
+        starts_word = at == 0 or not text[at - 1].isalpha()
+        if starts_word and rest.startswith(":"):
+            rest = rest[1:]
+            end = rest.find(":")
+            return stems(rest if end < 0 else rest[:end])
+        at = text.find(name, at + 1)
+    return None
+
+
 @dataclass
 class Catalog:
     vectors: np.ndarray  # (n, DIM) float32, L2-normalized
@@ -194,7 +212,7 @@ class Catalog:
                 for near, text, vector in zip(nearest, texts, vectors, strict=True)
             ]
         return [
-            self._rank(qw, query_bounds(text), stems(text), near, unit)
+            self._rank(qw, query_bounds(text), stems(text), near, unit, text)
             for qw, text, near, unit in zip(
                 query_words, texts, nearest, units or [None] * len(texts), strict=True
             )
@@ -285,8 +303,12 @@ class Catalog:
         clashes = len((lower & code_upper) - code_lower) + len((upper & code_lower) - code_upper)
         return matches, clashes
 
-    def _fixed_fit(self, i: int, query_stems: set[str]) -> tuple[int, int, int]:
-        """(fixed values written in the row, fixed values the row contradicts, unasked «Да»)."""
+    def _fixed_fit(self, i: int, query_stems: set[str], text: str = "") -> tuple[float, int, int]:
+        """(fixed values written in the row, fixed values the row contradicts, unasked «Да»).
+
+        When the row has «name: value» for the characteristic, the value is compared there;
+        otherwise anywhere in the row. A match counts 1 / (allowed values): a code allowing only
+        «≥ 2» says more than a code allowing «≥ 1, ≥ 2, ... ≥ 16». text: lowercase, ё = е."""
         matches = clashes = flags = 0
         for name, values in self.fixed[i]:
             name_stems = stems(name)
@@ -294,8 +316,10 @@ class Catalog:
             if len(values) == 1 and values[0].lower() in ("да", "нет"):
                 flags += values[0].lower() == "да" and not named
                 continue
-            if any(stems(value) and stems(value) <= query_stems for value in values):
-                matches += 1
+            written = written_value(text, name.lower().replace("ё", "е")) if text else None
+            where = query_stems if written is None else written
+            if any(stems(value) and stems(value) <= where for value in values):
+                matches += 1 / len(values)
             elif named:
                 clashes += 1
         return matches, clashes, flags
@@ -307,14 +331,16 @@ class Catalog:
         query_stems: set[str],
         nearest: list,
         unit: str | None = None,
+        text: str = "",
     ) -> list[dict]:
         scored = []
+        low = text.lower().replace("ё", "е")
         for i, cosine in nearest:
             shared = query_words & set(self.code_words[i].split())
             matches, clashes = self._numeric_fit(i, query)
             score = cosine + WORD_BONUS * len(shared) + NUMERIC_BONUS * matches
             score -= NUMERIC_CLASH * clashes
-            fixed_matches, fixed_clashes, flags = self._fixed_fit(i, query_stems)
+            fixed_matches, fixed_clashes, flags = self._fixed_fit(i, query_stems, low)
             score += FIXED_BONUS * fixed_matches - FIXED_CLASH * fixed_clashes - FIXED_FLAG * flags
             score -= TEMPLATE_PENALTY * self.templates[i]
             score -= NAME_EXTRA_PENALTY * len(stems(self.names[i]) - query_stems)

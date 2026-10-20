@@ -34,6 +34,7 @@ JOB_BUDGET = float(os.getenv("LLM_BUDGET", "240"))
 # After the network of a provider did not answer, it is skipped for a while instead of
 # waiting the whole budget again
 DOWN_PAUSE = 120.0
+CONNECT_PAUSE = 15.0  # a refused connection fails at once: try again soon, the gateway may be back
 AHEAD_ROUNDS = 2  # unfinished batches of one job in the pool: 2 rounds of all request slots
 
 # Why the rules were used for a row (shown to the user)
@@ -48,8 +49,9 @@ SYSTEM_PROMPT = """Ты извлекаешь атрибуты товаров и�
  "characteristics": [{"name": "...", "value": "...", "unit": "..."}], "search_text": "...",
  "measure": "..."}
 - name, brand, model и value характеристик копируй из text дословно; нет значения — "".
-- name — наименование товара без бренда, модели, количества и цены; назначение («для …»)
-  в name не включай.
+- name — наименование товара так, как оно записано в строке (обычно в её начале), вместе с
+  назначением («для …») и уточняющими словами; без бренда, модели, количества, цены и
+  значений характеристик.
 - search_text — наименование товара так, как оно называется в каталоге КТРУ (общее родовое
   название), затем существенные характеристики «характеристика: значение единица» через
   точку. Без бренда, модели, количества, цены и служебных слов.
@@ -265,7 +267,8 @@ def ask(system: str, user: str, deadline: float, cancelled, parse) -> tuple:
             raise
         except httpx.TransportError as exc:  # no connection or no answer in time
             logger.warning("LLM %s is unavailable: %s", provider.name, type(exc).__name__)
-            provider.down_until = time.monotonic() + DOWN_PAUSE
+            pause = CONNECT_PAUSE if isinstance(exc, httpx.ConnectError) else DOWN_PAUSE
+            provider.down_until = time.monotonic() + pause
             reason = UNAVAILABLE
         except TimeoutError:
             logger.warning("LLM budget is over")

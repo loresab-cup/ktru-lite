@@ -309,3 +309,16 @@ def test_refused_key_or_payment_pauses_the_provider(monkeypatch, status):
     monkeypatch.setattr(providers, "chat", fake_chat({"a": refused}))
     [row] = extractor.extract_chunk(["Бумага"], time.monotonic() + 5)
     assert row["provider"] == "b" and first.is_down() and not second.is_down()
+
+
+def test_refused_connection_is_retried_sooner_than_a_silent_network(monkeypatch):
+    refused, silent = openai(name="a"), openai(name="b")
+    monkeypatch.setattr(extractor, "PROVIDERS", [refused])
+    monkeypatch.setattr(providers, "chat", fake_chat({"a": httpx.ConnectError("refused")}))
+    extractor.extract_chunk(["Бумага"], time.monotonic() + 5)
+    monkeypatch.setattr(extractor, "PROVIDERS", [silent])
+    monkeypatch.setattr(providers, "chat", fake_chat({"b": httpx.ReadTimeout("no answer")}))
+    extractor.extract_chunk(["Бумага"], time.monotonic() + 5)
+    now = time.monotonic()
+    assert refused.down_until - now <= extractor.CONNECT_PAUSE
+    assert silent.down_until - now > extractor.CONNECT_PAUSE
