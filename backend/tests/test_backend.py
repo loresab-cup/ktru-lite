@@ -510,10 +510,11 @@ def test_silent_network_is_unavailable_not_slow(monkeypatch):
     """Timeouts until the budget ends: the network is paused, not just "too slow"."""
     monkeypatch.setattr(extractor, "CREDENTIALS", "test-key")
     monkeypatch.setattr(extractor, "_down_until", 0.0)
-    clock = iter([0.0, 0.0, 100.0, 100.0, 200.0, 200.0, 200.0])
-    monkeypatch.setattr(extractor.time, "monotonic", lambda: next(clock, 200.0))
+    clock = [0.0]
+    monkeypatch.setattr(extractor.time, "monotonic", lambda: clock[0])
 
     def silent(*args, **kwargs):
+        clock[0] += 100.0
         raise extractor.httpx.ReadTimeout("no answer")
 
     monkeypatch.setattr(extractor._client, "post", silent)

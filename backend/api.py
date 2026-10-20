@@ -333,11 +333,12 @@ def require_catalog() -> search.Catalog:
 
 
 @app.post("/api/jobs", status_code=202)
-async def create_job(
+def create_job(
     file: Annotated[UploadFile, File()], include_inactive: Annotated[bool, Form()] = False
 ):
+    # A plain def runs in the threadpool: reading, writing and the commit do not block the loop
     filename = Path(file.filename or "file").name[:200]
-    data = await file.read(parser.MAX_FILE_BYTES + 1)
+    data = file.file.read(parser.MAX_FILE_BYTES + 1)
     if len(data) > parser.MAX_FILE_BYTES:
         raise HTTPException(413, "Файл больше 10 МБ")
     if not data:
@@ -375,8 +376,11 @@ def get_job(job_id: str):
         )
         counts = {status: 0 for status in ITEM_STATUSES} | dict(rows.all())
         # Rows whose attributes came from the rules: the UI warns that the network was not used
-        attributes = session.scalars(select(Item.attributes).where(Item.job_id == job.id))
-        fallback = sum((a or {}).get("source") == "rules" for a in attributes)
+        fallback = session.scalar(
+            select(func.count())
+            .select_from(Item)
+            .where(Item.job_id == job.id, Item.attributes["source"].as_string() == "rules")
+        )
         return to_dict(job) | {"counts": counts, "fallback": fallback}
 
 
@@ -544,7 +548,10 @@ CODE_STATUS_TEXT = {"ACTIVE": "действует", "TERMINATED": "отменё�
 
 def cell(value):
     """Formula injection guard: a text starting with = + - @ gets a leading apostrophe."""
-    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+    # Leading spaces or a line break do not hide a formula from a spreadsheet
+    if isinstance(value, str) and (
+        value[:1] in ("\t", "\r", "\n") or value.lstrip()[:1] in ("=", "+", "-", "@")
+    ):
         return "'" + value
     return value
 

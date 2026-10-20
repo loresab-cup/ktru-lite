@@ -90,6 +90,10 @@ def in_source(value: str, source: str) -> bool:
 
 def accept(proposed: dict, source: str) -> dict:
     """One answer object -> attributes; values that are not in the source row are dropped."""
+    if not isinstance(proposed.get("name"), str):
+        raise TypeError("missing or invalid product name")
+    if not isinstance(proposed.get("characteristics", []), list):
+        raise TypeError("invalid characteristics")
     fallback = rules(source)
 
     def checked(key: str) -> str:
@@ -208,9 +212,17 @@ def rules(text: str, reason: str = ERROR) -> dict:
 # --- requests ------------------------------------------------------------------------------
 
 
-def access_token(renew: bool = False) -> str:
-    """GigaChat access token: cached for its 30 minutes, renewed a minute before the end."""
-    with _token_lock:
+def access_token(renew: bool = False, deadline: float | None = None) -> str:
+    """GigaChat access token: cached for its 30 minutes, renewed a minute before the end.
+
+    Waiting for the lock and the OAuth request itself never outlive the job budget."""
+    left = 30.0 if deadline is None else max(0.0, deadline - time.monotonic())
+    if not _token_lock.acquire(timeout=left):
+        raise TimeoutError("LLM budget is over while waiting for OAuth")
+    try:
+        left = 30.0 if deadline is None else deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError("LLM budget is over before OAuth")
         if renew or time.time() > _token["expires"] - TOKEN_MARGIN:
             response = _client.post(
                 AUTH_URL,
@@ -220,13 +232,19 @@ def access_token(renew: bool = False) -> str:
                     "Accept": "application/json",
                 },
                 data={"scope": SCOPE},
-                timeout=30.0,
+                timeout=min(30.0, left),
             )
             response.raise_for_status()
             body = response.json()
             _token["value"] = body["access_token"]
             _token["expires"] = body["expires_at"] / 1000  # milliseconds in the answer
         return _token["value"]
+    except httpx.TimeoutException as exc:
+        if left < 30.0:  # cut by the job budget: the network itself may be fine
+            raise TimeoutError("LLM budget is over during OAuth") from exc
+        raise
+    finally:
+        _token_lock.release()
 
 
 def post_chat(body: dict, deadline: float) -> httpx.Response:
@@ -234,7 +252,8 @@ def post_chat(body: dict, deadline: float) -> httpx.Response:
     if not _slots.acquire(timeout=max(0.0, deadline - time.monotonic())):
         raise TimeoutError("LLM budget is over while waiting for a free request slot")
     try:
-        headers = {"Authorization": f"Bearer {access_token()}", "Accept": "application/json"}
+        token = access_token(deadline=deadline)
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
         timeout = min(REQUEST_TIMEOUT, max(1.0, deadline - time.monotonic()))
         try:
             return _client.post(
@@ -283,7 +302,9 @@ def call_llm(rows: list[dict], deadline: float) -> str:
             time.sleep(min(2.0 * (attempt + 1), max(0.0, deadline - time.monotonic())))
             continue
         if response.status_code == 401 and not renewed:
-            access_token(renew=True)  # the token was revoked or ended early: one more try
+            access_token(
+                renew=True, deadline=deadline
+            )  # the token was revoked or ended early: one more try
             renewed = True
             continue
         response.raise_for_status()
@@ -318,7 +339,13 @@ def extract_chunk(texts: list[str], deadline: float) -> list[dict]:
         status = getattr(getattr(exc, "response", None), "status_code", "")
         logger.warning("LLM failed for %s rows: %s %s", len(texts), type(exc).__name__, status)
         return [rules(text, ERROR) for text in texts]
-    return [accept(by_id[i], t) if i in by_id else rules(t, MISSING) for i, t in enumerate(texts)]
+    result = []
+    for i, text in enumerate(texts):
+        try:  # a broken object falls back for its own row only
+            result.append(accept(by_id[i], text) if i in by_id else rules(text, MISSING))
+        except (TypeError, ValueError):
+            result.append(rules(text, ERROR))
+    return result
 
 
 class JobExtractor:
