@@ -16,7 +16,7 @@ pdf, txt). Система достаёт из каждой строки наим
 
 | Что | Как | Где подробнее |
 | --- | --- | --- |
-| Несколько нейросетей сразу | GigaChat, Yandex AI Studio и любые OpenAI-совместимые шлюзы (сейчас tokify и claude-n-codex); общая очередь пакетов, у каждого провайдера свой лимит потоков, при сбое пакет уходит к другому | 6.2 |
+| Несколько нейросетей сразу | GigaChat, Yandex AI Studio и любые OpenAI-совместимые шлюзы (сейчас tokify и moduleapi); общая очередь пакетов, у каждого провайдера свой лимит потоков, при сбое пакет уходит к другому | 6.2 |
 | Все строки — нейросетью | бюджет `LLM_BUDGET` 240 с, тайм-аут запроса 40 с, провайдер с ошибкой ключа/баланса (401/402/403) или молчащей сетью пропускается 120 с | 6.2, 6.5 |
 | Второе мнение по спорным кодам | нейросеть выбирает код из топ-5 поиска для строк «Нужна проверка»; только коды кандидатов, правки пользователя не затираются | 6.6 |
 | Эмбеддинги на GPU | `docker-compose.gpu.yml` подключается из `.env` (`COMPOSE_FILE`), 1000 строк за 23 с вместо 4 мин | 1 |
@@ -82,7 +82,7 @@ cp .env.example .env
 
 1. **Ключи и модели нейросетей.** `LLM_PROVIDERS` — список через запятую, быстрые первыми; для
    каждого провайдера `<ИМЯ>_API_KEY`, `<ИМЯ>_MODEL`, `<ИМЯ>_PARALLEL`. Готовые блоки с адресами
-   tokify, claude-n-codex, GigaChat и Yandex — в `.env.example`; подобранные модели
+   tokify, moduleapi, GigaChat и Yandex — в `.env.example`; подобранные модели
    и лимиты — в разделе 11. Yandex для новичка — [docs/YANDEX_SETUP.md](docs/YANDEX_SETUP.md).
 2. **GPU** (если есть NVIDIA) — раскомментируйте две строки, и та же команда будет запускать
    Ollama на видеокарте:
@@ -542,7 +542,7 @@ characteristics, search_text, source = llm / rules / manual, columns — исх�
 | `LLM_PROVIDERS`                                         | `gigachat`                                          | нейросети через запятую, порядок — приоритет: `gigachat,yandex`                                     |
 | `YANDEX_API_KEY`, `YANDEX_FOLDER_ID`                    | пусто                                               | API-ключ сервисного аккаунта и каталог Yandex AI Studio (docs/YANDEX_SETUP.md)                       |
 | `YANDEX_MODEL`, `YANDEX_PARALLEL`                       | `qwen3.6-35b-a3b`, `2`                              | модель и одновременные запросы (квота каталога по умолчанию — 2)                                      |
-| `X_BASE_URL`, `X_API_KEY`, `X_MODEL`, `X_PARALLEL`      | —                                                   | любой OpenAI-совместимый провайдер с именем `x` в `LLM_PROVIDERS`; в `.env.example` готовы `tokify`, `claudecodex` |
+| `X_BASE_URL`, `X_API_KEY`, `X_MODEL`, `X_PARALLEL`      | —                                                   | любой OpenAI-совместимый провайдер с именем `x` в `LLM_PROVIDERS`; в `.env.example` готовы `tokify`, `moduleapi` |
 | `X_REASONING_EFFORT`                                    | пусто (`none` для Qwen в Yandex)                    | `none` ускоряет «думающие» модели, если провайдер это поддерживает                                     |
 | `OLLAMA_URL`                                            | `http://ollama:11434`                               | эмбеддинги; например `http://host.docker.internal:11434` для Ollama на хосте с той же bge-m3          |
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | `ktru`                                              | учётка PostgreSQL (смените перед деплоем)                                                                                                 |
@@ -633,12 +633,12 @@ npm run build                                              # tsc + vite
 Модели подобраны пробой на 30 строках чернового эталона (время пакета из 10 строк, точность
 наименования/бренда/модели); «думающие» модели (qwen*, deepseek*) отброшены — 19–90 с на пакет.
 Шлюзы routerai и polza (gemini flash-lite, 5–6 с на пакет; со всеми пятью провайдерами 1000 строк
-за 57 с) проверены, но от них отказались; подключаются снова строками в `.env`, код не меняется.
+за 57 с) и claude-n-codex (`claude-sonnet-5`, 9 с на пакет) проверены, но от них отказались; подключаются снова строками в `.env`, код не меняется.
 
 | Провайдер | Модель | Пакет 10 строк | Потоков |
 | --- | --- | ---: | ---: |
 | tokify | `gpt-5.6-luna`, `TOKIFY_REASONING_EFFORT=none` | 8 с | 6 |
-| claudecodex | `claude-sonnet-5` | 9 с | 6 |
+| moduleapi | `gpt-5.6-luna`, `MODULEAPI_REASONING_EFFORT=none` (~$0.07 на 1000 строк) | не замерялся | 4 |
 | gigachat | `GigaChat-3-Ultra` | 12 с | 1 |
 
 | Прогон | 1000 строк | нейросетью | черновой эталон: код / топ-5 / атрибуты |
