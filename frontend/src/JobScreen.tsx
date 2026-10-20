@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, RotateCcw, Upload } from 'lucide-react'
+import { AlertTriangle, Check, Info, RotateCcw, Square, Upload } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { api, ApiError, type Job } from './api'
 import { Results } from './Results'
@@ -27,7 +27,50 @@ function readyPercent(job: Job): number {
   return Math.round((100 * (c.auto + c.corrected + c.accepted)) / job.total)
 }
 
-function ProgressCard({ job }: { job: Job }) {
+function StopButton({ job, onStopped }: { job: Job; onStopped: (job: Job) => void }) {
+  const [busy, setBusy] = useState(false)
+  const stop = async () => {
+    setBusy(true)
+    try {
+      onStopped(await api.cancel(job.id))
+    } catch {
+      setBusy(false) // the next poll shows the real state
+    }
+  }
+  return (
+    <button type="button" className="btn danger" onClick={stop} disabled={busy}>
+      <Square size={14} aria-hidden="true" /> {busy ? T.progress.stopping : T.progress.stop}
+    </button>
+  )
+}
+
+/** Thin progress line above the live table: rows keep arriving while the user works. */
+function LiveHead({ job, onStopped }: { job: Job; onStopped: (job: Job) => void }) {
+  const percent = job.total ? Math.floor((100 * job.processed) / job.total) : 0
+  return (
+    <section className="live-head" aria-live="polite">
+      <div className="counter num">
+        {T.progress.processed} <b>{job.processed}</b> {T.progress.of} <b>{job.total}</b>
+      </div>
+      <div
+        className="live-bar"
+        role="progressbar"
+        aria-valuenow={percent}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={T.progress.title}
+      >
+        <span style={{ width: `${percent}%` }} />
+      </div>
+      <StopButton job={job} onStopped={onStopped} />
+      <p className="cell-sub" style={{ flexBasis: '100%', margin: 0 }}>
+        {T.progress.live}
+      </p>
+    </section>
+  )
+}
+
+function ProgressCard({ job, onStopped }: { job: Job; onStopped: (job: Job) => void }) {
   const percent = job.total ? Math.floor((100 * job.processed) / job.total) : 0
   const states = stepStates(job)
   return (
@@ -56,6 +99,9 @@ function ProgressCard({ job }: { job: Job }) {
               {T.progress.processed} <b>{job.processed}</b> {T.progress.of} <b>{job.total}</b>
             </>
           )}
+        </div>
+        <div className="toolbar" style={{ margin: '16px 0 0' }}>
+          <StopButton job={job} onStopped={onStopped} />
         </div>
       </div>
     </section>
@@ -164,5 +210,22 @@ export function JobScreen({ jobId, onHome, onInfo }: {
     return <Problem title={T.progress.failed} text={job.error ?? ''} onHome={onHome} />
   }
   if (job.status === 'done') return <Results job={job} onChanged={refresh} />
-  return <ProgressCard job={job} />
+  if (job.status === 'cancelled') {
+    return (
+      <>
+        <div className="alert warn" role="status" style={{ margin: '0 0 20px' }}>
+          <Info size={18} aria-hidden="true" style={{ flex: 'none' }} />
+          {T.progress.cancelled(job.processed, job.total)}
+        </div>
+        <Results job={job} onChanged={refresh} />
+      </>
+    )
+  }
+  if (job.processed === 0) return <ProgressCard job={job} onStopped={setJob} />
+  return (
+    <>
+      <LiveHead job={job} onStopped={setJob} />
+      <Results job={job} onChanged={refresh} />
+    </>
+  )
 }

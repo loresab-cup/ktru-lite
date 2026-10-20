@@ -51,7 +51,7 @@ logger = logging.getLogger("api")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg://ktru:ktru@db:5432/ktru")
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/data/uploads"))
 WORKERS = int(os.getenv("WORKERS", "2"))
-BATCH = 100
+BATCH = 20  # small batches: finished rows reach the table while the rest are processed
 POLL_SECONDS = 1.0
 ITEM_STATUSES = ("auto", "needs_review", "corrected", "accepted", "failed")
 
@@ -109,6 +109,9 @@ class State:
     catalog_error: bool = False
     stop = threading.Event()
 
+    def __init__(self) -> None:
+        self.cancels: dict[uuid.UUID, threading.Event] = {}  # running jobs -> "stop" flag
+
 
 state = State()
 
@@ -147,7 +150,20 @@ def set_job(job_id: uuid.UUID, **values) -> None:
 
 
 def finish(job_id: uuid.UUID, status: str, error: str | None, stages: dict) -> None:
-    set_job(job_id, status=status, error=error, finished_at=now(), stage_seconds=dict(stages))
+    """Final status; a job the user cancelled meanwhile stays cancelled."""
+    values = {"error": error, "finished_at": now(), "stage_seconds": dict(stages)}
+    with SessionLocal() as session:
+        query = update(Job).where(Job.id == job_id)
+        if status != "cancelled":
+            query = query.where(Job.status == "processing")
+        session.execute(query.values(status=status, **values))
+        session.execute(update(Job).where(Job.id == job_id).values(**values))
+        session.commit()
+
+
+def cancelled(job_id: uuid.UUID) -> bool:
+    with SessionLocal() as session:
+        return session.scalar(select(Job.status).where(Job.id == job_id)) == "cancelled"
 
 
 def tick(stages: dict, stage: str, started: float) -> None:
@@ -191,27 +207,41 @@ def unit_hint(row: parser.Item, attributes: dict) -> str | None:
 def process_items(
     job_id: uuid.UUID, rows: list[parser.Item], include_inactive: bool, stages: dict
 ) -> None:
-    llm = extractor.JobExtractor([row.text for row in rows])
-    for start in range(0, len(rows), BATCH):
-        batch = rows[start : start + BATCH]
-        started = time.monotonic()
-        attributes = [llm.get(row.text) for row in batch]
-        tick(stages, "extract", started)
-        started = time.monotonic()
-        queries = [
-            f"{a['search_text']}. {row.text}" for a, row in zip(attributes, batch, strict=True)
-        ]
-        units = [unit_hint(row, a) for a, row in zip(attributes, batch, strict=True)]
-        vectors = embedder.embed(queries)
-        found = state.catalog.search(vectors, queries, include_inactive, units)
-        tick(stages, "search", started)
-        started = time.monotonic()
-        items = [build_item(job_id, *args) for args in zip(batch, attributes, found, strict=True)]
-        tick(stages, "confidence", started)
-        with SessionLocal() as session:
-            session.add_all(items)
-            session.commit()
-        set_job(job_id, processed=start + len(batch), stage_seconds=dict(stages))
+    llm = extractor.JobExtractor([row.text for row in rows], cancelled=state.cancels.get(job_id))
+    try:
+        for start in range(0, len(rows), BATCH):
+            if cancelled(job_id):
+                raise extractor.Cancelled
+            process_batch(job_id, rows[start : start + BATCH], start, llm, include_inactive, stages)
+    except extractor.Cancelled:
+        llm.cancel()
+        raise
+
+
+def process_batch(
+    job_id: uuid.UUID,
+    batch: list[parser.Item],
+    start: int,
+    llm: extractor.JobExtractor,
+    include_inactive: bool,
+    stages: dict,
+) -> None:
+    started = time.monotonic()
+    attributes = [llm.get(row.text) for row in batch]
+    tick(stages, "extract", started)
+    started = time.monotonic()
+    queries = [f"{a['search_text']}. {row.text}" for a, row in zip(attributes, batch, strict=True)]
+    units = [unit_hint(row, a) for a, row in zip(attributes, batch, strict=True)]
+    vectors = embedder.embed(queries)
+    found = state.catalog.search(vectors, queries, include_inactive, units)
+    tick(stages, "search", started)
+    started = time.monotonic()
+    items = [build_item(job_id, *args) for args in zip(batch, attributes, found, strict=True)]
+    tick(stages, "confidence", started)
+    with SessionLocal() as session:
+        session.add_all(items)
+        session.commit()
+    set_job(job_id, processed=start + len(batch), stage_seconds=dict(stages))
 
 
 def run_job(job_id: uuid.UUID) -> None:
@@ -222,6 +252,7 @@ def run_job(job_id: uuid.UUID) -> None:
         path, include_inactive = upload_path(job), job.include_inactive
         session.execute(delete(Item).where(Item.job_id == job_id))  # rerun after a restart
         session.commit()
+    state.cancels[job_id] = threading.Event()
     try:
         rows = parser.parse_file(path)
         tick(stages, "read", started)
@@ -229,6 +260,9 @@ def run_job(job_id: uuid.UUID) -> None:
         process_items(job_id, rows, include_inactive, stages)
         tick(stages, "total", started)
         status, error = "done", None
+    except extractor.Cancelled:
+        tick(stages, "total", started)
+        status, error = "cancelled", None
     except parser.ParseError as exc:
         status, error = "failed", str(exc)
     except FileNotFoundError:
@@ -239,6 +273,7 @@ def run_job(job_id: uuid.UUID) -> None:
     # If this write fails (the database restarts), the file stays: after a restart the job is
     # queued again and processed from the start
     finish(job_id, status, error, stages)
+    state.cancels.pop(job_id, None)
     path.unlink(missing_ok=True)
 
 
@@ -507,6 +542,27 @@ def accept_job(job_id: str, min_confidence: float = Query(85.0, ge=0, le=100)):
         return {"accepted": accepted}
 
 
+@app.post("/api/jobs/{job_id}/cancel")
+def cancel_job(job_id: str):
+    """Stops a queued or running job; finished rows stay for editing and export."""
+    with SessionLocal() as session:
+        job = get_or_404(session, Job, job_id, "Задание")
+        was = job.status
+        session.execute(
+            update(Job)
+            .where(Job.id == job.id, Job.status.in_(("queued", "processing")))
+            .values(status="cancelled", finished_at=now())
+        )
+        session.commit()
+        session.refresh(job)
+    if was == "queued":
+        upload_path(job).unlink(missing_ok=True)  # no worker will take it any more
+    event = state.cancels.get(job.id)
+    if event is not None:
+        event.set()
+    return to_dict(job)
+
+
 @app.get("/api/catalog/search")
 def catalog_search(q: str = Query(..., min_length=1, max_length=100)):
     return require_catalog().lookup(q)
@@ -601,7 +657,7 @@ def to_xlsx(rows: list[list]) -> bytes:
 def export(job_id: str, format: str = Query("xlsx", pattern="^(xlsx|csv)$")):
     with SessionLocal() as session:
         job = get_or_404(session, Job, job_id, "Задание")
-        if job.status != "done":
+        if job.status not in ("done", "cancelled"):
             raise HTTPException(409, "Выгрузка доступна после окончания обработки")
         items = session.scalars(select(Item).where(Item.job_id == job.id).order_by(Item.id)).all()
     rows = export_rows(list(items))

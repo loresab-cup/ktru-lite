@@ -497,7 +497,7 @@ def test_rules_tell_why_the_network_was_not_used(monkeypatch):
     monkeypatch.setattr(extractor, "CREDENTIALS", "test-key")
     monkeypatch.setattr(extractor, "_down_until", 0.0)
 
-    def no_answer(rows, deadline):
+    def no_answer(rows, deadline, cancelled=None):
         raise extractor.httpx.ReadTimeout("no answer")
 
     monkeypatch.setattr(extractor, "call_llm", no_answer)

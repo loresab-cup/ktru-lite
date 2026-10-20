@@ -146,7 +146,8 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
     return () => {
       alive = false
     }
-  }, [job.id, filter, query, page, version, toast])
+    // job.processed: new rows of a running job appear without touching what is open for editing
+  }, [job.id, job.processed, filter, query, page, version, toast])
 
   const reload = () => {
     setVersion((v) => v + 1)
@@ -164,7 +165,8 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
   }
 
   const counts = job.counts
-  const seconds = job.stage_seconds.total
+  const finished = job.status === 'done' || job.status === 'cancelled'
+  const seconds = finished ? job.stage_seconds.total : undefined
 
   return (
     <>
@@ -285,7 +287,7 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
           reload()
         }}
       />
-      <ExportButton jobId={job.id} />
+      {finished && <ExportButton jobId={job.id} />}
     </>
   )
 }

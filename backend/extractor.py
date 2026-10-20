@@ -8,6 +8,7 @@ GigaChat auth: the authorization key (Basic) -> POST {GIGACHAT_AUTH_URL} -> acce
 30 minutes -> POST {GIGACHAT_BASE_URL}/chat/completions with "Authorization: Bearer <token>".
 """
 
+import collections
 import json
 import logging
 import os
@@ -15,7 +16,8 @@ import re
 import threading
 import time
 import uuid
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 
 import httpx
 
@@ -69,11 +71,47 @@ SYSTEM_PROMPT = """Ты извлекаешь атрибуты товаров и�
 - Если строка не товар (служебный текст), верни name "" и пустые остальные поля.
 Ответ — только JSON-массив, без пояснений."""
 
+
+class FairSlots:
+    """A semaphore that serves waiters in arrival order.
+
+    threading.Semaphore lets the thread that has just released a slot take it again at once,
+    so with one slot the first batches of a job could starve behind later ones and the table
+    stayed empty until the budget ended."""
+
+    def __init__(self, size: int) -> None:
+        self._free = size
+        self._queue: collections.deque[object] = collections.deque()
+        self._cond = threading.Condition()
+
+    def acquire(self, timeout: float) -> bool:
+        ticket = object()
+        deadline = time.monotonic() + timeout
+        with self._cond:
+            self._queue.append(ticket)
+            while not (self._free and self._queue[0] is ticket):
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    self._queue.remove(ticket)
+                    self._cond.notify_all()
+                    return False
+                self._cond.wait(left)
+            self._queue.popleft()
+            self._free -= 1
+            self._cond.notify_all()
+            return True
+
+    def release(self) -> None:
+        with self._cond:
+            self._free += 1
+            self._cond.notify_all()
+
+
 _pool = ThreadPoolExecutor(PARALLEL, thread_name_prefix="llm")
 _client = httpx.Client(timeout=REQUEST_TIMEOUT, verify=VERIFY_SSL)
 _token = {"value": "", "expires": 0.0}  # access token and its end, unix seconds
 _token_lock = threading.Lock()
-_slots = threading.BoundedSemaphore(PARALLEL_REQUESTS)
+_slots = FairSlots(PARALLEL_REQUESTS)
 
 # --- guard ---------------------------------------------------------------------------------
 
@@ -209,6 +247,10 @@ def rules(text: str, reason: str = ERROR) -> dict:
     }
 
 
+class Cancelled(Exception):
+    """The job was stopped by the user: its rows are not needed any more."""
+
+
 # --- requests ------------------------------------------------------------------------------
 
 
@@ -247,11 +289,15 @@ def access_token(renew: bool = False, deadline: float | None = None) -> str:
         _token_lock.release()
 
 
-def post_chat(body: dict, deadline: float) -> httpx.Response:
+def post_chat(
+    body: dict, deadline: float, cancelled: threading.Event | None = None
+) -> httpx.Response:
     """POST /chat/completions as soon as a request slot is free, within the job budget."""
     if not _slots.acquire(timeout=max(0.0, deadline - time.monotonic())):
         raise TimeoutError("LLM budget is over while waiting for a free request slot")
     try:
+        if cancelled is not None and cancelled.is_set():
+            raise Cancelled  # stopped while waiting for the slot: send nothing
         token = access_token(deadline=deadline)
         headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
         timeout = min(REQUEST_TIMEOUT, max(1.0, deadline - time.monotonic()))
@@ -267,7 +313,7 @@ def post_chat(body: dict, deadline: float) -> httpx.Response:
         _slots.release()
 
 
-def call_llm(rows: list[dict], deadline: float) -> str:
+def call_llm(rows: list[dict], deadline: float, cancelled: threading.Event | None = None) -> str:
     """One chat request with retries on 429, 5xx and timeouts while the budget lasts."""
     body = {
         "model": MODEL,
@@ -286,7 +332,7 @@ def call_llm(rows: list[dict], deadline: float) -> str:
             # The budget ran out while the network kept silent: that is "no answer", not "slow"
             raise timeout_error or TimeoutError("LLM budget is over")
         try:
-            response = post_chat(body, deadline)
+            response = post_chat(body, deadline, cancelled)
         except httpx.TimeoutException as exc:  # a full window without an answer
             if attempt == RETRIES:
                 raise
@@ -320,18 +366,25 @@ def llm_state() -> str:
     return "down" if time.monotonic() < _down_until else "on"
 
 
-def extract_chunk(texts: list[str], deadline: float) -> list[dict]:
+def extract_chunk(
+    texts: list[str], deadline: float, cancelled: threading.Event | None = None
+) -> list[dict]:
     global _down_until
+    if cancelled is not None and cancelled.is_set():
+        raise Cancelled
     state = llm_state()
     if state != "on":
         return [rules(text, NO_KEY if state == "off" else UNAVAILABLE) for text in texts]
     try:
-        answer = call_llm([{"id": i, "text": t} for i, t in enumerate(texts)], deadline)
+        rows = [{"id": i, "text": t} for i, t in enumerate(texts)]
+        answer = call_llm(rows, deadline, cancelled)
         by_id = answer_by_id(parse_json_answer(answer))
     except httpx.TransportError as exc:  # no connection or no answer in time
         logger.warning("LLM is unavailable for %s rows: %s", len(texts), type(exc).__name__)
         _down_until = time.monotonic() + DOWN_PAUSE
         return [rules(text, UNAVAILABLE) for text in texts]
+    except Cancelled:
+        raise
     except TimeoutError:
         logger.warning("LLM budget is over, rules for %s rows", len(texts))
         return [rules(text, BUDGET) for text in texts]
@@ -354,20 +407,39 @@ class JobExtractor:
     Batches of the job run in parallel with the search of earlier batches.
     """
 
-    def __init__(self, texts: list[str], budget: float = JOB_BUDGET) -> None:
+    def __init__(
+        self,
+        texts: list[str],
+        budget: float = JOB_BUDGET,
+        cancelled: threading.Event | None = None,
+    ) -> None:
         deadline = time.monotonic() + budget
         unique = list(dict.fromkeys(texts))
+        self.cancelled = cancelled or threading.Event()
         self._where: dict[str, tuple[Future, int]] = {}
         for start in range(0, len(unique), BATCH_SIZE):
             chunk = unique[start : start + BATCH_SIZE]
-            future = _pool.submit(extract_chunk, chunk, deadline)
+            future = _pool.submit(extract_chunk, chunk, deadline, self.cancelled)
             for index, text in enumerate(chunk):
                 self._where[text] = (future, index)
 
+    def cancel(self) -> None:
+        """Queued batches are dropped; a request already sent finishes and is thrown away."""
+        self.cancelled.set()
+        for future, _ in self._where.values():
+            future.cancel()
+
     def get(self, text: str) -> dict:
+        """Waits for the row; raises Cancelled as soon as the job is stopped."""
         future, index = self._where[text]
-        try:
-            return future.result()[index]
-        except Exception:
-            logger.exception("extraction failed")
-            return rules(text)
+        while not self.cancelled.is_set():
+            try:
+                return future.result(timeout=0.25)[index]
+            except FutureTimeout:
+                continue
+            except (CancelledError, Cancelled):
+                break
+            except Exception:
+                logger.exception("extraction failed")
+                return rules(text)
+        raise Cancelled

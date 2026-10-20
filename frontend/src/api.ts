@@ -1,6 +1,6 @@
 import { T } from './texts'
 
-export type JobStatus = 'queued' | 'processing' | 'done' | 'failed'
+export type JobStatus = 'queued' | 'processing' | 'done' | 'failed' | 'cancelled'
 export type ItemStatus = 'auto' | 'needs_review' | 'corrected' | 'accepted' | 'failed'
 export type Zone = 'high' | 'medium' | 'low'
 
@@ -134,6 +134,7 @@ export const api = {
     form.append('include_inactive', String(includeInactive))
     return request<{ job_id: string }>('/api/jobs', { method: 'POST', body: form })
   },
+  cancel: (id: string) => request<Job>(`/api/jobs/${encodeURIComponent(id)}/cancel`, json('POST')),
   correct: (itemId: number, code: string) =>
     request<Item>(`/api/items/${itemId}`, json('PATCH', { ktru_code: code })),
   editAttributes: (itemId: number, attributes: AttributesInput) =>
