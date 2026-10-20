@@ -2,10 +2,13 @@ import { Checkbox } from 'antd'
 import {
   AlertTriangle,
   FileSearch,
+  FileText,
   ListChecks,
+  Play,
   ScanSearch,
   Sparkles,
   UploadCloud,
+  X,
   type LucideIcon,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type DragEvent } from 'react'
@@ -69,6 +72,49 @@ function Stats({ jobs, onChoose }: { jobs: Job[] | null; onChoose: () => void })
   )
 }
 
+function FileList({ files, busy, onRemove, onClear, onProcess }: {
+  files: File[]
+  busy: string | null
+  onRemove: (file: File) => void
+  onClear: () => void
+  onProcess: () => void
+}) {
+  if (!files.length) return <p className="file-empty">{T.upload.noFiles}</p>
+  return (
+    <section className="file-list" aria-labelledby="files-title">
+      <div className="file-list-head">
+        <h3 id="files-title">{T.upload.files}</h3>
+        <button type="button" className="btn small" onClick={onClear} disabled={Boolean(busy)}>
+          {T.upload.clear}
+        </button>
+      </div>
+      <ul>
+        {files.map((file) => (
+          <li key={`${file.name}-${file.size}`} className={busy === file.name ? 'busy' : ''}>
+            <FileText size={18} aria-hidden="true" />
+            <span className="file-name">{file.name}</span>
+            <span className="file-size num">{T.upload.size(file.size)}</span>
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label={T.upload.remove(file.name)}
+              title={T.upload.remove(file.name)}
+              disabled={Boolean(busy)}
+              onClick={() => onRemove(file)}
+            >
+              <X size={16} aria-hidden="true" />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button type="button" className="btn primary process" onClick={onProcess} disabled={Boolean(busy)}>
+        <Play size={16} aria-hidden="true" />
+        {busy ? T.upload.uploading(busy) : T.upload.process(files.length)}
+      </button>
+    </section>
+  )
+}
+
 export function UploadScreen({ jobs, onJob }: {
   jobs: Job[] | null
   onJob: (id: string) => void
@@ -77,28 +123,56 @@ export function UploadScreen({ jobs, onJob }: {
   const [over, setOver] = useState(false)
   const [inactive, setInactive] = useState(false)
   const [uploading, setUploading] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [files, setFiles] = useState<File[]>([])
+  const [errors, setErrors] = useState<string[]>([])
+  const [sent, setSent] = useState(0)
 
-  const send = async (file: File | undefined) => {
-    if (!file || uploading) return
-    const name = file.name.toLowerCase()
-    if (!EXTENSIONS.some((ext) => name.endsWith(ext))) return setError(T.upload.badType)
-    if (file.size > MAX_BYTES) return setError(T.upload.tooBig)
-    setError(null)
-    setUploading(file.name)
-    try {
-      const { job_id } = await api.upload(file, inactive)
-      onJob(job_id)
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : T.errors.network)
-      setUploading(null)
+  /** Files go to the list first; nothing is sent until "Process" is pressed. */
+  const add = (list: FileList | null | undefined) => {
+    if (!list?.length || uploading) return
+    const next = [...files]
+    const bad: string[] = []
+    for (const file of Array.from(list)) {
+      const name = file.name.toLowerCase()
+      if (!EXTENSIONS.some((ext) => name.endsWith(ext))) {
+        bad.push(T.upload.fileError(file.name, T.upload.badType))
+      } else if (file.size > MAX_BYTES) {
+        bad.push(T.upload.fileError(file.name, T.upload.tooBig))
+      } else if (!next.some((f) => f.name === file.name && f.size === file.size)) {
+        next.push(file)
+      }
     }
+    setFiles(next)
+    setErrors(bad)
+    setSent(0)
+  }
+
+  /** One job per file; the first one opens, the others are in the sidebar list. */
+  const process = async () => {
+    if (!files.length || uploading) return
+    const ids: string[] = []
+    const bad: string[] = []
+    const left: File[] = []
+    for (const file of files) {
+      setUploading(file.name)
+      try {
+        ids.push((await api.upload(file, inactive)).job_id)
+      } catch (e) {
+        bad.push(T.upload.fileError(file.name, e instanceof ApiError ? e.message : T.errors.network))
+        left.push(file)
+      }
+    }
+    setUploading(null)
+    setFiles(left)
+    setErrors(bad)
+    setSent(ids.length)
+    if (ids.length && !bad.length) onJob(ids[0])
   }
 
   const onDrop = (e: DragEvent) => {
     e.preventDefault()
     setOver(false)
-    void send(e.dataTransfer.files[0])
+    add(e.dataTransfer.files)
   }
 
   return (
@@ -158,24 +232,37 @@ export function UploadScreen({ jobs, onJob }: {
                   {T.upload.inactive}
                 </Checkbox>
               </div>
-              {error && (
-                <div className="alert" role="alert">
-                  <AlertTriangle size={18} aria-hidden="true" />
-                  {error}
-                </div>
-              )}
             </div>
             <input
               ref={input}
               type="file"
               hidden
+              multiple
               accept={EXTENSIONS.join(',')}
               onChange={(e) => {
-                void send(e.target.files?.[0])
+                add(e.target.files)
                 e.target.value = ''
               }}
             />
           </div>
+          {errors.map((error) => (
+            <div key={error} className="alert" role="alert">
+              <AlertTriangle size={18} aria-hidden="true" />
+              {error}
+            </div>
+          ))}
+          {sent > 0 && errors.length > 0 && (
+            <div className="alert warn" role="status">
+              {T.upload.sent(sent)}
+            </div>
+          )}
+          <FileList
+            files={files}
+            busy={uploading}
+            onRemove={(file) => setFiles(files.filter((f) => f !== file))}
+            onClear={() => setFiles([])}
+            onProcess={() => void process()}
+          />
           <p className="lead">{T.upload.lead}</p>
         </section>
         <Stats jobs={jobs} onChoose={() => input.current?.click()} />

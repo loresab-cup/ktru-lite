@@ -8,6 +8,7 @@ const WAVES = [
   'M0 230V212C180 204 260 150 360 178S560 214 700 190 900 168 1000 196V230Z',
 ]
 const LINE = 'M0 170C140 204 230 140 360 150S560 204 690 140 880 40 1000 70'
+const LINE_OFFSETS = Array.from({ length: 14 }, (_, i) => i * 6 - 30)
 
 export function Waves({ className, line = true }: { className?: string; line?: boolean }) {
   return (
@@ -22,13 +23,19 @@ export function Waves({ className, line = true }: { className?: string; line?: b
         <path key={d} d={d} style={{ fill: `var(--wave-${i + 1})` }} />
       ))}
       {line && (
-        <path
-          d={LINE}
-          fill="none"
-          style={{ stroke: 'var(--wave-line)' }}
-          strokeWidth="2"
-          vectorEffect="non-scaling-stroke"
-        />
+        // A bundle of thin parallel lines that fades out, like drawn line art
+        <g fill="none" style={{ stroke: 'var(--wave-line)' }}>
+          {LINE_OFFSETS.map((dy, i) => (
+            <path
+              key={dy}
+              d={LINE}
+              transform={`translate(0 ${dy})`}
+              strokeWidth="1"
+              opacity={1 - i / LINE_OFFSETS.length}
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+        </g>
       )}
     </svg>
   )

@@ -151,6 +151,12 @@ function AttributesView({ item }: { item: Item }) {
           {T.drawer.fallback[attrs.fallback ?? ''] ?? T.drawer.byRules}
         </div>
       )}
+      {attrs.source === 'llm' && attrs.provider && (
+        <div className="cell-sub" style={{ marginTop: 8 }}>
+          <Info size={13} aria-hidden="true" style={{ verticalAlign: -2 }} />{' '}
+          {T.drawer.byProvider(attrs.provider)}
+        </div>
+      )}
       {attrs.source === 'manual' && (
         <div className="cell-sub" style={{ marginTop: 8 }}>
           <PenLine size={13} aria-hidden="true" style={{ verticalAlign: -2 }} /> {T.drawer.byHand}

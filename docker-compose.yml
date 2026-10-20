@@ -15,9 +15,16 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8000:8000"  # API docs for this machine only; users go through nginx
+    # Neural network settings: LLM_PROVIDERS, YANDEX_*, <NAME>_* of other providers
+    env_file:
+      - path: .env
+        required: false
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ktru}:${POSTGRES_PASSWORD:-ktru}@db:5432/${POSTGRES_DB:-ktru}
-      OLLAMA_URL: http://ollama:11434
+      # Embeddings: the ollama container (add docker-compose.gpu.yml for the GPU) or e.g.
+      # http://host.docker.internal:11434 for Ollama on the host with the same bge-m3
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      LLM_PROVIDERS: ${LLM_PROVIDERS:-gigachat}
       GIGACHAT_BASE_URL: ${GIGACHAT_BASE_URL:-https://api.giga.chat/v1}
       GIGACHAT_CREDENTIALS: ${GIGACHAT_CREDENTIALS:-}
       GIGACHAT_SCOPE: ${GIGACHAT_SCOPE:-GIGACHAT_API_PERS}
@@ -25,6 +32,7 @@ services:
       GIGACHAT_AUTH_URL: ${GIGACHAT_AUTH_URL:-https://ngw.devices.sberbank.ru:9443/api/v2/oauth}
       GIGACHAT_VERIFY_SSL: ${GIGACHAT_VERIFY_SSL:-false}
       GIGACHAT_PARALLEL: ${GIGACHAT_PARALLEL:-1}
+      LEX_LIMIT: ${LEX_LIMIT:-20}
     volumes:
       - ./db:/catalog:ro
       - cache:/cache

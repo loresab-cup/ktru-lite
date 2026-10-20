@@ -38,7 +38,7 @@ function readTokens(theme: Theme) {
       colorTextSecondary: v('text-2'),
       colorTextDescription: v('text-2'),
       colorBgContainer: v('surface'),
-      colorBgElevated: v('surface'),
+      colorBgElevated: v('surface-solid'), // drawers and menus stay opaque over the glass
       colorBorder: v('border'),
       colorBorderSecondary: v('border'),
       colorSuccess: v('high'),
@@ -76,17 +76,22 @@ function usePath(): [string, (path: string) => void] {
 function HealthBadge() {
   const [health, setHealth] = useState<Health | null | 'offline'>(null)
   useEffect(() => {
+    let alive = true
     let timer = 0
     const load = () =>
       api
         .health()
         .then((h) => {
+          if (!alive) return
           setHealth(h)
-          if (h.catalog === 'loading') timer = window.setTimeout(load, 3000)
         })
-        .catch(() => setHealth('offline'))
+        .catch(() => { if (alive) setHealth('offline') })
+        .finally(() => { if (alive) timer = window.setTimeout(load, 3000) })
     load()
-    return () => window.clearTimeout(timer)
+    return () => {
+      alive = false
+      window.clearTimeout(timer)
+    }
   }, [])
   if (!health) return null
   if (health === 'offline') return <div className="health">{T.app.catalog.offline}</div>

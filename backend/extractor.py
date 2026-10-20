@@ -1,11 +1,13 @@
 """Positions -> attributes: name, brand, model, characteristics, search_text.
 
-GigaChat (REST API of Sber) does the work; every value it returns must be present in the
-source row (guard against invented values and prompt injection).
-No key, the budget is over or the request failed -> simple rules. A job never fails here.
+Neural networks from providers.py (GigaChat, YandexGPT/Qwen, OpenAI-compatible) do the work;
+every value they return must be present in the source row (guard against invented values and
+prompt injection). No provider, the budget is over or every provider failed -> simple rules.
+A job never fails here.
 
-GigaChat auth: the authorization key (Basic) -> POST {GIGACHAT_AUTH_URL} -> access token for
-30 minutes -> POST {GIGACHAT_BASE_URL}/chat/completions with "Authorization: Bearer <token>".
+Several providers work at once: the pool has one worker per request slot of all providers, so
+batches start in submission order and every worker takes a free slot of some provider; a fast
+provider takes the next batch as soon as it is free. A batch a provider failed goes to another.
 """
 
 import json
@@ -14,38 +16,25 @@ import os
 import re
 import threading
 import time
-import uuid
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 
 import httpx
 
+import providers
+from providers import Cancelled
+
 logger = logging.getLogger(__name__)
 
-BASE_URL = os.getenv("GIGACHAT_BASE_URL", "https://api.giga.chat/v1").rstrip("/")
-AUTH_URL = os.getenv("GIGACHAT_AUTH_URL", "https://ngw.devices.sberbank.ru:9443/api/v2/oauth")
-CREDENTIALS = os.getenv("GIGACHAT_CREDENTIALS", "")  # authorization key from the Sber cabinet
-SCOPE = os.getenv("GIGACHAT_SCOPE", "GIGACHAT_API_PERS")
-MODEL = os.getenv("GIGACHAT_MODEL", "GigaChat-3-Ultra")
-# GigaChat certificates are signed by the Russian root CA (Минцифры), missing from the usual
-# trust stores. "false" turns the check off (as in the Sber example) - traffic with the key can
-# then be intercepted by a forged certificate; a path to that CA bundle keeps the check on.
-_VERIFY = os.getenv("GIGACHAT_VERIFY_SSL", "true")
-VERIFY_SSL: bool | str = (
-    _VERIFY if _VERIFY.endswith((".pem", ".crt")) else (_VERIFY.lower() not in ("0", "false", "no"))
-)
-TEMPERATURE = 0.0001  # below 0.001 GigaChat answers the same way every time
-TOKEN_MARGIN = 60.0  # seconds: a token that expires sooner is replaced before the request
+PROVIDERS = providers.load()
 BATCH_SIZE = 10
-PARALLEL = 16  # rows of a job are prepared in parallel; requests wait for a free slot below
-# Requests to GigaChat at the same moment: the Freemium tariff answers 429 to a second one
-PARALLEL_REQUESTS = max(1, int(os.getenv("GIGACHAT_PARALLEL", "1")))
-REQUEST_TIMEOUT = 90.0
-RETRIES = 2
-JOB_BUDGET = 150.0  # seconds for all LLM requests of one job
-# After the network did not answer, jobs go straight to the rules for a while instead of
+# Seconds for all LLM requests of one job; the rows left after it get the rules. 240 s plus the
+# search (~25 s on a GPU) stays within the 5 minutes required for 1000 rows.
+JOB_BUDGET = float(os.getenv("LLM_BUDGET", "240"))
+# After the network of a provider did not answer, it is skipped for a while instead of
 # waiting the whole budget again
 DOWN_PAUSE = 120.0
-_down_until = 0.0
+AHEAD_ROUNDS = 2  # unfinished batches of one job in the pool: 2 rounds of all request slots
 
 # Why the rules were used for a row (shown to the user)
 NO_KEY, UNAVAILABLE, BUDGET, ERROR, MISSING = "no_key", "unavailable", "budget", "error", "missing"
@@ -69,11 +58,9 @@ SYSTEM_PROMPT = """Ты извлекаешь атрибуты товаров и�
 - Если строка не товар (служебный текст), верни name "" и пустые остальные поля.
 Ответ — только JSON-массив, без пояснений."""
 
-_pool = ThreadPoolExecutor(PARALLEL, thread_name_prefix="llm")
-_client = httpx.Client(timeout=REQUEST_TIMEOUT, verify=VERIFY_SSL)
-_token = {"value": "", "expires": 0.0}  # access token and its end, unix seconds
-_token_lock = threading.Lock()
-_slots = threading.BoundedSemaphore(PARALLEL_REQUESTS)
+
+SLOTS = max(1, sum(p.parallel for p in PROVIDERS if p.configured))  # requests at the same moment
+_pool = ThreadPoolExecutor(SLOTS, thread_name_prefix="llm")  # one worker per request slot
 
 # --- guard ---------------------------------------------------------------------------------
 
@@ -90,6 +77,10 @@ def in_source(value: str, source: str) -> bool:
 
 def accept(proposed: dict, source: str) -> dict:
     """One answer object -> attributes; values that are not in the source row are dropped."""
+    if not isinstance(proposed.get("name"), str):
+        raise TypeError("missing or invalid product name")
+    if not isinstance(proposed.get("characteristics", []), list):
+        raise TypeError("invalid characteristics")
     fallback = rules(source)
 
     def checked(key: str) -> str:
@@ -208,139 +199,156 @@ def rules(text: str, reason: str = ERROR) -> dict:
 # --- requests ------------------------------------------------------------------------------
 
 
-def access_token(renew: bool = False) -> str:
-    """GigaChat access token: cached for its 30 minutes, renewed a minute before the end."""
-    with _token_lock:
-        if renew or time.time() > _token["expires"] - TOKEN_MARGIN:
-            response = _client.post(
-                AUTH_URL,
-                headers={
-                    "Authorization": f"Basic {CREDENTIALS}",
-                    "RqUID": str(uuid.uuid4()),
-                    "Accept": "application/json",
-                },
-                data={"scope": SCOPE},
-                timeout=30.0,
-            )
-            response.raise_for_status()
-            body = response.json()
-            _token["value"] = body["access_token"]
-            _token["expires"] = body["expires_at"] / 1000  # milliseconds in the answer
-        return _token["value"]
-
-
-def post_chat(body: dict, deadline: float) -> httpx.Response:
-    """POST /chat/completions as soon as a request slot is free, within the job budget."""
-    if not _slots.acquire(timeout=max(0.0, deadline - time.monotonic())):
-        raise TimeoutError("LLM budget is over while waiting for a free request slot")
-    try:
-        headers = {"Authorization": f"Bearer {access_token()}", "Accept": "application/json"}
-        timeout = min(REQUEST_TIMEOUT, max(1.0, deadline - time.monotonic()))
-        try:
-            return _client.post(
-                f"{BASE_URL}/chat/completions", json=body, headers=headers, timeout=timeout
-            )
-        except httpx.TimeoutException as exc:
-            if timeout < REQUEST_TIMEOUT:  # cut by the job budget: the network itself may be fine
-                raise TimeoutError("LLM budget is over: the request was cut") from exc
-            raise
-    finally:
-        _slots.release()
-
-
-def call_llm(rows: list[dict], deadline: float) -> str:
-    """One chat request with retries on 429, 5xx and timeouts while the budget lasts."""
-    body = {
-        "model": MODEL,
-        "max_tokens": 4096,
-        "temperature": TEMPERATURE,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": json.dumps(rows, ensure_ascii=False)},
-        ],
-    }
-    renewed = False
-    timeout_error = None
-    for attempt in range(RETRIES + 1):
-        left = deadline - time.monotonic()
-        if left < 1:
-            # The budget ran out while the network kept silent: that is "no answer", not "slow"
-            raise timeout_error or TimeoutError("LLM budget is over")
-        try:
-            response = post_chat(body, deadline)
-        except httpx.TimeoutException as exc:  # a full window without an answer
-            if attempt == RETRIES:
-                raise
-            timeout_error = exc
-            continue
-        except TimeoutError:  # the budget ended while waiting for a slot or during a request
-            if timeout_error:
-                raise timeout_error from None  # the network had kept silent before: unavailable
-            raise
-        if response.status_code == 429 or response.status_code >= 500:
-            if attempt == RETRIES:
-                response.raise_for_status()
-            time.sleep(min(2.0 * (attempt + 1), max(0.0, deadline - time.monotonic())))
-            continue
-        if response.status_code == 401 and not renewed:
-            access_token(renew=True)  # the token was revoked or ended early: one more try
-            renewed = True
-            continue
-        response.raise_for_status()
-        choices = response.json().get("choices") or [{}]
-        return choices[0].get("message", {}).get("content") or ""
-    raise RuntimeError("unreachable")
-
-
 def llm_state() -> str:
-    """off - no key, down - did not answer a moment ago, on - in use."""
-    if not CREDENTIALS:
+    """off - no provider configured, down - none answered a moment ago, on - in use."""
+    configured = [p for p in PROVIDERS if p.configured]
+    if not configured:
         return "off"
-    return "down" if time.monotonic() < _down_until else "on"
+    return "down" if all(p.is_down() for p in configured) else "on"
 
 
-def extract_chunk(texts: list[str], deadline: float) -> list[dict]:
-    global _down_until
-    state = llm_state()
-    if state != "on":
-        return [rules(text, NO_KEY if state == "off" else UNAVAILABLE) for text in texts]
-    try:
-        answer = call_llm([{"id": i, "text": t} for i, t in enumerate(texts)], deadline)
-        by_id = answer_by_id(parse_json_answer(answer))
-    except httpx.TransportError as exc:  # no connection or no answer in time
-        logger.warning("LLM is unavailable for %s rows: %s", len(texts), type(exc).__name__)
-        _down_until = time.monotonic() + DOWN_PAUSE
-        return [rules(text, UNAVAILABLE) for text in texts]
-    except TimeoutError:
-        logger.warning("LLM budget is over, rules for %s rows", len(texts))
-        return [rules(text, BUDGET) for text in texts]
-    except Exception as exc:  # noqa: BLE001 - HTTP error or a broken answer: rules for this chunk
-        status = getattr(getattr(exc, "response", None), "status_code", "")
-        logger.warning("LLM failed for %s rows: %s %s", len(texts), type(exc).__name__, status)
-        return [rules(text, ERROR) for text in texts]
-    return [accept(by_id[i], t) if i in by_id else rules(t, MISSING) for i, t in enumerate(texts)]
+def take_provider(tried: set[str], deadline: float) -> providers.Provider | None:
+    """A free request slot of the first provider in the list; waits while all are busy.
+
+    None - every provider is down or has already failed this batch, or the budget is over."""
+    while time.monotonic() < deadline:
+        alive = [p for p in PROVIDERS if p.configured and not p.is_down() and p.name not in tried]
+        if not alive:
+            return None
+        for p in alive:
+            if p.slots.acquire(blocking=False):
+                return p
+        time.sleep(0.05)
+    return None
+
+
+def to_attributes(answer: str, texts: list[str], provider: str) -> list[dict]:
+    """Rows of one batch from an answer; a broken object falls back for its own row only.
+
+    An answer without a single usable object raises ValueError: another provider may do better."""
+    by_id = answer_by_id(parse_json_answer(answer))
+    if not any(i in by_id for i in range(len(texts))):
+        raise ValueError("no rows in the answer")
+    result = []
+    for i, text in enumerate(texts):
+        try:
+            row = accept(by_id[i], text) if i in by_id else rules(text, MISSING)
+        except (TypeError, ValueError):
+            row = rules(text, ERROR)
+        if row["source"] == "llm":
+            row["provider"] = provider  # shown in the item panel and kept in the export data
+        result.append(row)
+    return result
+
+
+def ask(system: str, user: str, deadline: float, cancelled, parse) -> tuple:
+    """One request to the providers in turn until parse(answer, provider name) succeeds.
+
+    (result, None) on success; (None, reason) when every provider failed or the time is over.
+    A provider whose network kept silent, or that refused the key or payment, is paused."""
+    tried: set[str] = set()
+    reason = UNAVAILABLE
+    while True:
+        if cancelled is not None and cancelled.is_set():
+            raise Cancelled
+        provider = take_provider(tried, deadline)
+        if provider is None:
+            if llm_state() == "off":
+                reason = NO_KEY
+            elif time.monotonic() >= deadline:
+                reason = BUDGET
+            return None, reason
+        try:
+            answer = providers.chat(provider, system, user, deadline, cancelled)
+            return parse(answer, provider.name), None
+        except Cancelled:
+            raise
+        except httpx.TransportError as exc:  # no connection or no answer in time
+            logger.warning("LLM %s is unavailable: %s", provider.name, type(exc).__name__)
+            provider.down_until = time.monotonic() + DOWN_PAUSE
+            reason = UNAVAILABLE
+        except TimeoutError:
+            logger.warning("LLM budget is over")
+            return None, BUDGET
+        except Exception as exc:  # noqa: BLE001 - HTTP error or a broken answer: next provider
+            status = getattr(getattr(exc, "response", None), "status_code", "")
+            logger.warning("LLM %s failed: %s %s", provider.name, type(exc).__name__, status)
+            if status in (401, 402, 403):  # wrong key, no money or no rights: not fixed in seconds
+                provider.down_until = time.monotonic() + DOWN_PAUSE
+            reason = ERROR
+        finally:
+            provider.slots.release()
+        tried.add(provider.name)
+
+
+def extract_chunk(
+    texts: list[str], deadline: float, cancelled: threading.Event | None = None
+) -> list[dict]:
+    user = json.dumps([{"id": i, "text": t} for i, t in enumerate(texts)], ensure_ascii=False)
+    rows, reason = ask(
+        SYSTEM_PROMPT,
+        user,
+        deadline,
+        cancelled,
+        lambda answer, name: to_attributes(answer, texts, name),
+    )
+    return rows if rows is not None else [rules(text, reason) for text in texts]
 
 
 class JobExtractor:
-    """Starts extraction of all distinct rows of a job at once; get() waits for one row.
+    """Puts the distinct rows of a job into the pool in batches; get() waits for one row.
 
-    Batches of the job run in parallel with the search of earlier batches.
+    At most AHEAD_ROUNDS x (request slots) unfinished batches of a job are in the pool: another
+    job uploaded meanwhile gets slots soon instead of waiting for the whole big file, and a slow
+    batch does not stop the next ones. Batches run in parallel with the search of earlier ones.
     """
 
-    def __init__(self, texts: list[str], budget: float = JOB_BUDGET) -> None:
-        deadline = time.monotonic() + budget
+    def __init__(
+        self,
+        texts: list[str],
+        budget: float = JOB_BUDGET,
+        cancelled: threading.Event | None = None,
+    ) -> None:
+        self.deadline = time.monotonic() + budget
+        self.cancelled = cancelled or threading.Event()
         unique = list(dict.fromkeys(texts))
-        self._where: dict[str, tuple[Future, int]] = {}
-        for start in range(0, len(unique), BATCH_SIZE):
-            chunk = unique[start : start + BATCH_SIZE]
-            future = _pool.submit(extract_chunk, chunk, deadline)
-            for index, text in enumerate(chunk):
-                self._where[text] = (future, index)
+        self._chunks = [unique[i : i + BATCH_SIZE] for i in range(0, len(unique), BATCH_SIZE)]
+        self._where = {
+            text: (n, i) for n, chunk in enumerate(self._chunks) for i, text in enumerate(chunk)
+        }
+        self._futures: list[Future] = []
+        self._ahead = AHEAD_ROUNDS * SLOTS
+        self._top_up()
+
+    def _top_up(self) -> None:
+        """Submits the next batches while fewer than `ahead` of them are unfinished."""
+        pending = sum(not future.done() for future in self._futures)
+        while pending < self._ahead and len(self._futures) < len(self._chunks):
+            chunk = self._chunks[len(self._futures)]
+            self._futures.append(_pool.submit(extract_chunk, chunk, self.deadline, self.cancelled))
+            pending += 1
+
+    def cancel(self) -> None:
+        """Queued batches are dropped; a request already sent finishes and is thrown away."""
+        self.cancelled.set()
+        for future in self._futures:
+            future.cancel()
 
     def get(self, text: str) -> dict:
-        future, index = self._where[text]
-        try:
-            return future.result()[index]
-        except Exception:
-            logger.exception("extraction failed")
-            return rules(text)
+        """Waits for the row; raises Cancelled as soon as the job is stopped."""
+        n, index = self._where[text]
+        while not self.cancelled.is_set():
+            self._top_up()  # while this batch waits, finished ones are replaced by new ones
+            if n >= len(self._futures):
+                time.sleep(0.25)
+                continue
+            try:
+                return self._futures[n].result(timeout=0.25)[index]
+            except FutureTimeout:
+                continue
+            except (CancelledError, Cancelled):
+                break
+            except Exception:
+                logger.exception("extraction failed")
+                return rules(text)
+        raise Cancelled

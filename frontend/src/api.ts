@@ -1,6 +1,6 @@
 import { T } from './texts'
 
-export type JobStatus = 'queued' | 'processing' | 'done' | 'failed'
+export type JobStatus = 'queued' | 'processing' | 'done' | 'failed' | 'cancelled'
 export type ItemStatus = 'auto' | 'needs_review' | 'corrected' | 'accepted' | 'failed'
 export type Zone = 'high' | 'medium' | 'low'
 
@@ -50,6 +50,7 @@ export interface Item {
     characteristics?: Characteristic[]
     source?: string
     fallback?: string // why the rules were used
+    provider?: string // which neural network extracted the row
   }
   candidates: Candidate[]
   ktru_code: string | null
@@ -85,22 +86,26 @@ export function ktruUrl(code: string): string | null {
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  let response: Response
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 150_000)
   try {
-    response = await fetch(url, init)
-  } catch {
-    throw new ApiError(T.errors.network)
-  }
-  if (!response.ok) {
-    let detail = ''
-    try {
-      detail = (await response.json()).detail
-    } catch {
-      // not JSON: nginx error page
+    const response = await fetch(url, { ...init, signal: controller.signal })
+    if (!response.ok) {
+      let detail = ''
+      try {
+        detail = (await response.json()).detail
+      } catch {
+        // not JSON: nginx error page
+      }
+      throw new ApiError(typeof detail === 'string' && detail ? detail : T.errors.http(response.status))
     }
-    throw new ApiError(typeof detail === 'string' && detail ? detail : T.errors.http(response.status))
+    return await response.json() as T
+  } catch (error) {
+    if (error instanceof ApiError) throw error
+    throw new ApiError(T.errors.network)
+  } finally {
+    clearTimeout(timer)
   }
-  return response.json() as Promise<T>
 }
 
 const json = (method: string, body?: unknown): RequestInit => ({
@@ -130,6 +135,7 @@ export const api = {
     form.append('include_inactive', String(includeInactive))
     return request<{ job_id: string }>('/api/jobs', { method: 'POST', body: form })
   },
+  cancel: (id: string) => request<Job>(`/api/jobs/${encodeURIComponent(id)}/cancel`, json('POST')),
   correct: (itemId: number, code: string) =>
     request<Item>(`/api/items/${itemId}`, json('PATCH', { ktru_code: code })),
   editAttributes: (itemId: number, attributes: AttributesInput) =>

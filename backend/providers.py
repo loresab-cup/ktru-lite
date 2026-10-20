@@ -1,0 +1,248 @@
+"""Neural networks for extractor.py: settings from .env and one chat request with retries.
+
+LLM_PROVIDERS=gigachat,yandex lists them; the order is the priority when several are free.
+- gigachat: GIGACHAT_* (OAuth key -> token for 30 minutes)
+- yandex: YANDEX_API_KEY, YANDEX_FOLDER_ID, YANDEX_MODEL, YANDEX_PARALLEL (Yandex AI Studio)
+- any other name X: X_BASE_URL, X_API_KEY, X_MODEL, X_PARALLEL (an OpenAI-compatible API)
+Optional X_REASONING_EFFORT (none, low, ...) for models that think before answering.
+Every provider has its own limit of requests at the same moment (X_PARALLEL -> a semaphore).
+"""
+
+import logging
+import os
+import threading
+import time
+import uuid
+from dataclasses import dataclass, field
+
+import httpx
+
+logger = logging.getLogger(__name__)
+
+TEMPERATURE = 0.0001  # below 0.001 GigaChat answers the same way every time
+REQUEST_TIMEOUT = 40.0  # a batch of 10 rows takes 5-23 s; a hung request goes to a retry sooner
+RETRIES = 2
+TOKEN_MARGIN = 60.0  # seconds: a GigaChat token that expires sooner is replaced first
+
+# GigaChat certificates are signed by the Russian root CA (Минцифры), missing from the usual
+# trust stores. "false" turns the check off (as in the Sber example) - traffic with the key can
+# then be intercepted by a forged certificate; a path to that CA bundle keeps the check on.
+_VERIFY = os.getenv("GIGACHAT_VERIFY_SSL", "true")
+GIGACHAT_VERIFY: bool | str = (
+    _VERIFY if _VERIFY.endswith((".pem", ".crt")) else (_VERIFY.lower() not in ("0", "false", "no"))
+)
+AUTH_URL = os.getenv("GIGACHAT_AUTH_URL", "https://ngw.devices.sberbank.ru:9443/api/v2/oauth")
+SCOPE = os.getenv("GIGACHAT_SCOPE", "GIGACHAT_API_PERS")
+
+
+class Cancelled(Exception):
+    """The job was stopped by the user: its rows are not needed any more."""
+
+
+@dataclass
+class Provider:
+    name: str
+    kind: str  # gigachat | yandex | openai
+    base_url: str
+    key: str
+    model: str
+    parallel: int = 1
+    folder: str = ""  # Yandex only
+    reasoning: str = (
+        ""  # reasoning_effort for models that think before answering: "none" is fastest
+    )
+    down_until: float = 0.0  # did not answer a moment ago: skipped until then
+    slots: threading.BoundedSemaphore = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self.parallel = max(1, self.parallel)
+        self.slots = threading.BoundedSemaphore(self.parallel)
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.key and self.model and (self.folder or self.kind != "yandex"))
+
+    def is_down(self) -> bool:
+        return time.monotonic() < self.down_until
+
+
+def load(env=os.environ) -> list[Provider]:
+    """Providers from LLM_PROVIDERS, in that order."""
+    result = []
+    for name in dict.fromkeys(
+        n.strip().lower() for n in env.get("LLM_PROVIDERS", "gigachat").split(",")
+    ):
+        if not name:
+            continue
+        p = name.upper()
+        if name == "gigachat":
+            result.append(
+                Provider(
+                    name,
+                    "gigachat",
+                    env.get("GIGACHAT_BASE_URL", "https://api.giga.chat/v1"),
+                    env.get("GIGACHAT_CREDENTIALS", ""),
+                    env.get("GIGACHAT_MODEL", "GigaChat-3-Ultra"),
+                    int(env.get("GIGACHAT_PARALLEL", "1")),
+                )
+            )
+        elif name == "yandex":
+            result.append(
+                Provider(
+                    name,
+                    "yandex",
+                    env.get("YANDEX_BASE_URL", "https://ai.api.cloud.yandex.net/v1"),
+                    env.get("YANDEX_API_KEY", "").strip(),
+                    env.get("YANDEX_MODEL", "qwen3.6-35b-a3b"),
+                    int(env.get("YANDEX_PARALLEL", "2")),
+                    env.get("YANDEX_FOLDER_ID", "").strip(),
+                )
+            )
+        else:
+            result.append(
+                Provider(
+                    name,
+                    "openai",
+                    env.get(f"{p}_BASE_URL", ""),
+                    env.get(f"{p}_API_KEY", "").strip(),
+                    env.get(f"{p}_MODEL", "").strip(),
+                    int(env.get(f"{p}_PARALLEL", "1")),
+                )
+            )
+        result[-1].reasoning = env.get(f"{p}_REASONING_EFFORT", "").strip()
+    return result
+
+
+# --- GigaChat token ------------------------------------------------------------------------
+
+_gigachat_client = httpx.Client(timeout=REQUEST_TIMEOUT, verify=GIGACHAT_VERIFY)
+_client = httpx.Client(timeout=REQUEST_TIMEOUT)
+_token = {"value": "", "expires": 0.0}  # GigaChat access token and its end, unix seconds
+_token_lock = threading.Lock()
+
+
+def access_token(key: str, renew: bool = False, deadline: float | None = None) -> str:
+    """GigaChat access token: cached for its 30 minutes, renewed a minute before the end.
+
+    Waiting for the lock and the OAuth request itself never outlive the job budget."""
+    left = 30.0 if deadline is None else max(0.0, deadline - time.monotonic())
+    if not _token_lock.acquire(timeout=left):
+        raise TimeoutError("LLM budget is over while waiting for OAuth")
+    try:
+        left = 30.0 if deadline is None else deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError("LLM budget is over before OAuth")
+        if renew or time.time() > _token["expires"] - TOKEN_MARGIN:
+            response = _gigachat_client.post(
+                AUTH_URL,
+                headers={
+                    "Authorization": f"Basic {key}",
+                    "RqUID": str(uuid.uuid4()),
+                    "Accept": "application/json",
+                },
+                data={"scope": SCOPE},
+                timeout=min(30.0, left),
+            )
+            response.raise_for_status()
+            body = response.json()
+            _token["value"] = body["access_token"]
+            _token["expires"] = body["expires_at"] / 1000  # milliseconds in the answer
+        return _token["value"]
+    except httpx.TimeoutException as exc:
+        if left < 30.0:  # cut by the job budget: the network itself may be fine
+            raise TimeoutError("LLM budget is over during OAuth") from exc
+        raise
+    finally:
+        _token_lock.release()
+
+
+# --- one request ---------------------------------------------------------------------------
+
+
+def body(p: Provider, system: str, user: str) -> dict:
+    model = p.model
+    result = {
+        "model": model,
+        "max_tokens": 4096,
+        "temperature": TEMPERATURE,
+        "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+    }
+    if p.kind == "yandex":
+        result["model"] = model if model.startswith("gpt://") else f"gpt://{p.folder}/{model}"
+        if "qwen" in model and not p.reasoning:
+            result["reasoning_effort"] = "none"  # no hidden reasoning: much faster, same JSON
+    if p.reasoning:
+        result["reasoning_effort"] = p.reasoning
+    return result
+
+
+def post(p: Provider, payload: dict, deadline: float) -> httpx.Response:
+    """One POST /chat/completions; a timeout cut by the job budget becomes TimeoutError."""
+    if p.kind == "gigachat":
+        headers = {"Authorization": f"Bearer {access_token(p.key, deadline=deadline)}"}
+        client = _gigachat_client
+    elif p.kind == "yandex":
+        headers = {"Authorization": f"Api-Key {p.key}", "OpenAI-Project": p.folder}
+        client = _client
+    else:
+        headers = {"Authorization": f"Bearer {p.key}"}
+        client = _client
+    timeout = min(REQUEST_TIMEOUT, max(1.0, deadline - time.monotonic()))
+    started = time.monotonic()
+    try:
+        response = client.post(
+            f"{p.base_url.rstrip('/')}/chat/completions",
+            json=payload,
+            headers=headers | {"Accept": "application/json"},
+            timeout=timeout,
+        )
+    except httpx.TimeoutException as exc:
+        if timeout < REQUEST_TIMEOUT:  # cut by the job budget: the network itself may be fine
+            raise TimeoutError("LLM budget is over: the request was cut") from exc
+        raise
+    logger.info(
+        "LLM %s: HTTP %s in %.1f s", p.name, response.status_code, time.monotonic() - started
+    )
+    return response
+
+
+def chat(p: Provider, system: str, user: str, deadline: float, cancelled=None) -> str:
+    """Answer text; retries 429, 5xx and a silent network while the budget lasts.
+
+    TimeoutError - the budget ended; httpx.TransportError - the network kept silent;
+    httpx.HTTPStatusError or ValueError - the provider refused or answered incompletely."""
+    payload = body(p, system, user)
+    renewed = False
+    silent = None
+    for attempt in range(RETRIES + 1):
+        if cancelled is not None and cancelled.is_set():
+            raise Cancelled  # stopped: send nothing more
+        if deadline - time.monotonic() < 1:
+            # The budget ran out while the network kept silent: that is "no answer", not "slow"
+            raise silent or TimeoutError("LLM budget is over")
+        try:
+            response = post(p, payload, deadline)
+        except httpx.TimeoutException as exc:  # a full window without an answer
+            if attempt == RETRIES:
+                raise
+            silent = exc
+            continue
+        except TimeoutError:
+            if silent:
+                raise silent from None  # the network had kept silent before: unavailable
+            raise
+        if response.status_code == 429 or response.status_code >= 500:
+            if attempt == RETRIES:
+                response.raise_for_status()
+            time.sleep(min(2.0 * (attempt + 1), max(0.0, deadline - time.monotonic())))
+            continue
+        if response.status_code == 401 and p.kind == "gigachat" and not renewed:
+            access_token(p.key, renew=True, deadline=deadline)  # revoked or ended early
+            renewed = True
+            continue
+        response.raise_for_status()
+        choice = (response.json().get("choices") or [{}])[0]
+        if choice.get("finish_reason") == "length":
+            raise ValueError("the answer was cut by max_tokens")
+        return choice.get("message", {}).get("content") or ""
+    raise RuntimeError("unreachable")

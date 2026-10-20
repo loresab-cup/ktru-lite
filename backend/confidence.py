@@ -9,13 +9,13 @@ import math
 # code is right) of every row and fit a logistic regression on the two features; its
 # coefficients go here. Then check the high zone: at least ~95 % of its codes must be right,
 # otherwise raise BIAS a little.
-# Check of these values (gold draft of the old project, 291 rows, no LLM): high zone 234 rows,
-# the right group (name + OKPD2) in 99.6 %, the exact code in 70 % - neighbours of one group
-# share vector and values there. The margin is ~0 inside such groups, so its weight is small
-# in a fit; it stays here for the rows where two different products compete.
-W_SCORE = 20.0
-W_MARGIN = 40.0
-BIAS = -16.0
+# Fit of 20.10.2026: draft reference rows whose right code is not a group template (as people
+# choose codes: 0 templates among the 12 codes of the real specification) plus the real
+# specification, 4 runs, 1 076 rows. Mean confidence 88.7 % = share of right codes 88.7 %
+# (the old 20/40/-16 gave 95.9 %); the high zone holds 92.6 % right codes (was 90.9 %).
+W_SCORE = 14.5
+W_MARGIN = 41.5
+BIAS = -12.2
 
 HIGH = 85.0  # >= HIGH: zone high, the code is set automatically
 MEDIUM = 60.0  # MEDIUM..HIGH: medium, below: low; both need a human

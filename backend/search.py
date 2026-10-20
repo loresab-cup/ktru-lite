@@ -58,6 +58,12 @@ TEMPLATE_PENALTY = 0.015
 # A/B on stored rows: no change on the draft gold (73.9 %) and the real file (12/12); it
 # fixes the near tie of such codes when the network is down and the row itself is the query.
 NAME_EXTRA_PENALTY = 0.01
+# Hybrid retrieval: the top codes by BM25 over the stems of code names join the vector top-50,
+# so a code whose name matches the row is ranked even when its vector was not among the 50.
+# They only join the candidates: a BM25 bonus in the score (0.01-0.1) lowered the exact code on
+# the draft reference by 0.3-4.5 points. 0 turns the lexical part off.
+LEX_LIMIT = int(os.getenv("LEX_LIMIT", "20"))
+BM25_K1, BM25_B = 1.2, 0.75
 # Twin codes differ only by the unit: «Кефир» in litres and in kilograms. The unit of the row
 # (the «Ед. изм.» column, else the unit the product is usually bought in) decides such a tie;
 # the bonus is smaller than any other rule, so it never overrules them.
@@ -164,6 +170,7 @@ class Catalog:
         self.active = np.array([s == "ACTIVE" for s in self.statuses], dtype=bool)
         self._names_lower = [name.lower().replace("ё", "е") for name in self.names]
         self._postings: dict[str, np.ndarray] | None = None
+        self._bm25: dict[str, tuple[np.ndarray, np.ndarray]] | None = None
         self._lock = threading.Lock()
 
     # --- search ----------------------------------------------------------------------------
@@ -181,12 +188,59 @@ class Catalog:
             nearest = self._nearest_by_vectors(vectors, include_inactive)
         else:
             nearest = [self._nearest_by_words(qw, include_inactive) for qw in query_words]
+        if vectors is not None and LEX_LIMIT > 0:
+            nearest = [
+                self._merge(near, self._lexical(stems(text), include_inactive), vector)
+                for near, text, vector in zip(nearest, texts, vectors, strict=True)
+            ]
         return [
             self._rank(qw, query_bounds(text), stems(text), near, unit)
             for qw, text, near, unit in zip(
                 query_words, texts, nearest, units or [None] * len(texts), strict=True
             )
         ]
+
+    def _bm25_postings(self) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+        """stem -> (code indices, BM25 weight of the stem in that code name)."""
+        with self._lock:
+            if self._bm25 is None:
+                docs = [stems(name) for name in self.names]
+                lengths = np.array([max(1, len(d)) for d in docs], dtype=np.float32)
+                norm = BM25_K1 * (1 - BM25_B + BM25_B * lengths / lengths.mean())
+                lists: dict[str, list[int]] = {}
+                for i, doc in enumerate(docs):
+                    for stem in doc:
+                        lists.setdefault(stem, []).append(i)
+                n = len(docs)
+                self._bm25 = {}
+                for stem, ix in lists.items():
+                    idx = np.array(ix, dtype=np.int32)
+                    idf = np.log(1 + (n - len(ix) + 0.5) / (len(ix) + 0.5))
+                    self._bm25[stem] = (idx, (idf * (BM25_K1 + 1) / (1 + norm[idx])))
+            return self._bm25
+
+    def _lexical(self, query_stems: set[str], include_inactive: bool) -> list[int]:
+        """Indices of the top codes by BM25 of the name."""
+        postings = self._bm25_postings()
+        scores = np.zeros(len(self.codes), dtype=np.float32)
+        for stem in query_stems:
+            if stem in postings:
+                idx, weight = postings[stem]
+                scores[idx] += weight
+        if not include_inactive:
+            scores[~self.active] = 0
+        limit = min(LEX_LIMIT, len(self.codes))
+        top = np.argpartition(-scores, limit - 1)[:limit]
+        return [int(i) for i in top if scores[i] > 0]
+
+    def _merge(self, nearest: list, lexical: list[int], vector: np.ndarray) -> list:
+        """Vector top + lexical top; lexical-only codes get their real cosine."""
+        seen = {i for i, _ in nearest}
+        extra = [i for i in lexical if i not in seen]
+        if not extra:
+            return nearest
+        cosines = self.vectors[extra] @ vector
+        return nearest + [(i, float(c)) for i, c in zip(extra, cosines, strict=True)]
 
     def _nearest_by_vectors(self, queries: np.ndarray, include_inactive: bool) -> list[list]:
         limit = min(VECTOR_LIMIT, len(self.codes))
