@@ -64,7 +64,7 @@ function LiveHead({ job, onStopped }: { job: Job; onStopped: (job: Job) => void 
       </div>
       <StopButton job={job} onStopped={onStopped} />
       <p className="cell-sub" style={{ flexBasis: '100%', margin: 0 }}>
-        {T.progress.live}
+        {job.total > 0 && job.processed === job.total ? T.progress.choosing : T.progress.live}
       </p>
     </section>
   )

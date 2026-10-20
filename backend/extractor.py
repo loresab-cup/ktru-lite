@@ -241,10 +241,11 @@ def to_attributes(answer: str, texts: list[str], provider: str) -> list[dict]:
     return result
 
 
-def extract_chunk(
-    texts: list[str], deadline: float, cancelled: threading.Event | None = None
-) -> list[dict]:
-    user = json.dumps([{"id": i, "text": t} for i, t in enumerate(texts)], ensure_ascii=False)
+def ask(system: str, user: str, deadline: float, cancelled, parse) -> tuple:
+    """One request to the providers in turn until parse(answer, provider name) succeeds.
+
+    (result, None) on success; (None, reason) when every provider failed or the time is over.
+    A provider whose network kept silent, or that refused the key or payment, is paused."""
     tried: set[str] = set()
     reason = UNAVAILABLE
     while True:
@@ -256,10 +257,10 @@ def extract_chunk(
                 reason = NO_KEY
             elif time.monotonic() >= deadline:
                 reason = BUDGET
-            return [rules(text, reason) for text in texts]
+            return None, reason
         try:
-            answer = providers.chat(provider, SYSTEM_PROMPT, user, deadline, cancelled)
-            return to_attributes(answer, texts, provider.name)
+            answer = providers.chat(provider, system, user, deadline, cancelled)
+            return parse(answer, provider.name), None
         except Cancelled:
             raise
         except httpx.TransportError as exc:  # no connection or no answer in time
@@ -267,8 +268,8 @@ def extract_chunk(
             provider.down_until = time.monotonic() + DOWN_PAUSE
             reason = UNAVAILABLE
         except TimeoutError:
-            logger.warning("LLM budget is over, rules for %s rows", len(texts))
-            return [rules(text, BUDGET) for text in texts]
+            logger.warning("LLM budget is over")
+            return None, BUDGET
         except Exception as exc:  # noqa: BLE001 - HTTP error or a broken answer: next provider
             status = getattr(getattr(exc, "response", None), "status_code", "")
             logger.warning("LLM %s failed: %s %s", provider.name, type(exc).__name__, status)
@@ -278,6 +279,20 @@ def extract_chunk(
         finally:
             provider.slots.release()
         tried.add(provider.name)
+
+
+def extract_chunk(
+    texts: list[str], deadline: float, cancelled: threading.Event | None = None
+) -> list[dict]:
+    user = json.dumps([{"id": i, "text": t} for i, t in enumerate(texts)], ensure_ascii=False)
+    rows, reason = ask(
+        SYSTEM_PROMPT,
+        user,
+        deadline,
+        cancelled,
+        lambda answer, name: to_attributes(answer, texts, name),
+    )
+    return rows if rows is not None else [rules(text, reason) for text in texts]
 
 
 class JobExtractor:

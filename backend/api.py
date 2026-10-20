@@ -38,6 +38,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
+import chooser
 import confidence
 import embedder
 import extractor
@@ -244,6 +245,48 @@ def process_batch(
     set_job(job_id, processed=start + len(batch), stage_seconds=dict(stages))
 
 
+def choose_codes(job_id: uuid.UUID, stages: dict) -> None:
+    """Second opinion of a neural network for the rows the search was not sure about.
+
+    An item changes only if it is still needs_review with the same code: edits made by the user
+    while the job runs are never overwritten. The row stays for review: the confidence is the
+    search's."""
+    if not chooser.ENABLED or extractor.llm_state() != "on":
+        return
+    started = time.monotonic()
+    with SessionLocal() as session:
+        items = session.scalars(
+            select(Item).where(Item.job_id == job_id, Item.status == "needs_review")
+        ).all()
+    rows = [
+        {"id": item.id, "text": item.raw_text, "candidates": item.candidates}
+        for item in items
+        if len(item.candidates) > 1
+    ]
+    cancelled = state.cancels.get(job_id)
+    picks = chooser.choose(rows, cancelled)
+    with SessionLocal() as session:
+        for item in items:
+            code, provider = picks.get(item.id, (item.ktru_code, ""))
+            if code == item.ktru_code:
+                continue
+            name = next(c["name"] for c in item.candidates if c["code"] == code)
+            summary = f"Код выбран нейросетью ({provider}) из 5 кандидатов поиска. {item.summary}"
+            session.execute(
+                update(Item)
+                .where(
+                    Item.id == item.id,
+                    Item.ktru_code == item.ktru_code,
+                    Item.status == "needs_review",
+                )
+                .values(ktru_code=code, ktru_name=name, summary=summary[:1000])
+            )
+        session.commit()
+    tick(stages, "choose", started)
+    if cancelled is not None and cancelled.is_set():
+        raise extractor.Cancelled
+
+
 def run_job(job_id: uuid.UUID) -> None:
     stages: dict = {}
     started = time.monotonic()
@@ -258,6 +301,7 @@ def run_job(job_id: uuid.UUID) -> None:
         tick(stages, "read", started)
         set_job(job_id, total=len(rows))
         process_items(job_id, rows, include_inactive, stages)
+        choose_codes(job_id, stages)
         tick(stages, "total", started)
         status, error = "done", None
     except extractor.Cancelled:
