@@ -576,6 +576,11 @@ def health():
         "catalog": catalog,
         "codes": len(state.catalog.codes) if state.catalog else 0,
         "llm": extractor.llm_state(),
+        "providers": [  # names and limits only, never keys
+            {"name": p.name, "model": p.model, "parallel": p.parallel, "down": p.is_down()}
+            for p in extractor.PROVIDERS
+            if p.configured
+        ],
     }
 
 

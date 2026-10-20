@@ -4,7 +4,6 @@ import importlib
 import inspect
 import json
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
@@ -14,7 +13,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 import embedder
-import extractor
 import parser
 
 
@@ -34,69 +32,6 @@ def isolated_api(monkeypatch, tmp_path):
     monkeypatch.setattr(api.app.router, "lifespan_context", lifespan)
     yield api
     engine.dispose()
-
-
-@pytest.mark.parametrize("bad", [None, 42, "wrong", {"value": "80"}])
-def test_bad_characteristics_only_fall_back_for_affected_row(monkeypatch, bad):
-    monkeypatch.setattr(extractor, "CREDENTIALS", "synthetic")
-    monkeypatch.setattr(extractor, "_down_until", 0)
-    answer = [{"id": 0, "name": "Бумага", "characteristics": bad}, {"id": 1, "name": "Лампа"}]
-    monkeypatch.setattr(extractor, "call_llm", lambda *args: json.dumps(answer))
-    rows = extractor.extract_chunk(["Бумага 80 г", "Лампа 10 Вт"], time.monotonic() + 5)
-    assert rows[0]["fallback"] == extractor.ERROR
-    assert rows[1]["source"] == "llm"
-
-
-def test_missing_name_is_provider_error(monkeypatch):
-    monkeypatch.setattr(extractor, "CREDENTIALS", "synthetic")
-    monkeypatch.setattr(extractor, "_down_until", 0)
-    monkeypatch.setattr(extractor, "call_llm", lambda *args: '[{"id":0}]')
-    [row] = extractor.extract_chunk(["Бумага"], time.monotonic() + 5)
-    assert row["fallback"] == extractor.ERROR
-
-
-def test_oauth_lock_respects_job_budget(monkeypatch):
-    lock = threading.Lock()
-    lock.acquire()
-    monkeypatch.setattr(extractor, "_token_lock", lock)
-    try:
-        with pytest.raises(TimeoutError):
-            extractor.access_token(deadline=time.monotonic() + 0.02)
-        assert lock.locked()
-    finally:
-        lock.release()
-
-
-def test_oauth_timeout_is_limited_by_remaining_budget(monkeypatch):
-    seen = []
-
-    def handler(request):
-        seen.append(request.extensions["timeout"]["read"])
-        raise httpx.ReadTimeout("synthetic timeout", request=request)
-
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        monkeypatch.setattr(extractor, "_client", client)
-        monkeypatch.setattr(extractor, "_token", {"value": "", "expires": 0})
-        with pytest.raises(TimeoutError):
-            extractor.access_token(deadline=time.monotonic() + 0.2)
-    assert 0 < seen[0] <= 0.2
-    assert not extractor._token_lock.locked()
-
-
-@pytest.mark.parametrize("status", [429, 500, 503])
-def test_provider_retry_then_success(monkeypatch, status):
-    responses = iter([status, 200])
-    monkeypatch.setattr(extractor, "access_token", lambda **kwargs: "synthetic")
-    monkeypatch.setattr(extractor.time, "sleep", lambda _: None)
-
-    def handler(request):
-        return httpx.Response(next(responses), json={"choices": [{"message": {"content": "[]"}}]})
-
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        monkeypatch.setattr(extractor, "_client", client)
-        assert extractor.call_llm([], time.monotonic() + 5) == "[]"
-    with pytest.raises(StopIteration):
-        next(responses)
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), 0.0])

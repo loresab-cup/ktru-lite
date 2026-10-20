@@ -1,6 +1,5 @@
 """Stopping a job: the queue and waiting LLM requests are dropped, finished rows stay."""
 
-import collections
 import importlib
 import threading
 import time
@@ -30,7 +29,7 @@ def api(monkeypatch, tmp_path):
         yield
 
     monkeypatch.setattr(module.app.router, "lifespan_context", lifespan)
-    monkeypatch.setattr(extractor, "CREDENTIALS", "")  # rules only, no network
+    monkeypatch.setattr(extractor, "PROVIDERS", [])  # rules only, no network
     yield module
     engine.dispose()
 
@@ -124,36 +123,8 @@ def test_cancel_unblocks_a_row_waiting_for_the_network(monkeypatch):
     release.set()
 
 
-def test_request_waiting_for_a_slot_is_not_sent_after_cancel(monkeypatch):
-    sent = []
-    monkeypatch.setattr(extractor._client, "post", lambda *a, **k: sent.append(a))
-    stop = threading.Event()
-    stop.set()
-    with pytest.raises(extractor.Cancelled):
-        extractor.post_chat({}, time.monotonic() + 5, stop)
-    assert not sent
-
-
 def test_rows_of_a_cancelled_chunk_are_not_extracted():
     stop = threading.Event()
     stop.set()
     with pytest.raises(extractor.Cancelled):
         extractor.extract_chunk(["Бумага"], time.monotonic() + 5, stop)
-
-
-def test_request_slots_are_served_in_arrival_order():
-    slots = extractor.FairSlots(1)
-    assert slots.acquire(1)
-    order, threads = [], []
-    for n in range(5):
-        thread = threading.Thread(target=lambda n=n: slots.acquire(5) and order.append(n))
-        thread.start()
-        threads.append(thread)
-        time.sleep(0.05)  # arrival order 0..4
-    for _ in range(5):
-        slots.release()  # the releasing side never jumps the queue
-        time.sleep(0.05)
-    for thread in threads:
-        thread.join(1)
-    assert order == [0, 1, 2, 3, 4]
-    assert not slots.acquire(0.05) and slots._queue == collections.deque()

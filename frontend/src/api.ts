@@ -50,6 +50,7 @@ export interface Item {
     characteristics?: Characteristic[]
     source?: string
     fallback?: string // why the rules were used
+    provider?: string // which neural network extracted the row
   }
   candidates: Candidate[]
   ktru_code: string | null

@@ -142,6 +142,7 @@ export const T = {
     model: 'Модель',
     characteristics: 'Характеристики',
     byRules: 'Атрибуты извлечены правилами',
+    byProvider: (name: string) => `Атрибуты извлекла нейросеть: ${name}`,
     fallback: {
       no_key: 'Ключ нейросети не задан — атрибуты извлечены правилами',
       unavailable:

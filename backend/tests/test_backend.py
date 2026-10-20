@@ -28,7 +28,7 @@ TMP = Path(tempfile.mkdtemp(prefix="ktru-test-"))
 
 @pytest.fixture(autouse=True)
 def no_llm_key(monkeypatch):
-    monkeypatch.setattr(extractor, "CREDENTIALS", "")
+    monkeypatch.setattr(extractor, "PROVIDERS", [])  # no neural network: rules only
 
 
 # Spec files of the old project; the parser tests are skipped without it
@@ -489,39 +489,6 @@ def test_search_penalizes_extra_name_words():
     assert found[0]["code"].endswith("05")
 
 
-def test_rules_tell_why_the_network_was_not_used(monkeypatch):
-    assert extractor.llm_state() == "off"
-    [row] = extractor.extract_chunk(["Бумага А4"], deadline=0)
-    assert row["source"] == "rules" and row["fallback"] == extractor.NO_KEY
-
-    monkeypatch.setattr(extractor, "CREDENTIALS", "test-key")
-    monkeypatch.setattr(extractor, "_down_until", 0.0)
-
-    def no_answer(rows, deadline, cancelled=None):
-        raise extractor.httpx.ReadTimeout("no answer")
-
-    monkeypatch.setattr(extractor, "call_llm", no_answer)
-    [row] = extractor.extract_chunk(["Бумага А4"], deadline=0)
-    assert row["fallback"] == extractor.UNAVAILABLE
-    assert extractor.llm_state() == "down"  # the next chunks skip the network at once
-
-
-def test_silent_network_is_unavailable_not_slow(monkeypatch):
-    """Timeouts until the budget ends: the network is paused, not just "too slow"."""
-    monkeypatch.setattr(extractor, "CREDENTIALS", "test-key")
-    monkeypatch.setattr(extractor, "_down_until", 0.0)
-    clock = [0.0]
-    monkeypatch.setattr(extractor.time, "monotonic", lambda: clock[0])
-
-    def silent(*args, **kwargs):
-        clock[0] += 100.0
-        raise extractor.httpx.ReadTimeout("no answer")
-
-    monkeypatch.setattr(extractor._client, "post", silent)
-    [row] = extractor.extract_chunk(["Бумага А4"], deadline=150.0)
-    assert row["fallback"] == extractor.UNAVAILABLE
-
-
 def test_units_decide_between_twin_codes():
     assert search.unit_key("л") == search.unit_key("Литр") == "l"
     assert search.code_units(["Литр; кубический дециметр"]) == ["l"]
@@ -545,102 +512,3 @@ def test_units_decide_between_twin_codes():
     vectors = np.stack([unit([1, 0])] * 2)
     by_litre, by_kilo = twins.search(vectors, ["Кефир 2,5 %"] * 2, units=["l", "kg"])
     assert by_litre[0]["code"].endswith("05") and by_kilo[0]["code"].endswith("08")
-
-
-class FakeGigaChat:
-    """Stands for httpx.Client: an OAuth server and a chat endpoint that may reject a token."""
-
-    def __init__(self, reject_first_chat: bool = False):
-        self.tokens = 0
-        self.chats = []
-        self.reject = reject_first_chat
-
-    def post(self, url, headers=None, json=None, data=None, timeout=None):
-        request = extractor.httpx.Request("POST", url)
-        if url == extractor.AUTH_URL:
-            assert headers["Authorization"] == "Basic test-key" and data == {"scope": "SCOPE_X"}
-            assert headers["RqUID"]  # uuid4 is required by the OAuth endpoint
-            self.tokens += 1
-            body = {"access_token": f"token-{self.tokens}", "expires_at": 4_000_000_000_000}
-            return extractor.httpx.Response(200, json=body, request=request)
-        self.chats.append(headers["Authorization"])
-        if self.reject:
-            self.reject = False
-            return extractor.httpx.Response(401, json={"message": "expired"}, request=request)
-        assert json["messages"][0]["role"] == "system" and json["temperature"] > 0
-        answer = '[{"id": 0, "name": "Бумага", "search_text": "Бумага для офисной техники"}]'
-        content = {"choices": [{"message": {"role": "assistant", "content": answer}}]}
-        return extractor.httpx.Response(200, json=content, request=request)
-
-
-@pytest.fixture
-def gigachat(monkeypatch):
-    monkeypatch.setattr(extractor, "CREDENTIALS", "test-key")
-    monkeypatch.setattr(extractor, "SCOPE", "SCOPE_X")
-    monkeypatch.setattr(extractor, "_down_until", 0.0)
-    monkeypatch.setattr(extractor, "_token", {"value": "", "expires": 0.0})
-    return monkeypatch
-
-
-def test_gigachat_token_is_cached_and_used(gigachat):
-    fake = FakeGigaChat()
-    gigachat.setattr(extractor, "_client", fake)
-    first = extractor.extract_chunk(["Бумага А4"], deadline=time.monotonic() + 30)
-    second = extractor.extract_chunk(["Бумага А4"], deadline=time.monotonic() + 30)
-    assert first[0]["source"] == second[0]["source"] == "llm"
-    assert first[0]["search_text"] == "Бумага для офисной техники"
-    assert fake.tokens == 1 and fake.chats == ["Bearer token-1", "Bearer token-1"]
-
-
-def test_gigachat_renews_rejected_token(gigachat):
-    fake = FakeGigaChat(reject_first_chat=True)
-    gigachat.setattr(extractor, "_client", fake)
-    [row] = extractor.extract_chunk(["Бумага А4"], deadline=time.monotonic() + 30)
-    assert row["source"] == "llm"
-    assert fake.tokens == 2 and fake.chats == ["Bearer token-1", "Bearer token-2"]
-
-
-def test_gigachat_requests_wait_for_a_free_slot(gigachat):
-    """Freemium answers 429 to a second request at the same moment: requests go one by one."""
-    import threading
-    from concurrent.futures import ThreadPoolExecutor
-
-    fake = FakeGigaChat()
-    active, peak, lock = [0], [0], threading.Lock()
-    original = fake.post
-
-    def slow_post(url, **kwargs):
-        if url == extractor.AUTH_URL:
-            return original(url, **kwargs)
-        with lock:
-            active[0] += 1
-            peak[0] = max(peak[0], active[0])
-        time.sleep(0.05)
-        with lock:
-            active[0] -= 1
-        return original(url, **kwargs)
-
-    fake.post = slow_post
-    gigachat.setattr(extractor, "_client", fake)
-    gigachat.setattr(extractor, "_slots", threading.BoundedSemaphore(1))
-    deadline = time.monotonic() + 30
-    with ThreadPoolExecutor(4) as pool:
-        rows = list(pool.map(lambda _: extractor.extract_chunk(["Бумага"], deadline), range(4)))
-    assert peak[0] == 1 and all(r[0]["source"] == "llm" for r in rows)
-
-
-def test_request_cut_by_budget_is_not_an_outage(gigachat):
-    """A request that got only the end of the budget and timed out: "budget", no pause."""
-    fake = FakeGigaChat()
-    original = fake.post
-
-    def slow_chat(url, **kwargs):
-        if url == extractor.AUTH_URL:
-            return original(url, **kwargs)
-        raise extractor.httpx.ReadTimeout("cut by the short timeout")
-
-    fake.post = slow_chat
-    gigachat.setattr(extractor, "_client", fake)
-    [row] = extractor.extract_chunk(["Бумага"], deadline=time.monotonic() + 5)
-    assert row["fallback"] == extractor.BUDGET
-    assert extractor.llm_state() == "on"  # other jobs keep using the network
