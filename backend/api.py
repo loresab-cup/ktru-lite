@@ -52,6 +52,7 @@ logger = logging.getLogger("api")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg://ktru:ktru@db:5432/ktru")
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/data/uploads"))
 WORKERS = int(os.getenv("WORKERS", "2"))
+JOB_TIME_LIMIT = 270.0  # seconds: 1000 rows must be done within 5 minutes, with a margin
 BATCH = 20  # small batches: finished rows reach the table while the rest are processed
 POLL_SECONDS = 1.0
 ITEM_STATUSES = ("auto", "needs_review", "corrected", "accepted", "failed")
@@ -245,7 +246,7 @@ def process_batch(
     set_job(job_id, processed=start + len(batch), stage_seconds=dict(stages))
 
 
-def choose_codes(job_id: uuid.UUID, stages: dict) -> None:
+def choose_codes(job_id: uuid.UUID, stages: dict, until: float) -> None:
     """Second opinion of a neural network for the rows the search was not sure about.
 
     An item changes only if it is still needs_review with the same code: edits made by the user
@@ -264,7 +265,7 @@ def choose_codes(job_id: uuid.UUID, stages: dict) -> None:
         if len(item.candidates) > 1
     ]
     cancelled = state.cancels.get(job_id)
-    picks = chooser.choose(rows, cancelled)
+    picks = chooser.choose(rows, cancelled, until)
     with SessionLocal() as session:
         for item in items:
             code, provider = picks.get(item.id, (item.ktru_code, ""))
@@ -301,7 +302,7 @@ def run_job(job_id: uuid.UUID) -> None:
         tick(stages, "read", started)
         set_job(job_id, total=len(rows))
         process_items(job_id, rows, include_inactive, stages)
-        choose_codes(job_id, stages)
+        choose_codes(job_id, stages, until=started + JOB_TIME_LIMIT)
         tick(stages, "total", started)
         status, error = "done", None
     except extractor.Cancelled:

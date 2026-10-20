@@ -2,6 +2,7 @@
 
 import importlib
 import json
+import time
 import uuid
 
 import pytest
@@ -77,7 +78,7 @@ def test_choice_changes_only_doubtful_rows_and_never_user_edits(api, monkeypatch
 
     monkeypatch.setattr(providers, "chat", pick_second)
     stages = {}
-    api.choose_codes(job_id, stages)
+    api.choose_codes(job_id, stages, until=time.monotonic() + 30)
     with api.SessionLocal() as session:
         items = session.query(api.Item).order_by(api.Item.row_number).all()
     assert [i.ktru_code for i in items] == ["2", "1", "1"]
@@ -90,6 +91,15 @@ def test_no_provider_means_no_second_opinion(api, monkeypatch):
     add_items(api, job_id, ["needs_review"])
     monkeypatch.setattr(extractor, "PROVIDERS", [])
     monkeypatch.setattr(providers, "chat", lambda *a, **k: pytest.fail("no request expected"))
-    api.choose_codes(job_id, {})
+    api.choose_codes(job_id, {}, until=time.monotonic() + 30)
+    with api.SessionLocal() as session:
+        assert session.query(api.Item).one().ktru_code == "1"
+
+
+def test_choice_never_makes_the_job_late(api, monkeypatch):
+    job_id = uuid.uuid4()
+    add_items(api, job_id, ["needs_review"])
+    monkeypatch.setattr(providers, "chat", lambda *a, **k: pytest.fail("no time left: no request"))
+    api.choose_codes(job_id, {}, until=time.monotonic() - 1)
     with api.SessionLocal() as session:
         assert session.query(api.Item).one().ktru_code == "1"

@@ -73,9 +73,11 @@ def choose_chunk(rows: list[dict], deadline: float, cancelled) -> dict[int, tupl
     return picks or {}
 
 
-def choose(rows: list[dict], cancelled) -> dict[int, tuple[str, str]]:
-    """rows: {id, text, candidates}; all batches go to the shared pool at once."""
-    deadline = time.monotonic() + BUDGET
+def choose(rows: list[dict], cancelled, until: float) -> dict[int, tuple[str, str]]:
+    """rows: {id, text, candidates}; all batches go to the shared pool at once.
+
+    until - monotonic time the job must be done by: the choice never makes it late."""
+    deadline = min(time.monotonic() + BUDGET, until)
     futures: list[Future] = [
         extractor._pool.submit(choose_chunk, rows[i : i + BATCH_SIZE], deadline, cancelled)
         for i in range(0, len(rows), BATCH_SIZE)
