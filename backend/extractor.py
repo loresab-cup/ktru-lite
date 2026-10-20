@@ -12,6 +12,7 @@ provider takes the next batch as soon as it is free. A batch a provider failed g
 
 import json
 import logging
+import os
 import re
 import threading
 import time
@@ -27,11 +28,13 @@ logger = logging.getLogger(__name__)
 
 PROVIDERS = providers.load()
 BATCH_SIZE = 10
-JOB_BUDGET = 150.0  # seconds for all LLM requests of one job
+# Seconds for all LLM requests of one job; the rows left after it get the rules. 240 s plus the
+# search (~25 s on a GPU) stays within the 5 minutes required for 1000 rows.
+JOB_BUDGET = float(os.getenv("LLM_BUDGET", "240"))
 # After the network of a provider did not answer, it is skipped for a while instead of
 # waiting the whole budget again
 DOWN_PAUSE = 120.0
-AHEAD_ROUNDS = 3  # batches of one job waiting in the pool: 3 rounds of all request slots
+AHEAD_ROUNDS = 2  # unfinished batches of one job in the pool: 2 rounds of all request slots
 
 # Why the rules were used for a row (shown to the user)
 NO_KEY, UNAVAILABLE, BUDGET, ERROR, MISSING = "no_key", "unavailable", "budget", "error", "missing"
@@ -280,9 +283,9 @@ def extract_chunk(
 class JobExtractor:
     """Puts the distinct rows of a job into the pool in batches; get() waits for one row.
 
-    Only AHEAD_ROUNDS x (request slots) batches of a job wait in the pool at a time: another
-    job uploaded meanwhile gets slots soon instead of waiting for the whole big file. Batches
-    of the job run in parallel with the search of earlier batches.
+    At most AHEAD_ROUNDS x (request slots) unfinished batches of a job are in the pool: another
+    job uploaded meanwhile gets slots soon instead of waiting for the whole big file, and a slow
+    batch does not stop the next ones. Batches run in parallel with the search of earlier ones.
     """
 
     def __init__(
@@ -300,13 +303,15 @@ class JobExtractor:
         }
         self._futures: list[Future] = []
         self._ahead = AHEAD_ROUNDS * SLOTS
-        self._submit(self._ahead)
+        self._top_up()
 
-    def _submit(self, count: int) -> None:
-        """Submits the next batches until `count` of them are in the pool or done."""
-        while len(self._futures) < min(count, len(self._chunks)):
+    def _top_up(self) -> None:
+        """Submits the next batches while fewer than `ahead` of them are unfinished."""
+        pending = sum(not future.done() for future in self._futures)
+        while pending < self._ahead and len(self._futures) < len(self._chunks):
             chunk = self._chunks[len(self._futures)]
             self._futures.append(_pool.submit(extract_chunk, chunk, self.deadline, self.cancelled))
+            pending += 1
 
     def cancel(self) -> None:
         """Queued batches are dropped; a request already sent finishes and is thrown away."""
@@ -317,11 +322,13 @@ class JobExtractor:
     def get(self, text: str) -> dict:
         """Waits for the row; raises Cancelled as soon as the job is stopped."""
         n, index = self._where[text]
-        self._submit(n + self._ahead)
-        future = self._futures[n]
         while not self.cancelled.is_set():
+            self._top_up()  # while this batch waits, finished ones are replaced by new ones
+            if n >= len(self._futures):
+                time.sleep(0.25)
+                continue
             try:
-                return future.result(timeout=0.25)[index]
+                return self._futures[n].result(timeout=0.25)[index]
             except FutureTimeout:
                 continue
             except (CancelledError, Cancelled):

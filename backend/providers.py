@@ -20,7 +20,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 TEMPERATURE = 0.0001  # below 0.001 GigaChat answers the same way every time
-REQUEST_TIMEOUT = 90.0
+REQUEST_TIMEOUT = 40.0  # a batch of 10 rows takes 5-23 s; a hung request goes to a retry sooner
 RETRIES = 2
 TOKEN_MARGIN = 60.0  # seconds: a GigaChat token that expires sooner is replaced first
 
