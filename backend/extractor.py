@@ -31,6 +31,7 @@ JOB_BUDGET = 150.0  # seconds for all LLM requests of one job
 # After the network of a provider did not answer, it is skipped for a while instead of
 # waiting the whole budget again
 DOWN_PAUSE = 120.0
+AHEAD_ROUNDS = 3  # batches of one job waiting in the pool: 3 rounds of all request slots
 
 # Why the rules were used for a row (shown to the user)
 NO_KEY, UNAVAILABLE, BUDGET, ERROR, MISSING = "no_key", "unavailable", "budget", "error", "missing"
@@ -55,9 +56,8 @@ SYSTEM_PROMPT = """Ты извлекаешь атрибуты товаров и�
 Ответ — только JSON-массив, без пояснений."""
 
 
-_pool = ThreadPoolExecutor(
-    max(1, sum(p.parallel for p in PROVIDERS if p.configured)), thread_name_prefix="llm"
-)
+SLOTS = max(1, sum(p.parallel for p in PROVIDERS if p.configured))  # requests at the same moment
+_pool = ThreadPoolExecutor(SLOTS, thread_name_prefix="llm")  # one worker per request slot
 
 # --- guard ---------------------------------------------------------------------------------
 
@@ -269,6 +269,8 @@ def extract_chunk(
         except Exception as exc:  # noqa: BLE001 - HTTP error or a broken answer: next provider
             status = getattr(getattr(exc, "response", None), "status_code", "")
             logger.warning("LLM %s failed: %s %s", provider.name, type(exc).__name__, status)
+            if status in (401, 402, 403):  # wrong key, no money or no rights: not fixed in seconds
+                provider.down_until = time.monotonic() + DOWN_PAUSE
             reason = ERROR
         finally:
             provider.slots.release()
@@ -276,9 +278,11 @@ def extract_chunk(
 
 
 class JobExtractor:
-    """Starts extraction of all distinct rows of a job at once; get() waits for one row.
+    """Puts the distinct rows of a job into the pool in batches; get() waits for one row.
 
-    Batches of the job run in parallel with the search of earlier batches.
+    Only AHEAD_ROUNDS x (request slots) batches of a job wait in the pool at a time: another
+    job uploaded meanwhile gets slots soon instead of waiting for the whole big file. Batches
+    of the job run in parallel with the search of earlier batches.
     """
 
     def __init__(
@@ -287,25 +291,34 @@ class JobExtractor:
         budget: float = JOB_BUDGET,
         cancelled: threading.Event | None = None,
     ) -> None:
-        deadline = time.monotonic() + budget
-        unique = list(dict.fromkeys(texts))
+        self.deadline = time.monotonic() + budget
         self.cancelled = cancelled or threading.Event()
-        self._where: dict[str, tuple[Future, int]] = {}
-        for start in range(0, len(unique), BATCH_SIZE):
-            chunk = unique[start : start + BATCH_SIZE]
-            future = _pool.submit(extract_chunk, chunk, deadline, self.cancelled)
-            for index, text in enumerate(chunk):
-                self._where[text] = (future, index)
+        unique = list(dict.fromkeys(texts))
+        self._chunks = [unique[i : i + BATCH_SIZE] for i in range(0, len(unique), BATCH_SIZE)]
+        self._where = {
+            text: (n, i) for n, chunk in enumerate(self._chunks) for i, text in enumerate(chunk)
+        }
+        self._futures: list[Future] = []
+        self._ahead = AHEAD_ROUNDS * SLOTS
+        self._submit(self._ahead)
+
+    def _submit(self, count: int) -> None:
+        """Submits the next batches until `count` of them are in the pool or done."""
+        while len(self._futures) < min(count, len(self._chunks)):
+            chunk = self._chunks[len(self._futures)]
+            self._futures.append(_pool.submit(extract_chunk, chunk, self.deadline, self.cancelled))
 
     def cancel(self) -> None:
         """Queued batches are dropped; a request already sent finishes and is thrown away."""
         self.cancelled.set()
-        for future, _ in self._where.values():
+        for future in self._futures:
             future.cancel()
 
     def get(self, text: str) -> dict:
         """Waits for the row; raises Cancelled as soon as the job is stopped."""
-        future, index = self._where[text]
+        n, index = self._where[text]
+        self._submit(n + self._ahead)
+        future = self._futures[n]
         while not self.cancelled.is_set():
             try:
                 return future.result(timeout=0.25)[index]

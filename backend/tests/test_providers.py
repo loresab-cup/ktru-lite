@@ -277,3 +277,27 @@ def test_bad_objects_fall_back_per_row():
     assert cable["fallback"] == extractor.MISSING
     with pytest.raises(ValueError):
         extractor.to_attributes("[]", ["Бумага"], "a")
+
+
+def test_a_job_keeps_only_a_few_batches_in_the_pool(monkeypatch):
+    """Another job uploaded meanwhile must not wait for every batch of a big file."""
+    monkeypatch.setattr(extractor, "PROVIDERS", [openai()])
+    monkeypatch.setattr(extractor, "SLOTS", 1)
+    monkeypatch.setattr(extractor, "AHEAD_ROUNDS", 2)
+    monkeypatch.setattr(providers, "chat", fake_chat())
+    texts = [f"Товар {i}" for i in range(100)]  # 10 batches
+    job = extractor.JobExtractor(texts)
+    assert len(job._futures) == 2
+    assert job.get(texts[35])["provider"] == "x"  # the 4th batch
+    assert len(job._futures) == 5  # submitted up to it plus two ahead
+    assert [job.get(t)["source"] for t in texts] == ["llm"] * 100
+
+
+@pytest.mark.parametrize("status", [401, 402, 403])
+def test_refused_key_or_payment_pauses_the_provider(monkeypatch, status):
+    refused = httpx.HTTPStatusError("x", request=None, response=httpx.Response(status))
+    first, second = openai(name="a"), openai(name="b")
+    monkeypatch.setattr(extractor, "PROVIDERS", [first, second])
+    monkeypatch.setattr(providers, "chat", fake_chat({"a": refused}))
+    [row] = extractor.extract_chunk(["Бумага"], time.monotonic() + 5)
+    assert row["provider"] == "b" and first.is_down() and not second.is_down()
