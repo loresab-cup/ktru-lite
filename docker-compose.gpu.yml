@@ -1,0 +1,12 @@
+# NVIDIA GPU for the embeddings: bge-m3 on a GPU vectorises 1000 rows in ~20 s instead of ~4 min
+# on the CPU. Needs the NVIDIA driver (and Docker Desktop with WSL 2 on Windows):
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
