@@ -58,6 +58,16 @@ TEMPLATE_PENALTY = 0.015
 # A/B on stored rows: no change on the draft gold (73.9 %) and the real file (12/12); it
 # fixes the near tie of such codes when the network is down and the row itself is the query.
 NAME_EXTRA_PENALTY = 0.01
+# In an EIS form the customer fills every characteristic of the chosen code and adds the
+# missing ones as «дополнительная характеристика». So a code with characteristics the row never
+# names is likely a neighbour: «Мыло туалетное твердое» -02 (марка, отдушка, антибактериальный
+# компонент) against -07 (the same + «Масса нетто») for a row with «Вес» as an extra.
+# Counted only when the row names at least one characteristic of the code: free text
+# («коровье, пастеризованное, 2,5 процента») names none and is not touched.
+# A/B on stored attributes of two runs (with bare numbers out of WORD_BONUS): EIS form 1 -> 3
+# of 3, 292 rows 287 -> 289, 1000 rows 953 -> 954 and 944 -> 953, real file 12/12 as before;
+# 0.03 lowers the 1000 rows to 942-943.
+UNNAMED_PENALTY = 0.02
 # Hybrid retrieval: the top codes by BM25 over the stems of code names join the vector top-50,
 # so a code whose name matches the row is ranked even when its vector was not among the 50.
 # They only join the candidates: a BM25 bonus in the score (0.01-0.1) lowered the exact code on
@@ -147,6 +157,12 @@ def unit_key(text: str) -> str | None:
 def stems(text: str) -> set[str]:
     """First 5 letters of the words: «коровье» and «коровьего» are the same."""
     return {word[:5] for word in words(text)}
+
+
+def is_named(name: str, query_stems: set[str]) -> bool:
+    """The row has at least half of the words of a characteristic name."""
+    name_stems = stems(name)
+    return len(name_stems & query_stems) >= max(1, len(name_stems) // 2)
 
 
 def written_value(text: str, name: str) -> set[str] | None:
@@ -311,8 +327,7 @@ class Catalog:
         «≥ 2» says more than a code allowing «≥ 1, ≥ 2, ... ≥ 16». text: lowercase, ё = е."""
         matches = clashes = flags = 0
         for name, values in self.fixed[i]:
-            name_stems = stems(name)
-            named = len(name_stems & query_stems) >= max(1, len(name_stems) // 2)
+            named = is_named(name, query_stems)
             if len(values) == 1 and values[0].lower() in ("да", "нет"):
                 flags += values[0].lower() == "да" and not named
                 continue
@@ -323,6 +338,11 @@ class Catalog:
             elif named:
                 clashes += 1
         return matches, clashes, flags
+
+    def _unnamed(self, i: int, query_stems: set[str]) -> int:
+        """Characteristics of the code the row does not name; 0 if it names none of them."""
+        named = [is_named(name, query_stems) for name, _ in self.chars[i]]
+        return named.count(False) if any(named) else 0
 
     def _rank(
         self,
@@ -336,7 +356,9 @@ class Catalog:
         scored = []
         low = text.lower().replace("ё", "е")
         for i, cosine in nearest:
-            shared = query_words & set(self.code_words[i].split())
+            # Bare numbers are compared as bounds below: as words «100 Грамм» matched the mass
+            # range «≥ 100 и < 110» of a neighbour code and outweighed the right one
+            shared = {w for w in query_words & set(self.code_words[i].split()) if not w.isdigit()}
             matches, clashes = self._numeric_fit(i, query)
             score = cosine + WORD_BONUS * len(shared) + NUMERIC_BONUS * matches
             score -= NUMERIC_CLASH * clashes
@@ -344,6 +366,7 @@ class Catalog:
             score += FIXED_BONUS * fixed_matches - FIXED_CLASH * fixed_clashes - FIXED_FLAG * flags
             score -= TEMPLATE_PENALTY * self.templates[i]
             score -= NAME_EXTRA_PENALTY * len(stems(self.names[i]) - query_stems)
+            score -= UNNAMED_PENALTY * self._unnamed(i, query_stems)
             score += UNIT_BONUS * (unit is not None and unit in self.units[i])
             scored.append((score, cosine, i, shared, matches))
         # Sorted by the raw sum: the cap at 1.0 must not make near-perfect matches equal

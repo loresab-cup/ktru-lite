@@ -29,6 +29,21 @@ NOT_NAME_PREFIXES = ("код", "№", "номер", "артикул", "окпд"
 DETAIL_WORDS = ("характерист", "бренд", "марка", "модель", "производител", "описание")
 SKIP_PREFIXES = ("итого", "всего", "итог")
 MAX_HEADER_CELL = 40
+# Columns with instructions for the bidder, not product data (EIS forms)
+SERVICE_WORDS = (
+    "используется",
+    "применение характеристик",
+    "инструкция",
+    "обоснование",
+    "национальный режим",
+)
+# EIS «Описание объекта закупки»: a product takes several rows, one characteristic per row;
+# the rows after the first have empty «№» and name cells
+EIS_CHARACTERISTIC = "наименование характеристики"
+EIS_VALUE = "значени"  # «Текстовое описание значения», «Конкретное значение»
+EIS_CHARACTERISTIC_UNIT = "единица измерения характеристики"
+EIS_ITEM_UNIT = ("ед. изм", "единица измерения товара")
+EIS_QUANTITY = ("кол-во", "количество")
 NUMBERING = re.compile(r"^\s*\d{1,4}\s*[.)]\s+")
 
 logging.getLogger("pypdf").setLevel(logging.ERROR)  # broken fonts spam warnings
@@ -211,11 +226,13 @@ def parse_rows(raw_rows) -> list[Item]:
         return parse_lines([". ".join(cell for cell in row if cell) for row in rows])
     header = rows[header_index]
     body = rows[header_index + 1 :]
+    if any(EIS_CHARACTERISTIC in cell.lower() for cell in header):
+        return parse_eis_rows(header, body, header_index + 2)
     name_index = name_column(header, body)
     details = [
         i
         for i, cell in enumerate(header)
-        if i != name_index and any(w in cell.lower() for w in DETAIL_WORDS)
+        if i != name_index and any(w in cell.lower() for w in DETAIL_WORDS) and not is_service(cell)
     ]
     header_key = [cell.lower() for cell in header if cell]
     items = []
@@ -230,6 +247,86 @@ def parse_rows(raw_rows) -> list[Item]:
         }
         items.append(Item(header_index + offset + 2, ". ".join(parts), columns))
     return items
+
+
+def is_service(title: str) -> bool:
+    return any(word in title.lower() for word in SERVICE_WORDS)
+
+
+def first_column(header: list[str], words: tuple[str, ...]) -> int | None:
+    return next((i for i, t in enumerate(header) if any(w in t.lower() for w in words)), None)
+
+
+def at(row: list[str], index: int | None) -> str:
+    return row[index] if index is not None and index < len(row) else ""
+
+
+def eis_unit(text: str) -> str:
+    """«л; дм[3*]» -> «л»: EIS lists synonyms of one unit, the first one is enough."""
+    return text.replace("[3*]", "³").replace("[2*]", "²").split(";")[0].strip()
+
+
+def eis_columns(header: list[str], body: list[list[str]]) -> dict:
+    # «Наименование товара, работы, услуги, код КТРУ» is longer than a usual header cell
+    names = [
+        i
+        for i, t in enumerate(header)
+        if t.lower().startswith("наименование") and "характеристик" not in t.lower()
+    ]
+    return {
+        "number": next((i for i, t in enumerate(header) if t.startswith("№")), None),
+        "name": names[0] if names else name_column(header, body),
+        "characteristic": first_column(header, (EIS_CHARACTERISTIC,)),
+        "values": [i for i, t in enumerate(header) if EIS_VALUE in t.lower() and not is_service(t)],
+        "characteristic_unit": first_column(header, (EIS_CHARACTERISTIC_UNIT,)),
+        "unit": first_column(header, EIS_ITEM_UNIT),
+        "quantity": first_column(header, EIS_QUANTITY),
+    }
+
+
+def eis_characteristic(row: list[str], columns: dict) -> str:
+    """One row of an EIS form -> «Вес: 100 Грамм»; empty if the row has no characteristic."""
+    name = at(row, columns["characteristic"]).strip(" :")
+    value = " ".join(at(row, i) for i in columns["values"] if at(row, i))
+    unit = eis_unit(at(row, columns["characteristic_unit"]))
+    if not name or not value:
+        return name
+    return f"{name}: {value} {unit}".strip()
+
+
+def parse_eis_rows(header: list[str], body: list[list[str]], first_row: int) -> list[Item]:
+    """EIS form: rows without «№» and name are more characteristics of the product above."""
+    columns = eis_columns(header, body)
+    header_key = [cell.lower() for cell in header if cell]
+    positions: list[tuple[int, list[str], list[str]]] = []  # row number, row, characteristics
+    for offset, row in enumerate(body):
+        name = at(row, columns["name"])
+        if not name:
+            described = eis_characteristic(row, columns)
+            if positions and described and not at(row, columns["number"]):
+                positions[-1][2].append(described)
+            continue
+        if is_skipped(name) or [cell.lower() for cell in row if cell] == header_key:
+            continue
+        described = eis_characteristic(row, columns)
+        positions.append((first_row + offset, row, [described] if described else []))
+    return [eis_item(number, row, found, header, columns) for number, row, found in positions]
+
+
+def eis_item(number: int, row: list[str], found: list[str], header: list[str], columns) -> Item:
+    name = at(row, columns["name"])
+    unit = eis_unit(at(row, columns["unit"]))
+    text = ". ".join(part for part in (name, "; ".join(found)) if part)
+    if unit:
+        text += f". Единица измерения: {unit}"
+    kept = {
+        at(header, columns["number"]): at(row, columns["number"]),
+        at(header, columns["name"]): name,
+        "Характеристики": "; ".join(found),
+        at(header, columns["unit"]): unit,
+        at(header, columns["quantity"]): at(row, columns["quantity"]),
+    }
+    return Item(number, text, {title: value for title, value in kept.items() if title})
 
 
 def parse_lines(lines: list[str]) -> list[Item]:

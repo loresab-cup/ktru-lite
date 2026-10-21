@@ -85,6 +85,29 @@ def test_parser_csv_header_totals_and_details(tmp_path):
     assert items[0].columns["Кол-во"] == "10"
 
 
+EIS = BACKEND.parent / "dataset/eis"
+
+
+@pytest.mark.skipif(not EIS.exists(), reason="dataset/eis is not found")
+def test_parser_eis_form_joins_characteristic_rows():
+    items = parser.parse_file(EIS / "ООЗ_мыло_крем_без_КТРУ.xlsx")
+    assert [item.row_number for item in items] == [6, 11, 16]
+    soap = items[0].text
+    assert soap.startswith("Мыло туалетное твердое. Содержание жирных кислот: 74 Процент; ")
+    for part in ("Марка мыла: Ординарное (О)", "Вес: 100 Грамм", "Единица измерения: кг"):
+        assert part in soap
+    assert "Группа мыла: I" in items[1].text and "Вес: 200 Грамм" in items[1].text
+    assert "Вес: 100 Кубический сантиметр. Единица измерения: л" in items[2].text
+    for item in items:
+        lowered = item.text.lower()
+        assert not any(word in lowered for word in ("используется", "инструкц", "обоснован"))
+    assert items[0].columns["Кол-во"] == "308.2"
+    assert items[1].columns["Ед. изм. товара, работы, услуги"] == "шт"
+    # The original form: the name header «…, код КТРУ» is longer than a usual header cell
+    original = parser.parse_file(EIS / "ООЗ мыло, крем 07.10.26 (исходник ЕИС).xlsx")
+    assert [item.text.split()[0] for item in original] == ["Мыло", "Мыло", "Крем"]
+
+
 def test_parser_rejects_wrong_signature(tmp_path):
     path = tmp_path / "fake.pdf"
     path.write_bytes(b"not a pdf at all")
@@ -401,6 +424,42 @@ def small_catalog(records: list[dict]) -> search.Catalog:
 
 def fixed(name: str, value: str) -> dict:
     return {"name": name, "kind": "Неизменяемая заказчиком", "values": [{"text": value}]}
+
+
+def free(name: str, *values: str) -> dict:
+    return {"name": name, "kind": "Изменяемая заказчиком", "values": [{"text": v} for v in values]}
+
+
+def test_search_prefers_code_without_unnamed_characteristics():
+    soap = small_catalog(
+        [
+            {
+                "code": "20.41.31.110-00000007",
+                "name": "Мыло туалетное твердое",
+                "characteristics": [
+                    free("Марка мыла", "Ординарное (О)"),
+                    free("Масса нетто", "≥ 100 и < 110"),
+                ],
+            },
+            {
+                "code": "20.41.31.110-00000002",
+                "name": "Мыло туалетное твердое",
+                "characteristics": [free("Марка мыла", "Ординарное (О)")],
+            },
+        ]
+    )
+    # Words of the values, as in a real catalog: «100» of the mass range must not count
+    soap.code_words = [
+        "мыло туалетное твердое ординарное о 100 110",
+        "мыло туалетное твердое ординарное о",
+    ]
+    row = "Мыло туалетное твердое. Марка мыла: Ординарное (О); Вес: 100 Грамм"
+    [found] = soap.search(np.stack([unit([1, 0])]), [row])
+    assert found[0]["code"].endswith("02")
+    assert "100" not in found[0]["shared_words"] + found[1]["shared_words"]
+    # Free text names no characteristic: no penalty at all
+    assert soap._unnamed(0, search.stems("Мыло туалетное твердое 100 г")) == 0
+    assert soap._unnamed(0, search.stems(row)) == 1
 
 
 def test_search_fixed_characteristics_pick_neighbour():
