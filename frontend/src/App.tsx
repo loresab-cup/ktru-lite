@@ -1,9 +1,8 @@
 import { ConfigProvider, theme as antTheme } from 'antd'
 import ruRU from 'antd/locale/ru_RU'
-import { FileStack, Moon, Plus, Sun } from 'lucide-react'
+import { FileStack, LucideProvider, Moon, Plus, Sun } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, type Health, type Job } from './api'
-import { Deco } from './Art'
 import { JobScreen, type PageInfo } from './JobScreen'
 import { T } from './texts'
 import { Ring } from './ui'
@@ -33,25 +32,40 @@ function readTokens(theme: Theme) {
   return {
     algorithm: theme === 'dark' ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
     token: {
-      colorPrimary: v('accent-strong'),
-      colorText: v('text'),
-      colorTextSecondary: v('text-2'),
-      colorTextDescription: v('text-2'),
-      colorBgContainer: v('surface'),
-      colorBgElevated: v('surface-solid'), // drawers and menus stay opaque over the glass
-      colorBorder: v('border'),
-      colorBorderSecondary: v('border'),
-      colorSuccess: v('high'),
-      colorWarning: v('medium'),
-      colorError: v('low'),
-      borderRadius: 10,
-      fontFamily: "'Inter', system-ui, sans-serif",
+      colorPrimary: v('ink'),
+      colorLink: v('pen'),
+      colorText: v('ink'),
+      colorTextSecondary: v('ink-2'),
+      colorTextDescription: v('ink-2'),
+      colorTextPlaceholder: v('ink-2'),
+      colorBgContainer: v('paper'),
+      colorBgElevated: v('paper'),
+      colorBgLayout: v('paper'),
+      colorBorder: v('ink'),
+      colorBorderSecondary: v('ink'),
+      colorSuccess: v('green'),
+      colorWarning: v('orange'),
+      colorError: v('red'),
+      controlItemBgHover: v('hover'),
+      controlItemBgActive: v('blue-fill'),
+      controlOutline: 'transparent',
+      borderRadius: 0,
+      borderRadiusXS: 0,
+      borderRadiusSM: 0,
+      borderRadiusLG: 0,
+      boxShadow: 'none',
+      boxShadowSecondary: 'none',
+      boxShadowTertiary: 'none',
+      fontFamily: v('font-text'),
+      fontSize: 15,
+      motion: false, // no slide-ins or fades: the sketch stays still
     },
     components: {
       Table: {
-        headerBg: v('surface-2'),
-        headerColor: v('text-2'),
-        rowHoverBg: v('surface-2'),
+        headerBg: v('paper'),
+        headerColor: v('ink-2'),
+        headerSplitColor: 'transparent',
+        rowHoverBg: v('hover'),
       },
     },
   }
@@ -225,33 +239,35 @@ export function App() {
 
   return (
     <ConfigProvider theme={config} locale={ruRU}>
-      <div className="shell">
-        <Sidebar jobs={jobs} jobId={jobId} ring={info.ring} navigate={navigate} />
-        <div className="main">
-          <Deco />
-          <header className="topbar">
-            <h1>{jobId ? (info.title ?? T.progress.pageTitle) : T.app.pageUpload}</h1>
-            <div className="topbar-spacer" />
-            <HealthBadge />
-            <button
-              type="button"
-              className="round ghost small"
-              onClick={toggleTheme}
-              aria-label={theme === 'light' ? T.app.themeDark : T.app.themeLight}
-              title={theme === 'light' ? T.app.themeDark : T.app.themeLight}
-            >
-              {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
-            </button>
-          </header>
-          <main className="page" key={jobId ?? 'home'}>
-            {jobId ? (
-              <JobScreen jobId={jobId} onHome={() => navigate('/')} onInfo={onInfo} />
-            ) : (
-              <UploadScreen jobs={jobs} onJob={(id) => navigate(`/jobs/${id}`)} />
-            )}
-          </main>
+      {/* every icon gets the "icon" class: theme.css draws them as one hand-drawn set */}
+      <LucideProvider className="icon">
+        <div className="shell">
+          <Sidebar jobs={jobs} jobId={jobId} ring={info.ring} navigate={navigate} />
+          <div className="main">
+            <header className="topbar">
+              <h1>{jobId ? (info.title ?? T.progress.pageTitle) : T.app.pageUpload}</h1>
+              <div className="topbar-spacer" />
+              <HealthBadge />
+              <button
+                type="button"
+                className="round ghost small"
+                onClick={toggleTheme}
+                aria-label={theme === 'light' ? T.app.themeDark : T.app.themeLight}
+                title={theme === 'light' ? T.app.themeDark : T.app.themeLight}
+              >
+                {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
+              </button>
+            </header>
+            <main className="page" key={jobId ?? 'home'}>
+              {jobId ? (
+                <JobScreen jobId={jobId} onHome={() => navigate('/')} onInfo={onInfo} />
+              ) : (
+                <UploadScreen jobs={jobs} onJob={(id) => navigate(`/jobs/${id}`)} />
+              )}
+            </main>
+          </div>
         </div>
-      </div>
+      </LucideProvider>
     </ConfigProvider>
   )
 }

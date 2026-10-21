@@ -93,7 +93,7 @@ export function EmptyState({ title, hint, children }: {
 }) {
   return (
     <div className="empty">
-      <Waves line={false} />
+      <Waves />
       <b>{title}</b>
       {hint && <span>{hint}</span>}
       {children}
