@@ -25,47 +25,49 @@ function applyTheme(theme: Theme) {
   document.documentElement.dataset.theme = theme
 }
 
-/** antd tokens are read from theme.css, so the colors stay in one place. */
+/** antd tokens are read from theme.css, so the colors and sizes stay in one place. */
 function readTokens(theme: Theme) {
   const css = getComputedStyle(document.documentElement)
   const v = (name: string) => css.getPropertyValue(`--${name}`).trim()
+  const px = (name: string) => parseFloat(v(name))
+  const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
   return {
     algorithm: theme === 'dark' ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
     token: {
-      colorPrimary: v('ink'),
-      colorLink: v('pen'),
+      colorPrimary: v('primary-bg'),
+      colorLink: v('accent-2'),
       colorText: v('ink'),
       colorTextSecondary: v('ink-2'),
       colorTextDescription: v('ink-2'),
-      colorTextPlaceholder: v('ink-2'),
-      colorBgContainer: v('paper'),
-      colorBgElevated: v('paper'),
-      colorBgLayout: v('paper'),
-      colorBorder: v('ink'),
-      colorBorderSecondary: v('ink'),
+      colorTextPlaceholder: v('ink-3'),
+      colorBgContainer: v('glass-strong'),
+      colorBgElevated: v('glass-strong'),
+      colorBgLayout: v('bg'),
+      colorBorder: v('line-strong'),
+      colorBorderSecondary: v('line'),
+      colorSplit: v('line'),
       colorSuccess: v('green'),
-      colorWarning: v('orange'),
+      colorWarning: v('amber'),
       colorError: v('red'),
-      controlItemBgHover: v('hover'),
-      controlItemBgActive: v('blue-fill'),
-      controlOutline: 'transparent',
-      borderRadius: 0,
-      borderRadiusXS: 0,
-      borderRadiusSM: 0,
-      borderRadiusLG: 0,
-      boxShadow: 'none',
-      boxShadowSecondary: 'none',
-      boxShadowTertiary: 'none',
-      fontFamily: v('font-text'),
-      fontSize: 15,
-      motion: false, // no slide-ins or fades: the sketch stays still
+      controlItemBgHover: v('accent-soft'),
+      controlItemBgActive: v('accent-soft'),
+      controlOutline: v('accent-soft'),
+      borderRadius: px('radius-sm'),
+      borderRadiusXS: px('radius-xs'),
+      borderRadiusSM: px('radius-xs'),
+      borderRadiusLG: px('radius'),
+      controlHeight: px('control'),
+      fontFamily: v('font'),
+      fontSize: px('text'),
+      motion: !still,
     },
     components: {
       Table: {
-        headerBg: v('paper'),
+        headerBg: 'transparent',
         headerColor: v('ink-2'),
         headerSplitColor: 'transparent',
-        rowHoverBg: v('hover'),
+        rowHoverBg: v('accent-soft'),
+        borderColor: v('line'),
       },
     },
   }
@@ -176,7 +178,7 @@ function Sidebar({ jobs, jobId, ring, navigate }: {
         </span>
       </a>
       <button type="button" className="side-button" onClick={() => navigate('/')}>
-        <Plus size={17} aria-hidden="true" /> {T.app.newFile}
+        <Plus size={18} aria-hidden="true" /> <span className="side-button-text">{T.app.newFile}</span>
       </button>
       <div className="side-title">{T.app.recent}</div>
       <div className="side-jobs">
@@ -203,7 +205,7 @@ function Sidebar({ jobs, jobId, ring, navigate }: {
       </div>
       {ring && (
         <div className="side-ring">
-          <Ring percent={ring.percent} label={ring.label} size={150} />
+          <Ring percent={ring.percent} label={ring.label} size={140} />
         </div>
       )}
     </nav>
@@ -239,8 +241,8 @@ export function App() {
 
   return (
     <ConfigProvider theme={config} locale={ruRU}>
-      {/* every icon gets the "icon" class: theme.css draws them as one hand-drawn set */}
-      <LucideProvider className="icon">
+      {/* every icon gets the "icon" class and one thin stroke */}
+      <LucideProvider className="icon" strokeWidth={1.75}>
         <div className="shell">
           <Sidebar jobs={jobs} jobId={jobId} ring={info.ring} navigate={navigate} />
           <div className="main">

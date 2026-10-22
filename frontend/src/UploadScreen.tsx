@@ -28,7 +28,12 @@ function Features() {
         const Icon = FEATURE_ICONS[i]
         return (
           <div key={title} className="feature">
-            <Icon className="feature-icon" size={34} strokeWidth={1.4} aria-hidden="true" />
+            <div className="feature-head">
+              <span className="feature-num num" aria-hidden="true">
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              <Icon className="feature-icon" size={22} strokeWidth={1.5} aria-hidden="true" />
+            </div>
             <b>{title}</b>
             <span>{text}</span>
           </div>
@@ -57,10 +62,10 @@ function Stats({ jobs, onChoose }: { jobs: Job[] | null; onChoose: () => void })
         {T.upload.stats}
       </h2>
       {jobs === null
-        ? [0, 1, 2].map((i) => <Skeleton key={i} height={30} style={{ margin: '10px 0' }} />)
+        ? [0, 1, 2].map((i) => <Skeleton key={i} height={56} style={{ margin: '12px 0' }} />)
         : rows.map(([label, value, series]) => (
             <div key={label} className="stat-row">
-              <span>{label}</span>
+              <span className="stat-label">{label}</span>
               <span className="stat-value num">{(value ?? 0).toLocaleString('ru-RU')}</span>
               {series.length ? <Sparkline values={series} /> : <span />}
             </div>
@@ -179,16 +184,17 @@ export function UploadScreen({ jobs, onJob }: {
     <>
       <div className="upload-grid">
         <section className="hero card" aria-labelledby="hero-title">
-          <div className="hero-chart">
-            <Waves />
+          <Waves className="hero-waves" />
+          <div className="hero-top">
+            <div className="hero-text">
+              <div className="eyebrow">{T.upload.eyebrow}</div>
+              <h2 id="hero-title">{T.upload.title}</h2>
+              <p className="lead">{T.upload.lead}</p>
+            </div>
             <div className="hero-band num" aria-hidden="true">
               <small>{T.upload.bandLabel}</small>
               <b>{T.upload.bandValue}</b>
               <small>{T.upload.bandHint}</small>
-            </div>
-            <div className="hero-text">
-              <div className="eyebrow">{T.upload.eyebrow}</div>
-              <h2 id="hero-title">{T.upload.title}</h2>
             </div>
           </div>
           <div
@@ -263,7 +269,6 @@ export function UploadScreen({ jobs, onJob }: {
             onClear={() => setFiles([])}
             onProcess={() => void process()}
           />
-          <p className="lead">{T.upload.lead}</p>
         </section>
         <Stats jobs={jobs} onChoose={() => input.current?.click()} />
       </div>

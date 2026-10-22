@@ -1,20 +1,26 @@
-// Drawings of the app in the wireframe style: a picture placeholder and a small line chart.
-// Every color comes from theme.css, so the pictures follow the theme.
+// Drawings of the app: thin waves and a small line chart. Every color comes from theme.css,
+// so the pictures follow the theme.
 
-/** Picture placeholder: a grey box crossed by two diagonals (the name stayed from the old waves). */
+const WAVES = 7
+
+/** Thin parallel waves, the decoration of the hero and of empty states. */
 export function Waves({ className }: { className?: string }) {
+  const lines = Array.from({ length: WAVES }, (_, i) => {
+    const y = 60 + i * 14
+    const lift = 26 + i * 3
+    return `M-20 ${y} C 120 ${y - lift}, 230 ${y + lift}, 360 ${y - 6} S 560 ${y - lift}, 720 ${y + 4}`
+  })
   return (
     <svg
-      className={className}
-      viewBox="0 0 100 100"
+      className={`waves ${className ?? ''}`}
+      viewBox="0 0 700 200"
       preserveAspectRatio="none"
       aria-hidden="true"
       focusable="false"
     >
-      <g className="stub">
-        <rect className="stub-box" x="1" y="1" width="98" height="98" vectorEffect="non-scaling-stroke" />
-        <path className="stub-cross" d="M1 1L99 99M99 1L1 99" vectorEffect="non-scaling-stroke" />
-      </g>
+      {lines.map((d, i) => (
+        <path key={d} d={d} className={i === 3 ? 'wave strong' : 'wave'} fill="none" />
+      ))}
     </svg>
   )
 }
@@ -28,7 +34,7 @@ export function Sparkline({ values }: { values: number[] }) {
     .join('')
   return (
     <svg className="spark" viewBox="0 0 64 24" aria-hidden="true" focusable="false">
-      <path d={d} fill="none" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+      <path d={d} fill="none" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   )
 }
