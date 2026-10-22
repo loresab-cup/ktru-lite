@@ -40,6 +40,9 @@ DOWN_PAUSE = 120.0
 # starts on it for a few seconds (they wait for the others) instead of every batch spending ~6 s
 # of retries on it first
 GATEWAY_PAUSE = 15.0
+# A request without an answer in time (a free Gemini key is sometimes slow for a minute): the
+# other keys take the batches meanwhile, this one is tried again soon
+TIMEOUT_PAUSE = 30.0
 CONNECT_PAUSE = 15.0  # a refused connection fails at once: try again soon, the gateway may be back
 AHEAD_ROUNDS = 2  # unfinished batches of one job in the pool: 2 rounds of all request slots
 
@@ -281,7 +284,7 @@ def ask(system: str, user: str, deadline: float, cancelled, parse) -> tuple:
             return None, CUT
         except httpx.TransportError as exc:  # no connection or no answer in time
             logger.warning("LLM %s is unavailable: %s", provider.name, type(exc).__name__)
-            pause = CONNECT_PAUSE if isinstance(exc, httpx.ConnectError) else DOWN_PAUSE
+            pause = CONNECT_PAUSE if isinstance(exc, httpx.ConnectError) else TIMEOUT_PAUSE
             provider.down_until = time.monotonic() + pause
             reason = UNAVAILABLE
         except TimeoutError:
