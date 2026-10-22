@@ -1,11 +1,13 @@
 """Neural networks for extractor.py: settings from .env and one chat request with retries.
 
-LLM_PROVIDERS=gigachat,yandex lists them; the order is the priority when several are free.
+LLM_PROVIDERS=gemini,gemini2,gemini3,gigachat lists them; the order is the priority when
+several are free.
 - gigachat: GIGACHAT_* (OAuth key -> token for 30 minutes)
-- yandex: YANDEX_API_KEY, YANDEX_FOLDER_ID, YANDEX_MODEL, YANDEX_PARALLEL (Yandex AI Studio)
-- any other name X: X_BASE_URL, X_API_KEY, X_MODEL, X_PARALLEL (an OpenAI-compatible API)
+- any other name X (gemini, gemini2, gemini3: one Google key each):
+  X_BASE_URL, X_API_KEY, X_MODEL, X_PARALLEL (an OpenAI-compatible API), X_RPM
 Optional X_REASONING_EFFORT (none, low, ...) for models that think before answering.
-Every provider has its own limit of requests at the same moment (X_PARALLEL -> a semaphore).
+Every provider has its own limit of requests at the same moment (X_PARALLEL -> a semaphore)
+and, if X_RPM is set, of requests per minute.
 """
 
 import logging
@@ -22,7 +24,7 @@ logger = logging.getLogger(__name__)
 TEMPERATURE = 0.0001  # below 0.001 GigaChat answers the same way every time
 REQUEST_TIMEOUT = 40.0  # a batch of 10 rows takes 5-23 s; a hung request goes to a retry sooner
 RETRIES = 2
-# A 5xx that came this late is the gateway's own timeout (tokify: 502 after 37 s): a retry would
+# A 5xx that came this late is the gateway's own timeout (a gateway: 502 after 37 s): a retry would
 # cost the same again, so the batch goes to the next provider at once
 SLOW_ERROR = 15.0
 TOKEN_MARGIN = 60.0  # seconds: a GigaChat token that expires sooner is replaced first
@@ -45,12 +47,11 @@ class Cancelled(Exception):
 @dataclass
 class Provider:
     name: str
-    kind: str  # gigachat | yandex | openai
+    kind: str  # gigachat | openai
     base_url: str
     key: str
     model: str
     parallel: int = 1
-    folder: str = ""  # Yandex only
     reasoning: str = (
         ""  # reasoning_effort for models that think before answering: "none" is fastest
     )
@@ -79,7 +80,7 @@ class Provider:
 
     @property
     def configured(self) -> bool:
-        return bool(self.key and self.model and (self.folder or self.kind != "yandex"))
+        return bool(self.key and self.model)
 
     def is_down(self) -> bool:
         return time.monotonic() < self.down_until
@@ -106,18 +107,6 @@ def load(env=os.environ) -> list[Provider]:
                     env.get("GIGACHAT_CREDENTIALS", ""),
                     env.get("GIGACHAT_MODEL", "GigaChat-3-Ultra"),
                     int(env.get("GIGACHAT_PARALLEL", "1")),
-                )
-            )
-        elif name == "yandex":
-            result.append(
-                Provider(
-                    name,
-                    "yandex",
-                    env.get("YANDEX_BASE_URL", "https://ai.api.cloud.yandex.net/v1"),
-                    env.get("YANDEX_API_KEY", "").strip(),
-                    env.get("YANDEX_MODEL", "qwen3.6-35b-a3b"),
-                    int(env.get("YANDEX_PARALLEL", "2")),
-                    env.get("YANDEX_FOLDER_ID", "").strip(),
                 )
             )
         else:
@@ -190,10 +179,6 @@ def body(p: Provider, system: str, user: str) -> dict:
         "temperature": TEMPERATURE,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
     }
-    if p.kind == "yandex":
-        result["model"] = model if model.startswith("gpt://") else f"gpt://{p.folder}/{model}"
-        if "qwen" in model and not p.reasoning:
-            result["reasoning_effort"] = "none"  # no hidden reasoning: much faster, same JSON
     if p.reasoning:
         result["reasoning_effort"] = p.reasoning
     return result
@@ -204,9 +189,6 @@ def post(p: Provider, payload: dict, deadline: float) -> httpx.Response:
     if p.kind == "gigachat":
         headers = {"Authorization": f"Bearer {access_token(p.key, deadline=deadline)}"}
         client = _gigachat_client
-    elif p.kind == "yandex":
-        headers = {"Authorization": f"Api-Key {p.key}", "OpenAI-Project": p.folder}
-        client = _client
     else:
         headers = {"Authorization": f"Bearer {p.key}"}
         client = _client

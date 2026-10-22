@@ -1,7 +1,7 @@
 """Check the configured neural networks with one short request each; keys are never printed.
 
 docker compose exec backend python check_llm.py            # every provider in LLM_PROVIDERS
-docker compose exec backend python check_llm.py yandex     # one of them
+docker compose exec backend python check_llm.py gemini2    # one of them
 """
 
 import sys
@@ -15,7 +15,7 @@ import providers
 HINTS = {
     401: "неверный ключ",
     402: "закончились деньги на балансе — пополните счёт у провайдера",
-    403: "нет прав: сервисному аккаунту Yandex нужна роль ai.languageModels.user",
+    403: "нет прав у ключа (для Gemini: ключ из другого проекта или API не включён)",
     404: "неверный адрес, folder_id или имя модели",
     429: "превышена квота одновременных запросов",
 }
@@ -24,7 +24,7 @@ ROW = "Бумага офисная А4 80 г/м2"
 
 def check(p: providers.Provider) -> bool:
     if not p.configured:
-        print(f"{p.name}: не настроен — заполните ключ (и folder_id для Yandex) в .env")
+        print(f"{p.name}: не настроен — заполните ключ в .env")
         return False
     started = time.monotonic()
     try:

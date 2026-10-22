@@ -1,6 +1,6 @@
 """Positions -> attributes: name, brand, model, characteristics, search_text.
 
-Neural networks from providers.py (GigaChat, YandexGPT/Qwen, OpenAI-compatible) do the work;
+Neural networks from providers.py (GigaChat and Gemini keys through the OpenAI-compatible API) do the work;
 every value they return must be present in the source row (guard against invented values and
 prompt injection). No provider, the budget is over or every provider failed -> simple rules.
 A job never fails here.
@@ -234,7 +234,10 @@ def to_attributes(answer: str, texts: list[str], provider: str) -> list[dict]:
     """Rows of one batch from an answer; a broken object falls back for its own row only.
 
     An answer without a single usable object raises ValueError: another provider may do better."""
-    by_id = answer_by_id(parse_json_answer(answer))
+    objects = parse_json_answer(answer)
+    by_id = answer_by_id(objects)
+    if not by_id and len(objects) == len(texts):
+        by_id = dict(enumerate(objects))  # no ids, but one object per row: in the order asked
     if not any(i in by_id for i in range(len(texts))):
         raise ValueError("no rows in the answer")
     result = []

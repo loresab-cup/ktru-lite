@@ -1,4 +1,4 @@
-"""Neural network providers: HTTP requests, retries, Yandex specifics, failover and limits."""
+"""Neural network providers: HTTP requests, retries, failover and limits."""
 
 import json
 import threading
@@ -162,7 +162,7 @@ def test_nothing_is_sent_after_cancel(monkeypatch):
     assert not sent
 
 
-def test_yandex_request_and_cut_answer(monkeypatch):
+def test_gemini_request_and_cut_answer(monkeypatch):
     seen = []
 
     def handler(request):
@@ -170,36 +170,36 @@ def test_yandex_request_and_cut_answer(monkeypatch):
         return httpx.Response(200, json=chat_answer(finish="stop" if len(seen) == 1 else "length"))
 
     mock(monkeypatch, handler)
-    p = Provider("yandex", "yandex", "https://ai/v1", "secret", "qwen3.6-35b-a3b", 2, "b1gfolder")
+    p = Provider("gemini", "openai", "https://ai/v1", "secret", "gemini-3.5-flash-lite", 2)
     assert providers.chat(p, "s", "u", time.monotonic() + 30) == ANSWER
     body = json.loads(seen[0].content)
     assert str(seen[0].url) == "https://ai/v1/chat/completions"
-    assert seen[0].headers["Authorization"] == "Api-Key secret"
-    assert seen[0].headers["OpenAI-Project"] == "b1gfolder"
-    assert body["model"] == "gpt://b1gfolder/qwen3.6-35b-a3b" and body["reasoning_effort"] == "none"
+    assert seen[0].headers["Authorization"] == "Bearer secret"
+    assert body["model"] == "gemini-3.5-flash-lite" and "reasoning_effort" not in body
     with pytest.raises(ValueError):
         providers.chat(p, "s", "u", time.monotonic() + 30)
 
 
 def test_load_from_env():
     env = {
-        "LLM_PROVIDERS": "gigachat, yandex, deepseek, gigachat",
+        "LLM_PROVIDERS": "gigachat, gemini, gemini2, gigachat",
         "GIGACHAT_CREDENTIALS": "key",
-        "YANDEX_API_KEY": "k",
-        "YANDEX_FOLDER_ID": "f",
-        "YANDEX_PARALLEL": "4",
-        "DEEPSEEK_BASE_URL": "https://api.example/v1",
-        "DEEPSEEK_API_KEY": "d",
-        "DEEPSEEK_MODEL": "chat",
+        "GEMINI_BASE_URL": "https://g/v1",
+        "GEMINI_API_KEY": "k",
+        "GEMINI_MODEL": "gemini-3.5-flash-lite",
+        "GEMINI_PARALLEL": "4",
+        "GEMINI2_BASE_URL": "https://api.example/v1",
+        "GEMINI2_API_KEY": "d",
+        "GEMINI2_MODEL": "chat",
     }
-    giga, yandex, other = providers.load(env)
+    giga, first, other = providers.load(env)
     assert (giga.kind, giga.parallel, giga.configured) == ("gigachat", 1, True)
-    assert (yandex.kind, yandex.parallel, yandex.model) == ("yandex", 4, "qwen3.6-35b-a3b")
+    assert (first.kind, first.parallel, first.model) == ("openai", 4, "gemini-3.5-flash-lite")
     assert (other.kind, other.configured) == ("openai", True)
-    reasoning = providers.load({"LLM_PROVIDERS": "polza", "POLZA_REASONING_EFFORT": "low"})[0]
+    reasoning = providers.load({"LLM_PROVIDERS": "gemini", "GEMINI_REASONING_EFFORT": "low"})[0]
     assert providers.body(reasoning, "s", "u")["reasoning_effort"] == "low"
     assert "reasoning_effort" not in providers.body(other, "s", "u")
-    assert not providers.load({"LLM_PROVIDERS": "yandex"})[0].configured  # no key
+    assert not providers.load({"LLM_PROVIDERS": "gemini3"})[0].configured  # no key
     assert [p.name for p in providers.load({})] == ["gigachat"]
 
 
@@ -379,3 +379,9 @@ def test_rows_skipped_by_the_model_are_asked_again(monkeypatch):
     rows = extractor.extract_chunk(["Бумага А4", "Бумага офисная"], time.monotonic() + 5)
     assert sizes == [2, 1]  # the skipped row went alone
     assert [row["source"] for row in rows] == ["llm", "llm"]
+
+
+def test_answer_without_ids_is_read_by_position():
+    answer = '[{"name": "Бумага", "search_text": "Бумага для офисной техники"}]'
+    [row] = extractor.to_attributes(answer, ["Бумага А4"], "x")
+    assert row["source"] == "llm" and row["name"] == "Бумага"
