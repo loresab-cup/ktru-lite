@@ -346,6 +346,7 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
         assert CODES[0][0] in csv_text and "'=HYPERLINK(1) ноутбук" in csv_text
         xlsx = client.get(f"/api/jobs/{job_id}/export", params={"format": "xlsx"})
         assert xlsx.content.startswith(b"PK")
+        assert "spec_ktru.xlsx" in xlsx.headers["content-disposition"]
         api.set_job(uuid.UUID(job_id), status="processing")
         assert client.get(f"/api/jobs/{job_id}/export").status_code == 409
         api.set_job(uuid.UUID(job_id), status="done")

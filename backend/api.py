@@ -17,6 +17,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import quote
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
@@ -724,5 +725,9 @@ def export(job_id: str, format: str = Query("xlsx", pattern="^(xlsx|csv)$")):
     else:
         content = to_xlsx(rows)
         media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    disposition = f'attachment; filename="ktru_{str(job.id)[:8]}.{format}"'
+    # the file is named after the uploaded one; the ASCII name is for old clients
+    pretty = quote(f"{Path(job.filename).stem}_ktru.{format}")
+    disposition = (
+        f"attachment; filename=\"ktru_{str(job.id)[:8]}.{format}\"; filename*=UTF-8''{pretty}"
+    )
     return Response(content, media_type=media, headers={"Content-Disposition": disposition})

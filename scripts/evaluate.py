@@ -295,7 +295,7 @@ def percent(right: int, total: int) -> str:
 
 def evaluate(client: httpx.Client, items: list[dict], reference: dict, show: bool) -> dict:
     counts = dict.fromkeys(("rows", "code", "meaning", "top5", "auto", "auto_right"), 0)
-    counts |= {"name_exact": [0, 0]}
+    counts |= {"name_exact": [0, 0], "zones": {zone: [0, 0] for zone in ("high", "medium", "low")}}
     attributes = {"name": [0, 0], "unit": [0, 0], "characteristics": [0, 0]}
     cache: dict = {}
     for item in items:
@@ -313,6 +313,9 @@ def evaluate(client: httpx.Client, items: list[dict], reference: dict, show: boo
         counts["top5"] += any(c["code"] == expected["ktru_code"] for c in item["candidates"])
         counts["auto"] += item["status"] == "auto"
         counts["auto_right"] += item["status"] == "auto" and right
+        zone = counts["zones"].setdefault(item["zone"], [0, 0])
+        zone[0] += 1
+        zone[1] += right
         if expected.get("name"):
             counts["name_exact"][0] += 1
             counts["name_exact"][1] += norm(item["attributes"].get("name")) == norm(
@@ -363,6 +366,11 @@ def main() -> None:
     print(f"code by meaning:     {percent(result['meaning'], n)}")
     print(f"right code in top-5: {percent(result['top5'], n)}")
     print(f"auto: {result['auto']} rows, right {result['auto_right']}")
+    for zone, (rows, right) in result["zones"].items():
+        print(f"zone {zone + ':':8}{percent(right, rows)} right")
+    wrong = n - result["code"]
+    caught = wrong - (result["auto"] - result["auto_right"])
+    print(f"wrong codes sent to review: {percent(caught, wrong)}")
     checked, hit = result["name_exact"]
     print(f"name exact:          {percent(hit, checked)}")
     for key, (checked, hit) in result["attributes"].items():
