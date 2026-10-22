@@ -16,7 +16,7 @@ def catalog(fixed: list[list]) -> search.Catalog:
         okpd2=[""] * n,
         code_words=[" ".join(search.words(name)) for name in names],
         chars=[[] for _ in names],
-        bounds=[[[], []] for _ in names],
+        bounds=[[] for _ in names],
         fixed=fixed,
         templates=[False] * n,
         units=[[] for _ in names],

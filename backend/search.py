@@ -30,11 +30,14 @@ TOP_K = 5
 QUERY_CHUNK = 128  # 128 x 81 509 float32 = 42 MB of similarities at a time
 WORDS_ONLY_BASE = 0.6  # without vectors the score stays low: nothing goes to auto
 MAX_CODE_WORDS = 400
-BRIEF_CHARS, BRIEF_VALUES = 12, 20
-CACHE_VERSION = 5  # bump when the cached metadata changes
+# Characteristics kept per code: candidates show 6 x 5 of them, a lookup of one code all
+BRIEF_CHARS, BRIEF_VALUES = 20, 40
+CACHE_VERSION = 6  # bump when the cached metadata changes
 # Neighbour codes of one group often differ only by a range: "> 1.25" vs "<= 1.25".
-# A bound of the row equal to a bound of the code adds NUMERIC_BONUS; the same number on the
-# other side ("не менее 1.25" against "<= 1.25") takes NUMERIC_CLASH off.
+# A bound of the row equal to a bound of the code adds NUMERIC_BONUS, so does a plain value with
+# a unit inside a range of the code («Вес: 100 г» and «≥ 90 и < 110 Грамм»); the same number on
+# the other side ("не менее 1.25" against "<= 1.25") takes NUMERIC_CLASH off. Numbers are in
+# base units (unit_scale).
 NUMERIC_BONUS = 0.01
 NUMERIC_CLASH = 0.01
 # Neighbour codes also differ by a fixed characteristic («Неизменяемая заказчиком») with one
@@ -130,6 +133,57 @@ _LOWER = re.compile(
 _UPPER = re.compile(
     rf"(?<!\w)(?:не\s+более|не\s+больше|(?<!не )менее|(?<!не )меньше|до|≤|<=|<)\s*{_NUM}"
 )
+_PLAIN = re.compile(rf"(?<![\w.,]){_NUM}")
+
+# Numbers are compared in one unit per quantity: «2 м» = «2000 Миллиметр», «0,1 кг» = «100 г».
+# The base is the most common unit of the quantity in the catalog (Миллиметр: 150 392 values,
+# Килограмм, Кубический сантиметр, Гигабайт), so a number without a unit still meets most codes
+# in their own unit. Unit -> factor; full names by prefix (longer first), short forms as a whole
+# word. «Кубический метр в час», «г/м2», «Грамм на квадратный метр» are other quantities: a unit
+# followed by «в», «на» or «/» is not converted.
+_SCALE_PREFIXES = (
+    ("кубический сантиметр", 1.0),
+    ("кубический дециметр", 1000.0),
+    ("кубический метр", 1e6),
+    ("миллиметр", 1.0),
+    ("сантиметр", 10.0),
+    ("километр", 1e6),
+    ("метр", 1000.0),
+    ("миллиграмм", 1e-6),
+    ("килограмм", 1.0),
+    ("грамм", 0.001),
+    ("тонн", 1000.0),
+    ("миллилитр", 1.0),
+    ("литр", 1000.0),
+    ("мегабайт", 1 / 1024),
+    ("гигабайт", 1.0),
+    ("терабайт", 1024.0),
+    ("штук", 1.0),
+    ("процент", 1.0),
+    ("дюйм", 1.0),
+    ("%", 1.0),
+)
+_SCALE_SHORT = {
+    "мм": 1.0,
+    "см": 10.0,
+    "м": 1000.0,
+    "км": 1e6,
+    "мг": 1e-6,
+    "г": 0.001,
+    "гр": 0.001,
+    "кг": 1.0,
+    "т": 1000.0,
+    "мл": 1.0,
+    "см3": 1.0,
+    "л": 1000.0,
+    "дм3": 1000.0,
+    "м3": 1e6,
+    "мб": 1 / 1024,
+    "гб": 1.0,
+    "тб": 1024.0,
+    "шт": 1.0,
+}
+_COMPOUND = ("в ", "на ", "/")
 
 
 def words(text: str) -> set[str]:
@@ -138,12 +192,38 @@ def words(text: str) -> set[str]:
     return {w for w in _WORD.findall(text) if len(w) >= 3 or any(c.isdigit() for c in w)}
 
 
-def query_bounds(text: str) -> tuple[set[float], set[float]]:
-    """Lower and upper bounds written in a row: "не менее 3000 и менее 4000" -> {3000}, {4000}."""
+def unit_scale(text: str) -> float | None:
+    """Factor to the base unit for the unit at the start of lowercase text: «м …» -> 1000."""
+    text = text.lstrip(" (").replace("³", "3")
+    found = next(((p, f) for p, f in _SCALE_PREFIXES if text.startswith(p)), None)
+    if found is None:
+        word = _WORD.match(text)
+        if not word or word.group() not in _SCALE_SHORT:
+            return None
+        found = (word.group(), _SCALE_SHORT[word.group()])
+    rest = text[len(found[0]) :].lstrip("абвгдеёжзийклмнопрстуфхцчшщъыьэюя").lstrip(" .")
+    return None if rest.startswith(_COMPOUND) else found[1]
+
+
+def in_base(number: str, unit_text: str) -> float:
+    """«2», «м» -> 2000.0; rounded so that 0,1 кг and 100 г are equal floats."""
+    return round(float(number.replace(",", ".")) * (unit_scale(unit_text) or 1.0), 9)
+
+
+def query_bounds(text: str) -> tuple[set[float], set[float], set[float]]:
+    """Lower and upper bounds and plain values with a unit in a row, in base units:
+    "не менее 3 м и менее 4000 мм, вес 100 г" -> {3000}, {4000}, {0.1}."""
     text = (text or "").lower().replace("ё", "е")
-    lower = {float(m.group(1).replace(",", ".")) for m in _LOWER.finditer(text)}
-    upper = {float(m.group(1).replace(",", ".")) for m in _UPPER.finditer(text)}
-    return lower, upper
+    lower, upper, plain, bound_spans = set(), set(), set(), set()
+    for pattern, found in ((_LOWER, lower), (_UPPER, upper)):
+        for m in pattern.finditer(text):
+            found.add(in_base(m.group(1), text[m.end() : m.end() + 40]))
+            bound_spans.add(m.span(1))
+    for m in _PLAIN.finditer(text):
+        after = text[m.end() : m.end() + 40]
+        if m.span(1) not in bound_spans and unit_scale(after) is not None:
+            plain.add(in_base(m.group(1), after))
+    return lower, upper, plain
 
 
 def unit_key(text: str) -> str | None:
@@ -311,11 +391,15 @@ class Catalog:
                 self._postings = {w: np.array(ix, dtype=np.int32) for w, ix in lists.items()}
             return self._postings
 
-    def _numeric_fit(self, i: int, query: tuple[set[float], set[float]]) -> tuple[int, int]:
-        """(bounds of the row the code has, bounds the code has only on the other side)."""
-        lower, upper = query
-        code_lower, code_upper = (set(values) for values in self.bounds[i])
+    def _numeric_fit(self, i: int, query: tuple[set[float], ...]) -> tuple[int, int]:
+        """(bounds of the row the code has + plain values inside a range of the code,
+        bounds the code has only on the other side)."""
+        lower, upper, plain = query
+        ranges = self.bounds[i]
+        code_lower = {low for low, _ in ranges if low is not None}
+        code_upper = {high for _, high in ranges if high is not None}
         matches = len(lower & code_lower) + len(upper & code_upper)
+        matches += sum(any(inside(value, *bounds) for bounds in ranges) for value in plain)
         clashes = len((lower & code_upper) - code_lower) + len((upper & code_lower) - code_upper)
         return matches, clashes
 
@@ -341,7 +425,7 @@ class Catalog:
 
     def _unnamed(self, i: int, query_stems: set[str]) -> int:
         """Characteristics of the code the row does not name; 0 if it names none of them."""
-        named = [is_named(name, query_stems) for name, _ in self.chars[i]]
+        named = [is_named(name, query_stems) for name, _, _ in self.chars[i]]
         return named.count(False) if any(named) else 0
 
     def _rank(
@@ -385,7 +469,7 @@ class Catalog:
 
     def _matched_chars(self, i: int, query_words: set[str]) -> list[str]:
         matched = []
-        for name, values in self.chars[i]:
+        for name, values, _ in self.chars[i]:
             for value in values:
                 value_words = words(value)
                 if value_words and value_words <= query_words:
@@ -395,14 +479,17 @@ class Catalog:
 
     # --- lookup ----------------------------------------------------------------------------
 
-    def brief(self, i: int) -> dict:
-        return {
+    def brief(self, i: int, full: bool = False) -> dict:
+        """A code for the UI; full: every kept characteristic and the unit keys of the code."""
+        chars = self.chars[i] if full else [[n, v[:5], u] for n, v, u in self.chars[i][:6]]
+        found = {
             "code": self.codes[i],
             "name": self.names[i],
             "okpd2_code": self.okpd2[i],
             "status": self.statuses[i],
-            "characteristics": [[name, values[:5]] for name, values in self.chars[i][:6]],
+            "characteristics": [[n, [with_unit(v, u) for v in values]] for n, values, u in chars],
         }
+        return found | {"units": self.units[i]} if full else found
 
     def get(self, code: str) -> dict | None:
         i = self.index.get(code.strip())
@@ -419,7 +506,7 @@ class Catalog:
             parts = query.split()
             found = [i for i, n in enumerate(self._names_lower) if all(p in n for p in parts)]
         found.sort(key=lambda i: (not self.active[i], len(self.names[i]), self.codes[i]))
-        return [self.brief(i) for i in found[:limit]]
+        return [self.brief(i, full=self.codes[i] == query) for i in found[:limit]]
 
 
 # --- loading -------------------------------------------------------------------------------
@@ -441,29 +528,46 @@ def code_units(units: list | None) -> list[str]:
     return sorted(key for key in keys if key)
 
 
-def numeric_bounds(characteristics: list) -> list[list[float]]:
-    """[[min values], [max values]] of all numeric values: "≥ 3000 и < 4000" -> 3000, 4000."""
-    lower, upper = set(), set()
+def numeric_bounds(characteristics: list) -> list[list[float | None]]:
+    """[[min, max], ...] of the numeric values in base units: «≥ 2 и < 3 Метр» -> [2000, 3000];
+    None is an open side."""
+    ranges = []
     for characteristic in characteristics or []:
         for value in characteristic.get("values") or []:
-            if isinstance(value.get("min"), int | float):
-                lower.add(float(value["min"]))
-            if isinstance(value.get("max"), int | float):
-                upper.add(float(value["max"]))
-    return [sorted(lower), sorted(upper)]
+            low, high = value.get("min"), value.get("max")
+            if not isinstance(low, int | float) and not isinstance(high, int | float):
+                continue
+            unit = str(value.get("unit") or "").lower()
+            ranges.append(
+                [in_base(str(x), unit) if isinstance(x, int | float) else None for x in (low, high)]
+            )
+    return ranges
+
+
+def inside(value: float, low: float | None, high: float | None) -> bool:
+    return (low is None or value >= low) and (high is None or value <= high)
 
 
 def brief_chars(characteristics: list) -> tuple[list, list[str]]:
-    """Short characteristics for the UI and all their value texts for word matching."""
+    """[[name, [values], unit]] for the UI and all value texts for word matching.
+
+    One characteristic has one unit in the dump (2 exceptions of 330 743), so it is kept once."""
     brief, texts = [], []
     for characteristic in characteristics or []:
-        values = [v.get("text") for v in characteristic.get("values") or [] if v.get("text")]
+        raw = [v for v in characteristic.get("values") or [] if v.get("text")]
+        values = [v["text"] for v in raw]
         texts.extend(values)
         if len(brief) < BRIEF_CHARS:
+            unit = next((str(v["unit"]) for v in raw if v.get("unit")), "")
             brief.append(
-                [characteristic.get("name") or "", [v[:80] for v in values[:BRIEF_VALUES]]]
+                [characteristic.get("name") or "", [v[:80] for v in values[:BRIEF_VALUES]], unit]
             )
     return brief, texts
+
+
+def with_unit(value: str, unit: str) -> str:
+    """«≥ 10 и < 15» + «Грамм» -> «≥ 10 и < 15 Грамм»; text values have no unit."""
+    return f"{value} {unit}" if unit else value
 
 
 def build(path: Path) -> tuple[np.ndarray, dict]:

@@ -397,11 +397,34 @@ def test_search_numeric_range_picks_neighbour():
         templates=[False] * len(records),
         units=[[]] * len(records),
     )
-    assert search.query_bounds("не менее 3000 и менее 4000 мм, до 5,5") == ({3000.0}, {4000.0, 5.5})
+    bounds = search.query_bounds("не менее 3000 и менее 4000 мм, до 5,5")
+    assert bounds == ({3000.0}, {4000.0, 5.5}, set())
     [found] = catalog.search(
         np.stack([unit([1, 0])]), ["Клеть дуо производительность не менее 1.25"]
     )
     assert found[0]["code"].endswith("92") and found[0]["numeric_matches"] == 1
+
+
+def test_search_numbers_in_other_units():
+    # «2 м» = «2000 мм», «0,1 кг» = «100 г»; compound units are not converted
+    assert search.query_bounds("длина не менее 2 м") == ({2000.0}, set(), set())
+    assert search.query_bounds("Вес: 0,1 Килограмм; 100 г") == (set(), set(), {0.1})
+    assert search.query_bounds("80 г/м2, 5 кубический метр в час") == (set(), set(), set())
+    assert search.numeric_bounds([{"values": [{"min": 90, "max": 110, "unit": "Грамм"}]}]) == [
+        [0.09, 0.11]
+    ]
+    weight = [
+        {"name": "Масса нетто", "values": [{"min": 90, "max": 110, "unit": "Грамм"}]},
+    ]
+    light = [{"name": "Масса нетто", "values": [{"max": 90, "unit": "Грамм"}]}]
+    soap = small_catalog(
+        [
+            {"code": "20.41.31.110-00000001", "name": "Мыло", "characteristics": light},
+            {"code": "20.41.31.110-00000002", "name": "Мыло", "characteristics": weight},
+        ]
+    )
+    [found] = soap.search(np.stack([unit([1, 0])]), ["Мыло. Масса нетто: 0,1 кг"])
+    assert found[0]["code"].endswith("02") and found[0]["numeric_matches"] == 1
 
 
 def small_catalog(records: list[dict]) -> search.Catalog:

@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 TEMPERATURE = 0.0001  # below 0.001 GigaChat answers the same way every time
 REQUEST_TIMEOUT = 40.0  # a batch of 10 rows takes 5-23 s; a hung request goes to a retry sooner
 RETRIES = 2
+# A 5xx that came this late is the gateway's own timeout (tokify: 502 after 37 s): a retry would
+# cost the same again, so the batch goes to the next provider at once
+SLOW_ERROR = 15.0
 TOKEN_MARGIN = 60.0  # seconds: a GigaChat token that expires sooner is replaced first
 
 # GigaChat certificates are signed by the Russian root CA (Минцифры), missing from the usual
@@ -220,6 +223,7 @@ def chat(p: Provider, system: str, user: str, deadline: float, cancelled=None) -
         if deadline - time.monotonic() < 1:
             # The budget ran out while the network kept silent: that is "no answer", not "slow"
             raise silent or TimeoutError("LLM budget is over")
+        started = time.monotonic()
         try:
             response = post(p, payload, deadline)
         except httpx.TimeoutException as exc:  # a full window without an answer
@@ -231,6 +235,9 @@ def chat(p: Provider, system: str, user: str, deadline: float, cancelled=None) -
             if silent:
                 raise silent from None  # the network had kept silent before: unavailable
             raise
+        if response.status_code >= 500 and time.monotonic() - started >= SLOW_ERROR:
+            # The gateway itself waited in vain: the same as no answer, the provider is paused
+            raise httpx.ReadTimeout(f"HTTP {response.status_code} after a long wait")
         if response.status_code == 429 or response.status_code >= 500:
             if attempt == RETRIES:
                 response.raise_for_status()

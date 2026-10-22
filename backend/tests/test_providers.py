@@ -112,6 +112,23 @@ def test_retry_then_success(monkeypatch, status):
         next(responses)
 
 
+def test_slow_gateway_error_is_not_retried(monkeypatch):
+    """502 after 37 s is the gateway's own timeout: no second and third try of 37 s each."""
+    clock = [0.0]
+    calls = []
+    monkeypatch.setattr(providers.time, "monotonic", lambda: clock[0])
+
+    def slow_502(request):
+        calls.append(clock[0])
+        clock[0] += 37.0
+        return httpx.Response(502)
+
+    mock(monkeypatch, slow_502)
+    with pytest.raises(httpx.TransportError):  # as a silent network: the provider is paused
+        providers.chat(openai(), "s", "u", deadline=200.0)
+    assert len(calls) == 1
+
+
 def test_request_cut_by_budget_is_a_timeout(monkeypatch):
     def handler(request):
         raise httpx.ReadTimeout("cut by the short timeout", request=request)

@@ -15,7 +15,7 @@ def catalog(names, vectors):
         okpd2=[""] * n,
         code_words=[" ".join(search.words(name)) for name in names],
         chars=[[] for _ in names],
-        bounds=[[[], []] for _ in names],
+        bounds=[[] for _ in names],
         fixed=[[] for _ in names],
         templates=[False] * n,
         units=[[] for _ in names],

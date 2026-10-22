@@ -44,7 +44,7 @@ def tiny_catalog() -> search.Catalog:
         okpd2=["", ""],
         code_words=[" ".join(search.words(name)) for name in names],
         chars=[[], []],
-        bounds=[[[], []], [[], []]],
+        bounds=[[], []],
         fixed=[[], []],
         templates=[False, False],
         units=[[], []],
