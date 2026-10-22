@@ -339,3 +339,17 @@ def test_refused_connection_is_retried_sooner_than_a_silent_network(monkeypatch)
     now = time.monotonic()
     assert refused.down_until - now <= extractor.CONNECT_PAUSE
     assert silent.down_until - now > extractor.CONNECT_PAUSE
+
+
+def test_rpm_spaces_requests_and_env_sets_it():
+    p = Provider("x", "openai", "http://x", "k", "m", parallel=4, rpm=600)  # 0.1 s apart
+    started = time.monotonic()
+    for _ in range(4):
+        p.wait_turn(time.monotonic() + 10)
+    assert time.monotonic() - started >= 0.29
+    free = Provider("y", "openai", "http://y", "k", "m")
+    started = time.monotonic()
+    free.wait_turn(time.monotonic() + 10)
+    assert time.monotonic() - started < 0.05
+    loaded = providers.load({"LLM_PROVIDERS": "gemini", "GEMINI_RPM": "28"})
+    assert loaded[0].rpm == 28

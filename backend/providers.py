@@ -54,12 +54,27 @@ class Provider:
     reasoning: str = (
         ""  # reasoning_effort for models that think before answering: "none" is fastest
     )
+    rpm: int = 0  # requests per minute the plan allows (free tiers: ~30); 0 - no limit
     down_until: float = 0.0  # did not answer a moment ago: skipped until then
     slots: threading.BoundedSemaphore = field(init=False, repr=False)
+    next_start: float = field(default=0.0, init=False, repr=False)
+    turn: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.parallel = max(1, self.parallel)
         self.slots = threading.BoundedSemaphore(self.parallel)
+
+    def wait_turn(self, deadline: float) -> None:
+        """Spaces the requests by 60 / rpm seconds, so the plan's limit never answers 429.
+
+        Never sleeps past the job budget: the request itself then reports the end of it."""
+        if self.rpm <= 0:
+            return
+        with self.turn:
+            now = time.monotonic()
+            start = max(now, self.next_start)
+            self.next_start = start + 60.0 / self.rpm
+        time.sleep(max(0.0, min(start, deadline) - now))
 
     @property
     def configured(self) -> bool:
@@ -113,6 +128,7 @@ def load(env=os.environ) -> list[Provider]:
                 )
             )
         result[-1].reasoning = env.get(f"{p}_REASONING_EFFORT", "").strip()
+        result[-1].rpm = int(env.get(f"{p}_RPM", "0") or 0)
     return result
 
 
@@ -190,6 +206,7 @@ def post(p: Provider, payload: dict, deadline: float) -> httpx.Response:
     else:
         headers = {"Authorization": f"Bearer {p.key}"}
         client = _client
+    p.wait_turn(deadline)
     timeout = min(REQUEST_TIMEOUT, max(1.0, deadline - time.monotonic()))
     started = time.monotonic()
     try:
