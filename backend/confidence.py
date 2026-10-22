@@ -9,13 +9,17 @@ import math
 # code is right) of every row and fit a logistic regression on the two features; its
 # coefficients go here. Then check the high zone: at least ~95 % of its codes must be right,
 # otherwise raise BIAS a little.
-# Fit of 20.10.2026: draft reference rows whose right code is not a group template (as people
-# choose codes: 0 templates among the 12 codes of the real specification) plus the real
-# specification, 4 runs, 1 076 rows. Mean confidence 88.7 % = share of right codes 88.7 %
-# (the old 20/40/-16 gave 95.9 %); the high zone holds 92.6 % right codes (was 90.9 %).
-W_SCORE = 14.5
-W_MARGIN = 41.5
-BIAS = -12.2
+# Fit of 22.10.2026: logistic regression of "the exact code is right" on (top1, margin) over
+# 2 000 rows (two runs of the 1000-row organizers' file), neural networks on, bge-m3 on a GPU.
+# The older fit (14.5 / 41.5 / -12.2) was too careful: the rows it sent to review were right
+# in 98 % of the cases by meaning, and the mean confidence 86 % was below the real 95 %.
+# On 596 other rows (292 rows, their modified copy, the real specification): log loss 0.100
+# instead of 0.241, 93 % of rows in the high zone with 98.9 % exact codes (99.8 % by meaning);
+# on the training rows 95 % in the high zone with 96.2 % exact (98.6 % by meaning).
+# Adding the cosine, the numeric matches or the source of the attributes changed nothing.
+W_SCORE = 11.05
+W_MARGIN = 76.0
+BIAS = -8.28
 
 HIGH = 85.0  # >= HIGH: zone high, the code is set automatically
 MEDIUM = 60.0  # MEDIUM..HIGH: medium, below: low; both need a human
