@@ -45,6 +45,7 @@ AHEAD_ROUNDS = 2  # unfinished batches of one job in the pool: 2 rounds of all r
 
 # Why the rules were used for a row (shown to the user)
 NO_KEY, UNAVAILABLE, BUDGET, ERROR, MISSING = "no_key", "unavailable", "budget", "error", "missing"
+CUT = "cut"  # internal: the answer hit max_tokens, the batch is split (never shown)
 MAX_SEARCH_TEXT = 400
 
 SYSTEM_PROMPT = """Ты извлекаешь атрибуты товаров из строк спецификации для подбора кода КТРУ.
@@ -275,6 +276,9 @@ def ask(system: str, user: str, deadline: float, cancelled, parse) -> tuple:
             return parse(answer, provider.name), None
         except Cancelled:
             raise
+        except providers.AnswerCut:
+            logger.warning("LLM %s: the answer was cut, the batch will be split", provider.name)
+            return None, CUT
         except httpx.TransportError as exc:  # no connection or no answer in time
             logger.warning("LLM %s is unavailable: %s", provider.name, type(exc).__name__)
             pause = CONNECT_PAUSE if isinstance(exc, httpx.ConnectError) else DOWN_PAUSE
@@ -300,8 +304,14 @@ def extract_chunk(
     texts: list[str], deadline: float, cancelled: threading.Event | None = None
 ) -> list[dict]:
     rows, reason = ask_batch(texts, deadline, cancelled)
+    if rows is None and reason == CUT and len(texts) > 1:
+        # Too long an answer for one request: two halves, each one asked on its own
+        middle = len(texts) // 2
+        return extract_chunk(texts[:middle], deadline, cancelled) + extract_chunk(
+            texts[middle:], deadline, cancelled
+        )
     if rows is None:
-        return [rules(text, reason) for text in texts]
+        return [rules(text, ERROR if reason == CUT else reason) for text in texts]
     # Some models skip rows of a big batch: those rows are asked once more, alone
     skipped = [i for i, row in enumerate(rows) if row.get("fallback") == MISSING]
     if skipped and not (cancelled is not None and cancelled.is_set()):

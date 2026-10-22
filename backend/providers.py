@@ -40,6 +40,10 @@ AUTH_URL = os.getenv("GIGACHAT_AUTH_URL", "https://ngw.devices.sberbank.ru:9443/
 SCOPE = os.getenv("GIGACHAT_SCOPE", "GIGACHAT_API_PERS")
 
 
+class AnswerCut(ValueError):
+    """The answer hit max_tokens: another provider would cut the same batch, so it is halved."""
+
+
 class Cancelled(Exception):
     """The job was stopped by the user: its rows are not needed any more."""
 
@@ -175,7 +179,7 @@ def body(p: Provider, system: str, user: str) -> dict:
     model = p.model
     result = {
         "model": model,
-        "max_tokens": 8192,
+        "max_tokens": 16384,
         "temperature": TEMPERATURE,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
     }
@@ -253,6 +257,6 @@ def chat(p: Provider, system: str, user: str, deadline: float, cancelled=None) -
         response.raise_for_status()
         choice = (response.json().get("choices") or [{}])[0]
         if choice.get("finish_reason") == "length":
-            raise ValueError("the answer was cut by max_tokens")
+            raise AnswerCut("the answer was cut by max_tokens")
         return choice.get("message", {}).get("content") or ""
     raise RuntimeError("unreachable")

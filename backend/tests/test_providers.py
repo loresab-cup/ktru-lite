@@ -385,3 +385,24 @@ def test_answer_without_ids_is_read_by_position():
     answer = '[{"name": "Бумага", "search_text": "Бумага для офисной техники"}]'
     [row] = extractor.to_attributes(answer, ["Бумага А4"], "x")
     assert row["source"] == "llm" and row["name"] == "Бумага"
+
+
+def test_cut_answer_splits_the_batch_instead_of_failing_over(monkeypatch):
+    sizes = []
+
+    def chat(provider, system, user, deadline, cancelled=None):
+        rows = json.loads(user)
+        sizes.append(len(rows))
+        if len(rows) > 2:
+            raise providers.AnswerCut("cut")
+        return json.dumps(
+            [{"id": r["id"], "name": "Бумага", "search_text": "Бумага"} for r in rows],
+            ensure_ascii=False,
+        )
+
+    monkeypatch.setattr(extractor, "PROVIDERS", [openai(name="a"), openai(name="b")])
+    monkeypatch.setattr(providers, "chat", chat)
+    texts = ["Бумага А4", "Бумага офисная", "Бумага для печати", "Бумага цветная"]
+    rows = extractor.extract_chunk(texts, time.monotonic() + 5)
+    assert sizes == [4, 2, 2]  # one try with the whole batch, no second provider for it
+    assert [row["source"] for row in rows] == ["llm"] * 4
