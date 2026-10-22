@@ -197,13 +197,15 @@ def build_item(job_id: uuid.UUID, row: parser.Item, attributes: dict, found: lis
     return item
 
 
-def unit_hint(row: parser.Item, attributes: dict) -> str | None:
-    """Unit of the row: the «Ед. изм.» column, else the unit the network says it is bought in."""
+def unit_hints(row: parser.Item, attributes: dict) -> tuple[str | None, str | None]:
+    """Units of the row: the one of the «Ед. изм.» column and the one the network says it is
+    bought in. The column is the customer's word and counts more."""
+    column = None
     for title, value in row.columns.items():
-        key = search.unit_key(value) if title.lower().startswith("ед") else None
-        if key:
-            return key
-    return search.unit_key(attributes.get("measure") or "")
+        column = search.unit_key(value) if title.lower().startswith("ед") else None
+        if column:
+            break
+    return column, search.unit_key(attributes.get("measure") or "")
 
 
 def process_items(
@@ -233,9 +235,15 @@ def process_batch(
     tick(stages, "extract", started)
     started = time.monotonic()
     queries = [f"{a['search_text']}. {row.text}" for a, row in zip(attributes, batch, strict=True)]
-    units = [unit_hint(row, a) for a, row in zip(attributes, batch, strict=True)]
+    hints = [unit_hints(row, a) for a, row in zip(attributes, batch, strict=True)]
     vectors = embedder.embed(queries)
-    found = state.catalog.search(vectors, queries, include_inactive, units)
+    found = state.catalog.search(
+        vectors,
+        queries,
+        include_inactive,
+        units=[column or guessed for column, guessed in hints],
+        column_units=[column for column, _ in hints],
+    )
     tick(stages, "search", started)
     started = time.monotonic()
     items = [build_item(job_id, *args) for args in zip(batch, attributes, found, strict=True)]

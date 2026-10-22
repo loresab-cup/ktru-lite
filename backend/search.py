@@ -79,8 +79,10 @@ LEX_LIMIT = int(os.getenv("LEX_LIMIT", "20"))
 BM25_K1, BM25_B = 1.2, 0.75
 # Twin codes differ only by the unit: «Кефир» in litres and in kilograms. The unit of the row
 # (the «Ед. изм.» column, else the unit the product is usually bought in) decides such a tie;
-# the bonus is smaller than any other rule, so it never overrules them.
+# A unit the network guessed only breaks a tie; a unit written in the file by the customer is
+# worth more than a near-tie of the cosine.
 UNIT_BONUS = 0.005
+COLUMN_UNIT_BONUS = 0.03
 
 # Lowercased unit -> key; full names by prefix (longer first), short forms exactly
 _UNIT_PREFIXES = (
@@ -227,8 +229,11 @@ def query_bounds(text: str) -> tuple[set[float], set[float], set[float]]:
 
 
 def unit_key(text: str) -> str | None:
-    """«Литр», «л», «кубический дециметр» -> "l"; unknown units -> None."""
-    text = " ".join((text or "").lower().replace("ё", "е").split()).strip(" .")
+    """«Литр», «л», «кубический дециметр» -> "l"; unknown units -> None.
+
+    The EIS writes several names of one unit in a cell: «л; дм[3*]» - the first one counts."""
+    text = (text or "").split(";")[0]
+    text = " ".join(text.lower().replace("ё", "е").split()).strip(" .")
     if text in _UNIT_SHORT:
         return _UNIT_SHORT[text]
     return next((key for prefix, key in _UNIT_PREFIXES if text.startswith(prefix)), None)
@@ -295,6 +300,7 @@ class Catalog:
         texts: list[str],
         include_inactive: bool = False,
         units: list[str | None] | None = None,
+        column_units: list[str | None] | None = None,
     ) -> list[list[dict]]:
         """Top-5 candidates for every text; vectors=None -> by words only."""
         query_words = [words(text) for text in texts]
@@ -308,9 +314,14 @@ class Catalog:
                 for near, text, vector in zip(nearest, texts, vectors, strict=True)
             ]
         return [
-            self._rank(qw, query_bounds(text), stems(text), near, unit, text)
-            for qw, text, near, unit in zip(
-                query_words, texts, nearest, units or [None] * len(texts), strict=True
+            self._rank(qw, query_bounds(text), stems(text), near, unit, text, column_unit)
+            for qw, text, near, unit, column_unit in zip(
+                query_words,
+                texts,
+                nearest,
+                units or [None] * len(texts),
+                column_units or [None] * len(texts),
+                strict=True,
             )
         ]
 
@@ -436,6 +447,7 @@ class Catalog:
         nearest: list,
         unit: str | None = None,
         text: str = "",
+        column_unit: str | None = None,
     ) -> list[dict]:
         scored = []
         low = text.lower().replace("ё", "е")
@@ -452,6 +464,7 @@ class Catalog:
             score -= NAME_EXTRA_PENALTY * len(stems(self.names[i]) - query_stems)
             score -= UNNAMED_PENALTY * self._unnamed(i, query_stems)
             score += UNIT_BONUS * (unit is not None and unit in self.units[i])
+            score += COLUMN_UNIT_BONUS * (column_unit is not None and column_unit in self.units[i])
             scored.append((score, cosine, i, shared, matches))
         # Sorted by the raw sum: the cap at 1.0 must not make near-perfect matches equal
         scored.sort(key=lambda row: row[0], reverse=True)

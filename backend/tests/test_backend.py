@@ -575,6 +575,7 @@ def test_units_decide_between_twin_codes():
     assert search.unit_key("л") == search.unit_key("Литр") == "l"
     assert search.code_units(["Литр; кубический дециметр"]) == ["l"]
     assert search.unit_key("кг") == "kg" and search.unit_key("непонятно") is None
+    assert search.unit_key("л; дм[3*]") == "l"
     twins = small_catalog(
         [
             {
