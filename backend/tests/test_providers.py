@@ -353,3 +353,29 @@ def test_rpm_spaces_requests_and_env_sets_it():
     assert time.monotonic() - started < 0.05
     loaded = providers.load({"LLM_PROVIDERS": "gemini", "GEMINI_RPM": "28"})
     assert loaded[0].rpm == 28
+
+
+@pytest.mark.parametrize("status", [429, 503])
+def test_overloaded_gateway_is_skipped_for_a_few_seconds(monkeypatch, status):
+    refused = httpx.HTTPStatusError("x", request=None, response=httpx.Response(status))
+    first, second = openai(name="a"), openai(name="b")
+    monkeypatch.setattr(extractor, "PROVIDERS", [first, second])
+    monkeypatch.setattr(providers, "chat", fake_chat({"a": refused}))
+    now = time.monotonic()
+    [row] = extractor.extract_chunk(["Бумага"], now + 5)
+    assert row["provider"] == "b" and first.is_busy() and not first.is_down()
+    assert first.busy_until - now <= extractor.GATEWAY_PAUSE + 1
+
+
+def test_rows_skipped_by_the_model_are_asked_again(monkeypatch):
+    sizes = []
+
+    def chat(provider, system, user, deadline, cancelled=None):
+        sizes.append(len(json.loads(user)))
+        return ANSWER  # the model only ever answers for id 0
+
+    monkeypatch.setattr(extractor, "PROVIDERS", [openai()])
+    monkeypatch.setattr(providers, "chat", chat)
+    rows = extractor.extract_chunk(["Бумага А4", "Бумага офисная"], time.monotonic() + 5)
+    assert sizes == [2, 1]  # the skipped row went alone
+    assert [row["source"] for row in rows] == ["llm", "llm"]

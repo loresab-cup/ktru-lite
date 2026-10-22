@@ -27,13 +27,19 @@ from providers import Cancelled
 logger = logging.getLogger(__name__)
 
 PROVIDERS = providers.load()
-BATCH_SIZE = 10
+# Rows in one request. A bigger batch means fewer requests: free plans limit the requests per
+# minute (Gemini ~30), not the rows.
+BATCH_SIZE = int(os.getenv("LLM_BATCH", "10"))
 # Seconds for all LLM requests of one job; the rows left after it get the rules. 240 s plus the
 # search (~25 s on a GPU) stays within the 5 minutes required for 1000 rows.
 JOB_BUDGET = float(os.getenv("LLM_BUDGET", "240"))
 # After the network of a provider did not answer, it is skipped for a while instead of
 # waiting the whole budget again
 DOWN_PAUSE = 120.0
+# A gateway that answered 502/503/504 or 429 to all retries is overloaded or down: no new batch
+# starts on it for a few seconds (they wait for the others) instead of every batch spending ~6 s
+# of retries on it first
+GATEWAY_PAUSE = 15.0
 CONNECT_PAUSE = 15.0  # a refused connection fails at once: try again soon, the gateway may be back
 AHEAD_ROUNDS = 2  # unfinished batches of one job in the pool: 2 rounds of all request slots
 
@@ -218,7 +224,7 @@ def take_provider(tried: set[str], deadline: float) -> providers.Provider | None
         if not alive:
             return None
         for p in alive:
-            if p.slots.acquire(blocking=False):
+            if not p.is_busy() and p.slots.acquire(blocking=False):
                 return p
         time.sleep(0.05)
     return None
@@ -278,6 +284,8 @@ def ask(system: str, user: str, deadline: float, cancelled, parse) -> tuple:
             logger.warning("LLM %s failed: %s %s", provider.name, type(exc).__name__, status)
             if status in (401, 402, 403):  # wrong key, no money or no rights: not fixed in seconds
                 provider.down_until = time.monotonic() + DOWN_PAUSE
+            elif status in (429, 502, 503, 504):
+                provider.busy_until = time.monotonic() + GATEWAY_PAUSE
             reason = ERROR
         finally:
             provider.slots.release()
@@ -287,15 +295,27 @@ def ask(system: str, user: str, deadline: float, cancelled, parse) -> tuple:
 def extract_chunk(
     texts: list[str], deadline: float, cancelled: threading.Event | None = None
 ) -> list[dict]:
+    rows, reason = ask_batch(texts, deadline, cancelled)
+    if rows is None:
+        return [rules(text, reason) for text in texts]
+    # Some models skip rows of a big batch: those rows are asked once more, alone
+    skipped = [i for i, row in enumerate(rows) if row.get("fallback") == MISSING]
+    if skipped and not (cancelled is not None and cancelled.is_set()):
+        again, _ = ask_batch([texts[i] for i in skipped], deadline, cancelled)
+        for i, row in zip(skipped, again or [], strict=False):
+            rows[i] = row
+    return rows
+
+
+def ask_batch(texts: list[str], deadline: float, cancelled) -> tuple:
     user = json.dumps([{"id": i, "text": t} for i, t in enumerate(texts)], ensure_ascii=False)
-    rows, reason = ask(
+    return ask(
         SYSTEM_PROMPT,
         user,
         deadline,
         cancelled,
         lambda answer, name: to_attributes(answer, texts, name),
     )
-    return rows if rows is not None else [rules(text, reason) for text in texts]
 
 
 class JobExtractor:

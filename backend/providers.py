@@ -56,6 +56,7 @@ class Provider:
     )
     rpm: int = 0  # requests per minute the plan allows (free tiers: ~30); 0 - no limit
     down_until: float = 0.0  # did not answer a moment ago: skipped until then
+    busy_until: float = 0.0  # overloaded (429, 502-504): the batches wait for others meanwhile
     slots: threading.BoundedSemaphore = field(init=False, repr=False)
     next_start: float = field(default=0.0, init=False, repr=False)
     turn: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
@@ -82,6 +83,9 @@ class Provider:
 
     def is_down(self) -> bool:
         return time.monotonic() < self.down_until
+
+    def is_busy(self) -> bool:
+        return time.monotonic() < self.busy_until
 
 
 def load(env=os.environ) -> list[Provider]:
@@ -182,7 +186,7 @@ def body(p: Provider, system: str, user: str) -> dict:
     model = p.model
     result = {
         "model": model,
-        "max_tokens": 4096,
+        "max_tokens": 8192,
         "temperature": TEMPERATURE,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
     }
