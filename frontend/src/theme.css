@@ -590,6 +590,7 @@ h3 {
   right: -6%;
   width: 78%;
   height: 230px;
+  opacity: 0.45;
   pointer-events: none;
 }
 

@@ -29,6 +29,7 @@ const columns: TableColumnsType<Item> = [
     title: T.results.columns.row,
     dataIndex: 'row_number',
     width: 56,
+    responsive: ['md'],
     render: (value: number) => <span className="num">{value}</span>,
   },
   {
@@ -57,7 +58,7 @@ const columns: TableColumnsType<Item> = [
   },
   {
     title: T.results.columns.code,
-    width: 240,
+    width: 220,
     render: (_, item) =>
       item.ktru_code ? (
         <>
@@ -70,7 +71,7 @@ const columns: TableColumnsType<Item> = [
   },
   {
     title: T.results.columns.confidence,
-    width: 112,
+    width: 128,
     render: (_, item) => <Confidence value={item.confidence} zone={item.zone} />,
   },
   {
@@ -258,7 +259,7 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
             rowKey="id"
             size="small"
             sticky
-            scroll={{ x: 420 }}
+            scroll={{ x: 350 }}
             columns={columns}
             dataSource={data.items}
             locale={{
