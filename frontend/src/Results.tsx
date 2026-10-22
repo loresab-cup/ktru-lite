@@ -28,7 +28,7 @@ const columns: TableColumnsType<Item> = [
   {
     title: T.results.columns.row,
     dataIndex: 'row_number',
-    width: 64,
+    width: 56,
     render: (value: number) => <span className="num">{value}</span>,
   },
   {
@@ -43,7 +43,8 @@ const columns: TableColumnsType<Item> = [
   },
   {
     title: T.results.columns.attrs,
-    width: '20%',
+    width: 180,
+    responsive: ['md'],
     render: (_, item) => (
       <>
         <div style={{ fontWeight: 600 }}>{item.attributes.name || T.drawer.none}</div>
@@ -56,7 +57,7 @@ const columns: TableColumnsType<Item> = [
   },
   {
     title: T.results.columns.code,
-    width: '26%',
+    width: 240,
     render: (_, item) =>
       item.ktru_code ? (
         <>
@@ -69,12 +70,13 @@ const columns: TableColumnsType<Item> = [
   },
   {
     title: T.results.columns.confidence,
-    width: 120,
+    width: 112,
     render: (_, item) => <Confidence value={item.confidence} zone={item.zone} />,
   },
   {
     title: T.results.columns.status,
-    width: 160,
+    width: 156,
+    responsive: ['md'], // phones: the zone icon of the confidence says the same
     render: (_, item) => <StatusChip status={item.status} />,
   },
 ]
@@ -254,7 +256,9 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
         ) : (
           <Table<Item>
             rowKey="id"
-            size="middle"
+            size="small"
+            sticky
+            scroll={{ x: 420 }}
             columns={columns}
             dataSource={data.items}
             locale={{
