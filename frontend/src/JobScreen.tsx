@@ -1,6 +1,6 @@
 import { AlertTriangle, Check, Info, RotateCcw, Square, Upload } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { api, ApiError, type Job } from './api'
+import { api, ApiError, readyPercent, type Job } from './api'
 import { Results } from './Results'
 import { T } from './texts'
 import { Ring, Skeleton } from './ui'
@@ -18,13 +18,6 @@ function stepStates(job: Job): ('done' | 'active' | 'wait')[] {
   if (job.total === 0) return ['active', 'wait', 'wait', 'wait']
   if (job.processed === 0) return ['done', 'active', 'wait', 'wait']
   return ['done', 'done', 'active', 'active']
-}
-
-/** Share of positions whose code needs no more work: auto, corrected and accepted. */
-function readyPercent(job: Job): number {
-  const c = job.counts
-  if (!c || !job.total) return 0
-  return Math.round((100 * (c.auto + c.corrected + c.accepted)) / job.total)
 }
 
 function StopButton({ job, onStopped }: { job: Job; onStopped: (job: Job) => void }) {

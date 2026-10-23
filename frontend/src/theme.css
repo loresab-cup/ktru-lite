@@ -1918,3 +1918,10 @@ h3 {
     order: 3;
   }
 }
+
+/* --- small ring of a recent job in the sidebar ---------------------------------------- */
+
+.mini-ring {
+  flex: none;
+  margin-top: 1px;
+}

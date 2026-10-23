@@ -119,7 +119,7 @@ function ExportButton({ jobId }: { jobId: string }) {
   return (
     <Dropdown
       trigger={['click']}
-      placement="topRight"
+      placement="bottomRight"
       autoFocus // keyboard: the menu takes focus, arrows and Enter pick the format
       menu={{
         items: items.map(({ key, icon, label }) => ({ key, icon, label })),
@@ -128,8 +128,8 @@ function ExportButton({ jobId }: { jobId: string }) {
         onClick: ({ key }) => window.location.assign(api.exportUrl(jobId, key as 'xlsx' | 'csv')),
       }}
     >
-      <button type="button" className="round fab" aria-label={T.results.export} title={T.results.export}>
-        <Download size={24} aria-hidden="true" />
+      <button type="button" className="btn">
+        <Download size={16} aria-hidden="true" /> {T.results.export}
       </button>
     </Dropdown>
   )
@@ -259,6 +259,7 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
         <div className="bar review-bar" aria-hidden="true">
           <span className="accent-fill" style={{ width: `${donePercent}%` }} />
         </div>
+        {finished && <ExportButton jobId={job.id} />}
         {left > 0 && (
           <button
             type="button"
@@ -387,7 +388,6 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
           reload()
         }}
       />
-      {finished && <ExportButton jobId={job.id} />}
     </>
   )
 }

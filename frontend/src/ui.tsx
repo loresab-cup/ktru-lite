@@ -125,6 +125,30 @@ export function KtruCode({ code }: { code: string }) {
 const RADIUS = 80
 const CIRCLE = 2 * Math.PI * RADIUS
 
+const MINI_RADIUS = 9
+const MINI_CIRCLE = 2 * Math.PI * MINI_RADIUS
+
+/** Small ring for lists; the percent itself is said in the text next to it. */
+export function MiniRing({ percent, size = 20 }: { percent: number; size?: number }) {
+  return (
+    <svg className="mini-ring" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <circle className="ring-track" cx="12" cy="12" r={MINI_RADIUS} fill="none" strokeWidth="3" />
+      <circle
+        className="ring-value"
+        cx="12"
+        cy="12"
+        r={MINI_RADIUS}
+        fill="none"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeDasharray={MINI_CIRCLE}
+        strokeDashoffset={MINI_CIRCLE * (1 - percent / 100)}
+        transform="rotate(-90 12 12)"
+      />
+    </svg>
+  )
+}
+
 export function Ring({ percent, label, size = 200 }: {
   percent: number
   label: string

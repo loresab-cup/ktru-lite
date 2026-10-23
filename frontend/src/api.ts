@@ -76,6 +76,13 @@ export interface AttributesInput {
 
 export class ApiError extends Error {}
 
+/** Share of positions whose code needs no more work: auto, corrected and accepted. */
+export function readyPercent(job: Job): number {
+  const c = job.counts
+  if (!c || !job.total) return 0
+  return Math.round((100 * (c.auto + c.corrected + c.accepted)) / job.total)
+}
+
 const KTRU_CODE = /^\d{2}\.\d{2}\.\d{2}\.\d{3}-\d{5,8}$/
 
 /** Search page of the KTRU registry in the official procurement system (EIS) for the code. */

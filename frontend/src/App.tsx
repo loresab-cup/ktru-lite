@@ -2,10 +2,10 @@ import { ConfigProvider, theme as antTheme } from 'antd'
 import ruRU from 'antd/locale/ru_RU'
 import { FileStack, LucideProvider, Moon, Plus, Sun } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { api, type Health, type Job } from './api'
+import { api, readyPercent, type Health, type Job } from './api'
 import { JobScreen, type PageInfo } from './JobScreen'
 import { T } from './texts'
-import { Ring } from './ui'
+import { MiniRing } from './ui'
 import { UploadScreen } from './UploadScreen'
 
 type Theme = 'light' | 'dark'
@@ -126,9 +126,24 @@ function HealthBadge() {
   )
 }
 
+/** Ready share of each finished job; the list itself has no counts, so each job is asked. */
+async function loadPercents(list: Job[]): Promise<Record<string, number>> {
+  const finished = list.filter((job) => job.status === 'done' || job.status === 'cancelled')
+  const pairs = await Promise.all(
+    finished.map((job) =>
+      api
+        .job(job.id)
+        .then((full) => [job.id, readyPercent(full)] as const)
+        .catch(() => null),
+    ),
+  )
+  return Object.fromEntries(pairs.filter((pair) => pair !== null))
+}
+
 /** Recent jobs; refreshed on every page change and every 3 s while one of them runs. */
 function useRecentJobs(path: string) {
   const [jobs, setJobs] = useState<Job[] | null>(null)
+  const [percents, setPercents] = useState<Record<string, number>>({})
   useEffect(() => {
     let alive = true
     let timer = 0
@@ -138,6 +153,7 @@ function useRecentJobs(path: string) {
         .then((list) => {
           if (!alive) return
           setJobs(list)
+          void loadPercents(list).then((next) => alive && setPercents(next))
           if (list.some((job) => job.status === 'queued' || job.status === 'processing')) {
             timer = window.setTimeout(load, 3000)
           }
@@ -149,13 +165,14 @@ function useRecentJobs(path: string) {
       window.clearTimeout(timer)
     }
   }, [path])
-  return jobs
+  return { jobs, percents }
 }
 
-function Sidebar({ jobs, jobId, ring, navigate }: {
+function Sidebar({ jobs, percents, jobId, live, navigate }: {
   jobs: Job[] | null
+  percents: Record<string, number>
   jobId?: string
-  ring?: PageInfo['ring']
+  live?: number // ready percent of the open job, fresh after every accept
   navigate: (path: string) => void
 }) {
   return (
@@ -183,31 +200,34 @@ function Sidebar({ jobs, jobId, ring, navigate }: {
       <div className="side-title">{T.app.recent}</div>
       <div className="side-jobs">
         {jobs?.length === 0 && <div className="side-empty">{T.app.recentEmpty}</div>}
-        {jobs?.map((job) => (
-          <button
-            key={job.id}
-            type="button"
-            className="side-job"
-            aria-current={job.id === jobId ? 'page' : undefined}
-            onClick={() => navigate(`/jobs/${job.id}`)}
-          >
-            <span className="side-bullet" aria-hidden="true" />
-            <span>
-              <div className="side-job-name" title={job.filename}>
-                {job.filename}
-              </div>
-              <div className="side-job-meta num">
-                {T.upload.positions(job.total)} · {T.jobStatus[job.status] ?? job.status}
-              </div>
-            </span>
-          </button>
-        ))}
+        {jobs?.map((job) => {
+          const percent = job.id === jobId && live !== undefined ? live : percents[job.id]
+          return (
+            <button
+              key={job.id}
+              type="button"
+              className="side-job"
+              aria-current={job.id === jobId ? 'page' : undefined}
+              onClick={() => navigate(`/jobs/${job.id}`)}
+            >
+              {percent !== undefined ? (
+                <MiniRing percent={percent} />
+              ) : (
+                <span className="side-bullet" aria-hidden="true" />
+              )}
+              <span>
+                <div className="side-job-name" title={job.filename}>
+                  {job.filename}
+                </div>
+                <div className="side-job-meta num">
+                  {T.upload.positions(job.total)} ·{' '}
+                  {percent !== undefined ? T.app.ready(percent) : (T.jobStatus[job.status] ?? job.status)}
+                </div>
+              </span>
+            </button>
+          )
+        })}
       </div>
-      {ring && (
-        <div className="side-ring">
-          <Ring percent={ring.percent} label={ring.label} size={140} />
-        </div>
-      )}
     </nav>
   )
 }
@@ -221,7 +241,7 @@ export function App() {
   const [path, navigate] = usePath()
   // Page info belongs to the path it was reported for: another page starts with none
   const [reported, setReported] = useState<PageInfo & { path?: string }>({})
-  const jobs = useRecentJobs(path)
+  const { jobs, percents } = useRecentJobs(path)
   const config = useMemo(() => readTokens(theme), [theme])
   const jobId = path.match(/^\/jobs\/([\w-]+)/)?.[1]
 
@@ -244,7 +264,13 @@ export function App() {
       {/* every icon gets the "icon" class and one thin stroke */}
       <LucideProvider className="icon" strokeWidth={1.75}>
         <div className="shell">
-          <Sidebar jobs={jobs} jobId={jobId} ring={info.ring} navigate={navigate} />
+          <Sidebar
+            jobs={jobs}
+            percents={percents}
+            jobId={jobId}
+            live={info.ring?.percent}
+            navigate={navigate}
+          />
           <div className="main">
             <header className="topbar">
               <h1>{jobId ? (info.title ?? T.progress.pageTitle) : T.app.pageUpload}</h1>
