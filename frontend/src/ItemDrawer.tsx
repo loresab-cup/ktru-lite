@@ -1,5 +1,16 @@
 import { Drawer, Input, message } from 'antd'
-import { Check, CheckCheck, Info, PenLine, Plus, Search, Trash2, X } from 'lucide-react'
+import {
+  Check,
+  CheckCheck,
+  ChevronDown,
+  ChevronUp,
+  Info,
+  PenLine,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import {
   api,
@@ -354,10 +365,21 @@ function CodeEditor({ item, busy, onSave }: {
   )
 }
 
-export function ItemDrawer({ item, onClose, onChanged }: {
+/** Keys of the review mode work everywhere in the panel except fields, buttons and links. */
+function isTyping(target: EventTarget | null) {
+  return (
+    target instanceof HTMLElement &&
+    target.closest('input, textarea, select, button, a, [contenteditable="true"]') !== null
+  )
+}
+
+export function ItemDrawer({ item, position, onClose, onChanged, onMove, onAcceptNext }: {
   item: Item | null
+  position?: { index: number; total: number } // place of the row in the whole table
   onClose: () => void
   onChanged: (item: Item) => void
+  onMove?: (step: 1 | -1) => void
+  onAcceptNext?: () => void // after "accept": open the next row that still needs a look
 }) {
   const [toast, toastHolder] = message.useMessage()
   const [busy, setBusy] = useState(false)
@@ -387,6 +409,34 @@ export function ItemDrawer({ item, onClose, onChanged }: {
   }
   const attrs = item?.attributes
 
+  /** Accept the code and go on; an already accepted row is just skipped. */
+  const acceptAndNext = async () => {
+    if (!item || busy) return
+    if (item.status === 'accepted') return onAcceptNext?.()
+    if (!item.ktru_code) return
+    if (await run(() => api.accept(item.id), T.drawer.acceptedDone)) onAcceptNext?.()
+  }
+
+  // Review mode: ↑ ↓ (or K J) move between rows, Enter accepts and opens the next one
+  useEffect(() => {
+    if (!item) return
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return
+      if (e.key === 'ArrowDown' || e.code === 'KeyJ') {
+        e.preventDefault()
+        onMove?.(1)
+      } else if (e.key === 'ArrowUp' || e.code === 'KeyK') {
+        e.preventDefault()
+        onMove?.(-1)
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        void acceptAndNext()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
   return (
     <Drawer
       open={item !== null}
@@ -394,18 +444,57 @@ export function ItemDrawer({ item, onClose, onChanged }: {
       placement="right"
       size={520}
       destroyOnHidden
-      title={item ? T.drawer.title(item.row_number) : ''}
+      title={
+        item ? (
+          <span>
+            {T.drawer.title(item.row_number)}
+            {position && (
+              <span className="cell-sub num">
+                {' · '}
+                {T.drawer.position(position.index, position.total)}
+              </span>
+            )}
+          </span>
+        ) : (
+          ''
+        )
+      }
       closeIcon={<X size={18} aria-label={T.drawer.close} />}
       extra={
         item && (
-          <button
-            type="button"
-            className="btn primary"
-            disabled={busy || !item.ktru_code || item.status === 'accepted'}
-            onClick={() => run(() => api.accept(item.id), T.drawer.acceptedDone)}
-          >
-            <CheckCheck size={16} aria-hidden="true" /> {T.drawer.accept}
-          </button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {onMove && (
+              <>
+                <button
+                  type="button"
+                  className="round ghost small"
+                  aria-label={T.drawer.prev}
+                  title={T.drawer.prev}
+                  onClick={() => onMove(-1)}
+                >
+                  <ChevronUp size={17} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="round ghost small"
+                  aria-label={T.drawer.next}
+                  title={T.drawer.next}
+                  onClick={() => onMove(1)}
+                >
+                  <ChevronDown size={17} aria-hidden="true" />
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              className="btn primary"
+              disabled={busy || (!item.ktru_code && item.status !== 'accepted')}
+              onClick={() => void acceptAndNext()}
+            >
+              <CheckCheck size={16} aria-hidden="true" />{' '}
+              {onAcceptNext ? T.drawer.acceptNext : T.drawer.accept}
+            </button>
+          </div>
         )
       }
     >
@@ -416,6 +505,11 @@ export function ItemDrawer({ item, onClose, onChanged }: {
             <Confidence value={item.confidence} zone={item.zone} />
             <StatusChip status={item.status} />
           </div>
+          {onMove && (
+            <div className="cell-sub" style={{ margin: '-4px 0 16px' }}>
+              {T.drawer.keysHint}
+            </div>
+          )}
 
           <CodeEditor key={item.id} item={item} busy={busy} onSave={choose} />
 

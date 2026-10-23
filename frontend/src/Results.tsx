@@ -10,7 +10,7 @@ import {
   Search,
   Sparkles,
 } from 'lucide-react'
-import { useEffect, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { api, ApiError, type Item, type Job } from './api'
 import { ItemDrawer } from './ItemDrawer'
 import { T } from './texts'
@@ -82,6 +82,18 @@ const columns: TableColumnsType<Item> = [
   },
 ]
 
+/** A row that nobody has looked at yet: neither accepted nor corrected by hand. */
+const unreviewed = (item: Item) => item.status !== 'accepted' && item.status !== 'corrected'
+
+type Pending = 'first' | 'last' | 'unreviewed'
+
+/** The row to open on a freshly loaded page when the panel stepped over the page edge. */
+function pickRow(items: Item[], pending: Pending): Item | null {
+  if (pending === 'last') return items[items.length - 1] ?? null
+  if (pending === 'unreviewed') return items.find(unreviewed) ?? items[0] ?? null
+  return items[0] ?? null
+}
+
 /** Arrow keys move between rows, Enter opens the row (keys of a link inside are its own). */
 function rowKeys(event: KeyboardEvent<HTMLElement>, open: () => void) {
   if (event.target !== event.currentTarget) return
@@ -129,6 +141,8 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
   const [data, setData] = useState<{ total: number; items: Item[] } | null>(null)
+  // Which row to open when the panel walks onto another page; read when that page arrives
+  const pending = useRef<Pending | null>(null)
   const [version, setVersion] = useState(0)
   const [selected, setSelected] = useState<Item | null>(null)
   const [threshold, setThreshold] = useState(85)
@@ -144,13 +158,53 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
     const status = filter === 'needs_review' ? 'needs_review,failed' : filter
     api
       .items(job.id, { status, q: query, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE })
-      .then((next) => alive && setData(next))
+      .then((next) => {
+        if (!alive) return
+        setData(next)
+        if (pending.current) {
+          setSelected(pickRow(next.items, pending.current))
+          pending.current = null
+        }
+      })
       .catch((e) => alive && toast.error(e instanceof ApiError ? e.message : T.errors.network))
     return () => {
       alive = false
     }
     // job.processed: new rows of a running job appear without touching what is open for editing
   }, [job.id, job.processed, filter, query, page, version, toast])
+
+  const items = data?.items ?? []
+  const index = selected ? items.findIndex((item) => item.id === selected.id) : -1
+  const pages = data ? Math.ceil(data.total / PAGE_SIZE) : 1
+  const position =
+    data && index >= 0 ? { index: (page - 1) * PAGE_SIZE + index + 1, total: data.total } : undefined
+
+  /** Previous or next row of the table, across pages too. */
+  const move = (step: 1 | -1) => {
+    const next = items[index + step]
+    if (next) return setSelected(next)
+    if (step === 1 && page < pages) {
+      pending.current = 'first'
+      setPage(page + 1)
+    }
+    if (step === -1 && page > 1) {
+      pending.current = 'last'
+      setPage(page - 1)
+    }
+  }
+
+  /** After "accept": the next row below that still needs a look. */
+  const acceptNext = () => {
+    const next = items.slice(index + 1).find(unreviewed)
+    if (next) return setSelected(next)
+    if (page < pages) {
+      pending.current = 'unreviewed'
+      setPage(page + 1)
+      return
+    }
+    setSelected(null)
+    toast.success(T.results.reviewDone)
+  }
 
   const reload = () => {
     setVersion((v) => v + 1)
@@ -286,6 +340,9 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
 
       <ItemDrawer
         item={selected}
+        position={position}
+        onMove={move}
+        onAcceptNext={acceptNext}
         onClose={() => setSelected(null)}
         onChanged={(item) => {
           setSelected(item)
