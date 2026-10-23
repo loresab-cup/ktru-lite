@@ -20,5 +20,4 @@ dist/
 *.tsbuildinfo
 .claude/tmp/
 
-dataset
 .claude
