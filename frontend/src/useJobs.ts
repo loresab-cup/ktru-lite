@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api, readyPercent, type Job } from './api'
+
+/** A job that is queued or running cannot be deleted: it has to be stopped first. */
+export const isBusy = (job: Job) => job.status === 'queued' || job.status === 'processing'
 
 /** Ready share of each finished job; the list itself has no counts, so each job is asked. */
 async function loadPercents(list: Job[]): Promise<Record<string, number>> {
@@ -19,6 +22,7 @@ async function loadPercents(list: Job[]): Promise<Record<string, number>> {
 export function useJobs(limit: number) {
   const [jobs, setJobs] = useState<Job[] | null>(null)
   const [percents, setPercents] = useState<Record<string, number>>({})
+  const [version, setVersion] = useState(0)
   useEffect(() => {
     let alive = true
     let timer = 0
@@ -39,6 +43,7 @@ export function useJobs(limit: number) {
       alive = false
       window.clearTimeout(timer)
     }
-  }, [limit])
-  return { jobs, percents }
+  }, [limit, version])
+  const reload = useCallback(() => setVersion((v) => v + 1), [])
+  return { jobs, percents, reload }
 }

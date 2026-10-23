@@ -1,7 +1,9 @@
+import { Checkbox } from 'antd'
 import { AlertTriangle, Clock, Loader } from 'lucide-react'
 import type { Job } from './api'
 import { Link } from './Link'
 import { paths } from './router'
+import { isBusy } from './useJobs'
 import { T, formatDate } from './texts'
 import { MiniRing, Skeleton } from './ui'
 
@@ -15,7 +17,12 @@ function JobMark({ job, percent }: { job: Job; percent?: number }) {
 }
 
 /** Bordered tiles of the jobs: a click opens the list of the codes of that job. */
-export function JobCards({ jobs, percents }: { jobs: Job[] | null; percents: Record<string, number> }) {
+export function JobCards({ jobs, percents, selected, onToggle }: {
+  jobs: Job[] | null
+  percents: Record<string, number>
+  selected?: Set<string> // with it every tile gets a check box
+  onToggle?: (id: string) => void
+}) {
   if (jobs === null) {
     return (
       <div className="tiles">
@@ -30,9 +37,25 @@ export function JobCards({ jobs, percents }: { jobs: Job[] | null; percents: Rec
     <ul className="tiles">
       {jobs.map((job) => {
         const percent = percents[job.id]
+        const checked = selected?.has(job.id) ?? false
         return (
-          <li key={job.id}>
-            <Link className="tile" to={paths.job(job.id)} title={T.jobs.open}>
+          <li key={job.id} className="tile-wrap">
+            {selected && (
+              <span className="tile-check">
+                <Checkbox
+                  checked={checked}
+                  disabled={isBusy(job)}
+                  onChange={() => onToggle?.(job.id)}
+                  aria-label={T.jobs.select(job.filename)}
+                  title={isBusy(job) ? T.jobs.busy : T.jobs.select(job.filename)}
+                />
+              </span>
+            )}
+            <Link
+              className={`tile ${checked ? 'selected' : ''}`}
+              to={paths.job(job.id)}
+              title={T.jobs.open}
+            >
               <JobMark job={job} percent={percent} />
               <span className="tile-name">{job.filename}</span>
               <span className="tile-meta num">

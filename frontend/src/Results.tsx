@@ -143,7 +143,7 @@ function ResultCard({ item, jobId, open, onToggle }: {
 }
 
 export function Results({ job, onChanged }: { job: Job; onChanged: () => void }) {
-  const [filter, setFilter] = useState('')
+  const [filters, setFilters] = useState<string[]>([]) // several statuses can be shown at once
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
@@ -159,9 +159,11 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
     return () => window.clearTimeout(timer)
   }, [search])
 
+  // A row that failed to process is shown together with the ones that need a look
+  const status = filters.flatMap((f) => (f === 'needs_review' ? [f, 'failed'] : [f])).join(',')
+
   useEffect(() => {
     let alive = true
-    const status = filter === 'needs_review' ? 'needs_review,failed' : filter
     api
       .items(job.id, { status, q: query, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE })
       .then((next) => alive && setData(next))
@@ -170,7 +172,7 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
       alive = false
     }
     // job.processed: new rows of a running job appear without touching what is open
-  }, [job.id, job.processed, filter, query, page, version, toast])
+  }, [job.id, job.processed, status, query, page, version, toast])
 
   const acceptAll = async () => {
     try {
@@ -200,9 +202,9 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
     }
   }
 
-  const filtered = Boolean(filter || search)
+  const filtered = Boolean(filters.length || search)
   const reset = () => {
-    setFilter('')
+    setFilters([])
     setSearch('')
     setQuery('')
     setPage(1)
@@ -328,9 +330,10 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
                   key={key}
                   type="button"
                   className="filter-row"
-                  aria-pressed={filter === key}
+                  role="checkbox"
+                  aria-checked={filters.includes(key)}
                   onClick={() => {
-                    setFilter(filter === key ? '' : key)
+                    setFilters(filters.includes(key) ? filters.filter((f) => f !== key) : [...filters, key])
                     setPage(1)
                   }}
                 >
