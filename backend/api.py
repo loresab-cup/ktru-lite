@@ -450,8 +450,12 @@ def create_job(
 
 
 @app.get("/api/jobs")
-def list_jobs(limit: int = Query(20, ge=1, le=100)):
+def list_jobs(response: Response, limit: int = Query(20, ge=1, le=1000)):
     with SessionLocal() as session:
+        # The page shows "N in the list", so the real number of jobs goes in a header
+        response.headers["X-Total-Count"] = str(
+            session.scalar(select(func.count()).select_from(Job))
+        )
         jobs = session.scalars(select(Job).order_by(Job.created_at.desc()).limit(limit)).all()
         # One query for all the jobs: the page of the jobs shows how much of each is ready
         rows = session.execute(

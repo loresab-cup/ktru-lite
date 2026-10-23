@@ -13,6 +13,7 @@ function percentsOf(list: Job[]): Record<string, number> {
 /** Recent jobs with their ready share; refreshed every 3 s while one of them still runs. */
 export function useJobs(limit: number) {
   const [jobs, setJobs] = useState<Job[] | null>(null)
+  const [total, setTotal] = useState(0)
   const [version, setVersion] = useState(0)
   useEffect(() => {
     let alive = true
@@ -20,9 +21,10 @@ export function useJobs(limit: number) {
     const load = () =>
       api
         .jobs(limit)
-        .then((list) => {
+        .then(({ jobs: list, total: all }) => {
           if (!alive) return
           setJobs(list)
+          setTotal(all)
           if (list.some(isBusy)) timer = window.setTimeout(load, 3000)
         })
         .catch(() => alive && setJobs([]))
@@ -34,5 +36,5 @@ export function useJobs(limit: number) {
   }, [limit, version])
   const reload = useCallback(() => setVersion((v) => v + 1), [])
   const percents = jobs ? percentsOf(jobs) : {}
-  return { jobs, percents, reload }
+  return { jobs, total, percents, reload }
 }

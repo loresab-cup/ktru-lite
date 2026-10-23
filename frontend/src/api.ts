@@ -109,7 +109,8 @@ export function ktruUrl(code: string): string | null {
   return `https://zakupki.gov.ru/epz/ktru/search/results.html?${query}`
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
+/** One request with a time limit; every failure becomes an ApiError. */
+async function send(url: string, init?: RequestInit): Promise<Response> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 150_000)
   try {
@@ -126,13 +127,22 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
         response.status,
       )
     }
-    if (response.status === 204) return undefined as T
-    return await response.json() as T
+    return response
   } catch (error) {
     if (error instanceof ApiError) throw error
     throw new ApiError(T.errors.network)
   } finally {
     clearTimeout(timer)
+  }
+}
+
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await send(url, init)
+  if (response.status === 204) return undefined as T
+  try {
+    return (await response.json()) as T
+  } catch {
+    throw new ApiError(T.errors.http(response.status), response.status)
   }
 }
 
@@ -144,7 +154,12 @@ const json = (method: string, body?: unknown): RequestInit => ({
 
 export const api = {
   health: () => request<Health>('/api/health'),
-  jobs: (limit = 8) => request<Job[]>(`/api/jobs?limit=${limit}`),
+  /** The newest jobs and how many there are in all. */
+  jobs: async (limit = 8) => {
+    const response = await send(`/api/jobs?limit=${limit}`)
+    const jobs = (await response.json()) as Job[]
+    return { jobs, total: Number(response.headers.get('X-Total-Count') ?? jobs.length) }
+  },
   job: (id: string) => request<Job>(`/api/jobs/${encodeURIComponent(id)}`),
   deleteJob: (id: string) =>
     request<void>(`/api/jobs/${encodeURIComponent(id)}`, { method: 'DELETE' }),

@@ -8,10 +8,14 @@ import { paths } from './router'
 import { T } from './texts'
 import { isBusy, useJobs } from './useJobs'
 
+const MAX = 1000
+const PAGE = 100 // jobs per "show more"; the service gives up to 1000 at once
+
 /** All jobs, newest first; a tile opens the list of the codes of that job. */
 export function JobsScreen() {
   const { message } = AntApp.useApp()
-  const { jobs, percents, reload } = useJobs(100)
+  const [limit, setLimit] = useState(PAGE)
+  const { jobs, total, percents, reload } = useJobs(limit)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
 
@@ -55,7 +59,7 @@ export function JobsScreen() {
           <h1 className="page-title">
             {T.jobs.title}
             {jobs !== null && jobs.length > 0 && (
-              <span className="title-count num">{T.jobs.count(jobs.length)}</span>
+              <span className="title-count num">{T.jobs.count(total)}</span>
             )}
           </h1>
         </div>
@@ -90,6 +94,13 @@ export function JobsScreen() {
           </div>
         )}
         <JobCards jobs={jobs} percents={percents} selected={selected} onToggle={toggle} />
+        {jobs !== null && jobs.length < total && limit < MAX && (
+          <div className="more-row">
+            <button type="button" className="btn" onClick={() => setLimit(limit + PAGE)}>
+              {T.jobs.showMore(Math.min(PAGE, total - jobs.length))}
+            </button>
+          </div>
+        )}
       </section>
     </>
   )

@@ -29,34 +29,8 @@ function StopButton({ job, onStopped }: { job: Job; onStopped: (job: Job) => voi
   }
   return (
     <button type="button" className="btn red" onClick={stop} disabled={busy}>
-      <Square size={14} aria-hidden="true" /> {busy ? T.progress.stopping : T.progress.stop}
+      <Square size={14} fill="currentColor" aria-hidden="true" /> {busy ? T.progress.stopping : T.progress.stop}
     </button>
-  )
-}
-
-/** Thin progress line above the live list: rows keep arriving while the user works. */
-function LiveHead({ job, onStopped }: { job: Job; onStopped: (job: Job) => void }) {
-  const percent = job.total ? Math.floor((100 * job.processed) / job.total) : 0
-  return (
-    <section className="live-head" aria-live="polite">
-      <div className="counter num">
-        {T.progress.processed} <b>{job.processed}</b> {T.progress.of} <b>{job.total}</b>
-      </div>
-      <div
-        className="live-bar"
-        role="progressbar"
-        aria-valuenow={percent}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label={T.progress.title}
-      >
-        <span style={{ width: `${percent}%` }} />
-      </div>
-      <StopButton job={job} onStopped={onStopped} />
-      <p className="muted live-note">
-        {job.total > 0 && job.processed === job.total ? T.progress.choosing : T.progress.live}
-      </p>
-    </section>
   )
 }
 
@@ -65,7 +39,7 @@ function ProgressCard({ job, onStopped }: { job: Job; onStopped: (job: Job) => v
   const states = stepStates(job)
   return (
     <section className="progress" aria-live="polite" aria-labelledby="progress-title">
-      <Ring percent={percent} label={T.progress.ringLabel} />
+      <Ring percent={percent} label={T.progress.ringLabel} spinning />
       <div>
         <h2 id="progress-title" className="section-h">
           {T.progress.title}
@@ -89,6 +63,11 @@ function ProgressCard({ job, onStopped }: { job: Job; onStopped: (job: Job) => v
             </>
           )}
         </div>
+        {job.processed > 0 && (
+          <p className="muted progress-note">
+            {job.processed === job.total ? T.progress.choosing : T.progress.live}
+          </p>
+        )}
         <div className="actions">
           <StopButton job={job} onStopped={onStopped} />
         </div>
@@ -242,11 +221,11 @@ export function JobScreen({ jobId }: { jobId: string }) {
         </>
       )
     }
-    if (job.processed === 0) return <ProgressCard job={job} onStopped={setJob} />
+    // The card stays while the rows come in: the finished ones are listed under it
     return (
       <>
-        <LiveHead job={job} onStopped={setJob} />
-        <Results job={job} onChanged={refresh} />
+        <ProgressCard job={job} onStopped={setJob} />
+        {job.processed > 0 && <Results job={job} onChanged={refresh} />}
       </>
     )
   }

@@ -196,10 +196,11 @@ export function MiniRing({ percent, size = 20 }: { percent: number; size?: numbe
   )
 }
 
-export function Ring({ percent, label, size = 200 }: {
+export function Ring({ percent, label, size = 200, spinning = false }: {
   percent: number
   label: string
   size?: number
+  spinning?: boolean // a running job: a short arc keeps going round, so the wait is visible
 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 200 200" role="img" aria-label={`${percent} % ${label}`}>
@@ -216,6 +217,18 @@ export function Ring({ percent, label, size = 200 }: {
         strokeDashoffset={CIRCLE * (1 - percent / 100)}
         transform="rotate(-90 100 100)"
       />
+      {spinning && (
+        <circle
+          className="ring-spin"
+          cx="100"
+          cy="100"
+          r={RADIUS}
+          fill="none"
+          strokeWidth="10"
+          strokeLinecap="round"
+          strokeDasharray={`${CIRCLE / 8} ${CIRCLE}`}
+        />
+      )}
       <text className="ring-text num" x="100" y="106" textAnchor="middle">
         {percent} %
       </text>

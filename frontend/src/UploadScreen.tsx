@@ -88,7 +88,7 @@ function FileList({ files, busy, onRemove, onClear, onProcess }: {
         ))}
       </ul>
       <button type="button" className="btn primary process" onClick={onProcess} disabled={Boolean(busy)}>
-        <Play size={16} aria-hidden="true" />
+        <Play size={16} fill="currentColor" aria-hidden="true" />
         {busy ? T.upload.uploading(busy) : T.upload.process(files.length)}
       </button>
     </section>

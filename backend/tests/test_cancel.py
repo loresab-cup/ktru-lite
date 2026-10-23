@@ -173,6 +173,9 @@ def test_job_list_has_the_counts_of_each_job(api):
         session.commit()
     with TestClient(api.app) as client:
         jobs = {job["id"]: job for job in client.get("/api/jobs").json()}
+        one = client.get("/api/jobs", params={"limit": 1})
+        assert len(one.json()) == 1 and one.headers["X-Total-Count"] == "2"  # the real number
+        assert client.get("/api/jobs", params={"limit": 1001}).status_code == 422
     assert jobs[str(first)]["counts"] == {
         "auto": 2,
         "needs_review": 0,

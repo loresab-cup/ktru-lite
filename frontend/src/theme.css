@@ -852,37 +852,6 @@ a {
   color: var(--ink);
 }
 
-.live-head {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--s4);
-  margin-bottom: var(--s5);
-  padding: var(--s4) var(--s5);
-  border: 1px solid var(--edge);
-  border-radius: var(--radius);
-  background: var(--paper-card);
-}
-
-.live-bar {
-  flex: 1;
-  min-width: 120px;
-  height: 8px;
-  background: var(--line);
-}
-
-.live-bar span {
-  display: block;
-  height: 100%;
-  background: var(--accent);
-  transition: width var(--slow) var(--ease);
-}
-
-.live-note {
-  flex-basis: 100%;
-  margin: 0;
-}
-
 /* --- result list: cards like the positions of a catalog -------------------------------- */
 
 .results-grid {
@@ -1725,7 +1694,6 @@ a {
 .drop,
 .file-list,
 .review,
-.live-head,
 .bulk-bar,
 .cand,
 .progress {
@@ -1759,7 +1727,6 @@ a {
 }
 
 .review,
-.live-head,
 .bulk-bar,
 .file-list {
   box-shadow: var(--shadow-card);
@@ -1801,13 +1768,11 @@ a {
   font-size: var(--text-sm);
 }
 
-.live-bar,
 .review-bar,
 .bar {
   border-radius: 999px;
 }
 
-.live-bar span,
 .accent-fill,
 .bar span {
   border-radius: 999px;
@@ -2053,4 +2018,48 @@ a {
   background: var(--red-solid);
   color: #fff;
   box-shadow: 0 4px 12px rgba(200, 55, 45, 0.3);
+}
+
+
+/* --- a running job: the ring turns, the active step pulses ---------------------------- */
+
+.ring-spin {
+  stroke: var(--accent);
+  opacity: 0.4;
+  transform-origin: 100px 100px;
+  animation: ring-turn 1.3s linear infinite;
+}
+
+@keyframes ring-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.steps li.active .step-dot {
+  animation: step-pulse 1.6s ease-out infinite;
+}
+
+@keyframes step-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(11, 99, 206, 0.45);
+  }
+  100% {
+    box-shadow: 0 0 0 10px rgba(11, 99, 206, 0);
+  }
+}
+
+.progress {
+  margin-bottom: var(--s6);
+}
+
+.progress-note {
+  margin: 0 0 var(--s4);
+  max-width: 460px;
+}
+
+.more-row {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--s6);
 }
