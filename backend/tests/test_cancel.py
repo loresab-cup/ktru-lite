@@ -138,6 +138,30 @@ def test_revert_returns_the_proposed_code_and_status(api, monkeypatch):
         assert client.post("/api/items/99999/revert").status_code == 404
 
 
+def test_item_page_knows_its_neighbours(api):
+    job_id, other = uuid.uuid4(), uuid.uuid4()
+    statuses = ["auto", "accepted", "needs_review", "corrected", "needs_review"]
+    with api.SessionLocal() as session:
+        session.add_all([api.Job(id=job_id, filename="a.txt"), api.Job(id=other, filename="b.txt")])
+        session.add_all(
+            api.Item(job_id=job_id, row_number=n, raw_text="x", status=status)
+            for n, status in enumerate(statuses, 1)
+        )
+        session.add(api.Item(job_id=other, row_number=1, raw_text="y", status="auto"))
+        session.commit()
+        ids = [i.id for i in session.query(api.Item).filter_by(job_id=job_id).order_by(api.Item.id)]
+    with TestClient(api.app) as client:
+        first = client.get(f"/api/items/{ids[0]}").json()
+        assert (first["position"], first["total"], first["prev_id"]) == (1, 5, None)
+        assert (first["next_id"], first["next_unreviewed_id"]) == (ids[1], ids[2])
+        middle = client.get(f"/api/items/{ids[2]}").json()
+        assert (middle["prev_id"], middle["next_id"]) == (ids[1], ids[3])
+        assert middle["next_unreviewed_id"] == ids[4]  # the corrected row is skipped
+        last = client.get(f"/api/items/{ids[4]}").json()
+        assert (last["next_id"], last["next_unreviewed_id"]) == (None, None)
+        assert client.get("/api/items/99999").status_code == 404
+
+
 def test_run_job_stops_between_batches_and_keeps_finished_rows(api, monkeypatch, tmp_path):
     monkeypatch.setattr(api.state, "catalog", tiny_catalog())
     monkeypatch.setattr(embedder, "embed", lambda texts: None)

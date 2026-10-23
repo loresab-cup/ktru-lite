@@ -546,6 +546,29 @@ def restore_original(item: Item) -> None:
     item.attributes = attributes
 
 
+@app.get("/api/items/{item_id}")
+def get_item(item_id: int):
+    """One position with its place in the job: the page of a code walks to the neighbours."""
+    with SessionLocal() as session:
+        item = get_or_404(session, Item, item_id, "Позиция")
+        in_job = Item.job_id == item.job_id
+
+        def count(*conditions) -> int:
+            return session.scalar(select(func.count()).select_from(Item).where(in_job, *conditions))
+
+        def edge(pick, *conditions) -> int | None:
+            return session.scalar(select(pick(Item.id)).where(in_job, *conditions))
+
+        not_reviewed = Item.status.not_in(("accepted", "corrected"))
+        return to_dict(item) | {
+            "position": count(Item.id <= item.id),
+            "total": count(),
+            "prev_id": edge(func.max, Item.id < item.id),
+            "next_id": edge(func.min, Item.id > item.id),
+            "next_unreviewed_id": edge(func.min, Item.id > item.id, not_reviewed),
+        }
+
+
 class Correction(BaseModel):
     ktru_code: str = Field(min_length=1, max_length=32)
 
