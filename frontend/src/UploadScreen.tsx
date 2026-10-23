@@ -1,6 +1,7 @@
 import { Checkbox } from 'antd'
 import {
   AlertTriangle,
+  Clock,
   FileSearch,
   FileText,
   ListChecks,
@@ -11,68 +12,41 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react'
-import { useEffect, useRef, useState, type DragEvent } from 'react'
-import { api, ApiError, type Health, type Job } from './api'
-import { Sparkline, Waves } from './Art'
+import { useRef, useState, type DragEvent } from 'react'
+import { api, ApiError } from './api'
+import { Waves } from './Art'
 import { T } from './texts'
-import { Skeleton } from './ui'
 
 const EXTENSIONS = ['.xlsx', '.csv', '.docx', '.pdf', '.txt']
 const MAX_BYTES = 10 * 1024 * 1024
 const FEATURE_ICONS: LucideIcon[] = [FileSearch, Sparkles, ScanSearch, ListChecks]
 
-function Features() {
+/** How the service works: four steps, and how long it takes. */
+function HowItWorks() {
   return (
-    <section className="features card" aria-label={T.upload.features.map((f) => f[0]).join(', ')}>
-      {T.upload.features.map(([title, text], i) => {
-        const Icon = FEATURE_ICONS[i]
-        return (
-          <div key={title} className="feature">
-            <div className="feature-head">
-              <span className="feature-num num" aria-hidden="true">
-                {String(i + 1).padStart(2, '0')}
-              </span>
-              <Icon className="feature-icon" size={22} strokeWidth={1.5} aria-hidden="true" />
-            </div>
-            <b>{title}</b>
-            <span>{text}</span>
-          </div>
-        )
-      })}
-    </section>
-  )
-}
-
-/** Real numbers only: catalog size from /health, jobs and positions from the recent jobs. */
-function Stats({ jobs, onChoose }: { jobs: Job[] | null; onChoose: () => void }) {
-  const [health, setHealth] = useState<Health | null>(null)
-  useEffect(() => {
-    api.health().then(setHealth).catch(() => setHealth(null))
-  }, [])
-  const done = (jobs ?? []).filter((job) => job.status === 'done')
-  const totals = done.map((job) => job.total).reverse()
-  const rows: [string, number | undefined, number[]][] = [
-    [T.upload.statCodes, health?.codes, []],
-    [T.upload.statJobs, jobs?.length, done.map((_, i) => i + 1)],
-    [T.upload.statPositions, totals.reduce((sum, n) => sum + n, 0), totals],
-  ]
-  return (
-    <aside className="side card" aria-labelledby="stats-title">
-      <h2 id="stats-title" className="card-title">
-        {T.upload.stats}
+    <aside className="side card" aria-labelledby="how-title">
+      <h2 id="how-title" className="card-title">
+        {T.upload.how}
       </h2>
-      {jobs === null
-        ? [0, 1, 2].map((i) => <Skeleton key={i} height={56} style={{ margin: '12px 0' }} />)
-        : rows.map(([label, value, series]) => (
-            <div key={label} className="stat-row">
-              <span className="stat-label">{label}</span>
-              <span className="stat-value num">{(value ?? 0).toLocaleString('ru-RU')}</span>
-              {series.length ? <Sparkline values={series} /> : <span />}
-            </div>
-          ))}
-      <button type="button" className="btn primary" onClick={onChoose}>
-        <UploadCloud size={16} aria-hidden="true" /> {T.upload.choose}
-      </button>
+      <ol className="how-list">
+        {T.upload.features.map(([title, text], i) => {
+          const Icon = FEATURE_ICONS[i]
+          return (
+            <li key={title}>
+              <span className="how-icon" aria-hidden="true">
+                <Icon size={18} strokeWidth={1.6} />
+              </span>
+              <span>
+                <b>{title}</b>
+                <span className="how-text">{text}</span>
+              </span>
+            </li>
+          )
+        })}
+      </ol>
+      <div className="how-speed">
+        <Clock size={16} aria-hidden="true" /> {T.upload.speed}
+      </div>
     </aside>
   )
 }
@@ -120,10 +94,7 @@ function FileList({ files, busy, onRemove, onClear, onProcess }: {
   )
 }
 
-export function UploadScreen({ jobs, onJob }: {
-  jobs: Job[] | null
-  onJob: (id: string) => void
-}) {
+export function UploadScreen({ onJob }: { onJob: (id: string) => void }) {
   const input = useRef<HTMLInputElement>(null)
   const [over, setOver] = useState(false)
   const [inactive, setInactive] = useState(false)
@@ -187,14 +158,8 @@ export function UploadScreen({ jobs, onJob }: {
           <Waves className="hero-waves" />
           <div className="hero-top">
             <div className="hero-text">
-              <div className="eyebrow">{T.upload.eyebrow}</div>
               <h2 id="hero-title">{T.upload.title}</h2>
               <p className="lead">{T.upload.lead}</p>
-            </div>
-            <div className="hero-band num" aria-hidden="true">
-              <small>{T.upload.bandLabel}</small>
-              <b>{T.upload.bandValue}</b>
-              <small>{T.upload.bandHint}</small>
             </div>
           </div>
           <div
@@ -270,9 +235,8 @@ export function UploadScreen({ jobs, onJob }: {
             onProcess={() => void process()}
           />
         </section>
-        <Stats jobs={jobs} onChoose={() => input.current?.click()} />
+        <HowItWorks />
       </div>
-      <Features />
     </>
   )
 }

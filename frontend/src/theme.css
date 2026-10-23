@@ -1925,3 +1925,52 @@ h3 {
   flex: none;
   margin-top: 1px;
 }
+
+/* --- home: how it works, next to the drop zone ---------------------------------------- */
+
+.how-list {
+  display: grid;
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.how-list li {
+  display: flex;
+  gap: var(--s3);
+  align-items: flex-start;
+}
+
+.how-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--paper-tint);
+  color: var(--accent);
+}
+
+.how-list b {
+  display: block;
+  font-weight: 600;
+}
+
+.how-text {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+.how-speed {
+  display: flex;
+  gap: var(--s2);
+  align-items: center;
+  margin-top: var(--s5);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}

@@ -290,7 +290,7 @@ export function App() {
               {jobId ? (
                 <JobScreen jobId={jobId} onHome={() => navigate('/')} onInfo={onInfo} />
               ) : (
-                <UploadScreen jobs={jobs} onJob={(id) => navigate(`/jobs/${id}`)} />
+                <UploadScreen onJob={(id) => navigate(`/jobs/${id}`)} />
               )}
             </main>
           </div>
