@@ -1,4 +1,5 @@
-"""Stopping a job: the queue and waiting LLM requests are dropped, finished rows stay."""
+"""Stopping a job: the queue and waiting LLM requests are dropped, finished rows stay.
+Also deleting a job and undoing accept or a manual code."""
 
 import importlib
 import threading
@@ -77,6 +78,64 @@ def test_finished_job_cannot_be_cancelled_and_done_never_overwrites_cancel(api):
     with api.SessionLocal() as session:
         job = session.get(api.Job, stopped)
         assert job.status == "cancelled" and job.stage_seconds == {"total": 1.0}
+
+
+def test_delete_job_removes_rows_and_file_but_not_a_running_job(api, tmp_path):
+    done, running = uuid.uuid4(), uuid.uuid4()
+    with api.SessionLocal() as session:
+        session.add(api.Job(id=done, filename="a.txt", status="done"))
+        session.add(api.Job(id=running, filename="b.txt", status="processing"))
+        session.add(api.Item(job_id=done, row_number=1, raw_text="x", status="auto"))
+        session.commit()
+    (tmp_path / f"{done}.txt").write_text("x")
+    with TestClient(api.app) as client:
+        assert client.delete(f"/api/jobs/{running}").status_code == 409
+        assert client.delete(f"/api/jobs/{done}").status_code == 204
+        assert client.get(f"/api/jobs/{done}").status_code == 404
+        assert client.delete(f"/api/jobs/{done}").status_code == 404
+        assert client.get(f"/api/jobs/{running}").status_code == 200
+    with api.SessionLocal() as session:
+        assert session.query(api.Item).count() == 0
+    assert not (tmp_path / f"{done}.txt").exists()
+
+
+def test_revert_returns_the_proposed_code_and_status(api, monkeypatch):
+    monkeypatch.setattr(api.state, "catalog", tiny_catalog())
+    job_id = uuid.uuid4()
+    proposed = {"ktru_code": "17.12.14.129-00000001", "ktru_name": "Бумага для офисной техники"}
+    with api.SessionLocal() as session:
+        session.add(api.Job(id=job_id, filename="a.txt", status="done"))
+        session.add_all(
+            api.Item(
+                job_id=job_id,
+                row_number=n,
+                raw_text="x",
+                confidence=70.0,
+                zone="medium",
+                status="needs_review",
+                summary="Выбран сетью",
+                attributes={"name": "бумага"},
+                candidates=[{"code": proposed["ktru_code"], "score": 0.8, "status": "ACTIVE"}],
+                **proposed,
+            )
+            for n in (1, 2)
+        )
+        session.commit()
+        first, second = (item.id for item in session.query(api.Item).order_by(api.Item.id))
+    with TestClient(api.app) as client:
+        assert client.post(f"/api/items/{first}/revert").json()["status"] == "needs_review"
+        client.post(f"/api/items/{first}/accept")
+        fixed = client.patch(f"/api/items/{first}", json={"ktru_code": "26.20.11.110-00000001"})
+        assert fixed.json()["status"] == "corrected"
+        back = client.post(f"/api/items/{first}/revert").json()
+        assert back["status"] == "needs_review" and back["ktru_code"] == proposed["ktru_code"]
+        assert back["confidence"] == 70.0 and back["summary"] == "Выбран сетью"
+        assert "original" not in back["attributes"]
+        assert client.post(f"/api/items/{first}/revert").json() == back  # twice is harmless
+        # accepted in bulk: the snapshot is taken as well
+        client.post(f"/api/jobs/{job_id}/accept", params={"min_confidence": 0})
+        assert client.post(f"/api/items/{second}/revert").json()["summary"] == "Выбран сетью"
+        assert client.post("/api/items/99999/revert").status_code == 404
 
 
 def test_run_job_stops_between_batches_and_keeps_finished_rows(api, monkeypatch, tmp_path):

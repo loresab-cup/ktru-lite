@@ -473,6 +473,25 @@ def get_job(job_id: str):
         return to_dict(job) | {"counts": counts, "fallback": fallback}
 
 
+@app.delete("/api/jobs/{job_id}", status_code=204)
+def delete_job(job_id: str):
+    """Removes the job with its rows and the uploaded file; a running job must be stopped first."""
+    with SessionLocal() as session:
+        job = get_or_404(session, Job, job_id, "Задание")
+        if job.status == "processing" or job.id in state.cancels:
+            raise HTTPException(409, "Задание ещё обрабатывается: сначала остановите его")
+        session.execute(delete(Item).where(Item.job_id == job.id))
+        # A worker may take a queued job right now: then nothing is deleted and rows come back
+        gone = session.execute(
+            delete(Job).where(Job.id == job.id, Job.status != "processing")
+        ).rowcount
+        if not gone:
+            session.rollback()
+            raise HTTPException(409, "Задание ещё обрабатывается: сначала остановите его")
+        session.commit()
+    upload_path(job).unlink(missing_ok=True)
+
+
 def like_pattern(q: str) -> str:
     return "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
 
@@ -504,6 +523,29 @@ def list_items(
         return {"total": total, "items": [to_dict(item) for item in items]}
 
 
+ORIGINAL_FIELDS = ("ktru_code", "ktru_name", "confidence", "zone", "status", "summary")
+
+
+def remember_original(item: Item) -> None:
+    """Keeps what the system proposed, once, before a person accepts or changes the code."""
+    attributes = item.attributes or {}
+    if "original" in attributes or item.status not in ("auto", "needs_review"):
+        return
+    original = {field: getattr(item, field) for field in ORIGINAL_FIELDS}
+    item.attributes = {**attributes, "original": original}  # a new dict: JSON is not tracked
+
+
+def restore_original(item: Item) -> None:
+    attributes = dict(item.attributes or {})
+    original = attributes.pop("original", None)
+    if original is None:  # accepted before the snapshot existed: the code did not change
+        verdict = confidence.assess(item.candidates, is_product=bool(attributes.get("name")))
+        original = {field: verdict[field] for field in ("confidence", "zone", "status")}
+    for field, value in original.items():
+        setattr(item, field, value)
+    item.attributes = attributes
+
+
 class Correction(BaseModel):
     ktru_code: str = Field(min_length=1, max_length=32)
 
@@ -516,6 +558,7 @@ def correct_item(item_id: int, body: Correction):
         raise HTTPException(400, "Такого кода нет в каталоге КТРУ")
     with SessionLocal() as session:
         item = get_or_404(session, Item, item_id, "Позиция")
+        remember_original(item)
         item.ktru_code, item.ktru_name, item.status = code["code"], code["name"], "corrected"
         item.confidence, item.zone, item.summary = 100.0, "high", "Код выбран вручную"
         session.commit()
@@ -570,8 +613,22 @@ def accept_item(item_id: int):
         item = get_or_404(session, Item, item_id, "Позиция")
         if not item.ktru_code:
             raise HTTPException(400, "У позиции нет кода: выберите его вручную")
+        remember_original(item)
         item.status = "accepted"
         session.commit()
+        return to_dict(item)
+
+
+@app.post("/api/items/{item_id}/revert")
+def revert_item(item_id: int):
+    """Undoes accept or a manual code: the code the system proposed and its status come back."""
+    with SessionLocal() as session:
+        item = get_or_404(session, Item, item_id, "Позиция")
+        if item.status == "failed":
+            raise HTTPException(400, "Позицию не удалось обработать: вернуть нечего")
+        if item.status in ("accepted", "corrected"):
+            restore_original(item)
+            session.commit()
         return to_dict(item)
 
 
@@ -591,6 +648,7 @@ def accept_job(job_id: str, min_confidence: float = Query(85.0, ge=0, le=100)):
         for item in items:
             code = catalog.get(item.ktru_code or "")
             if code and code["status"] == "ACTIVE":
+                remember_original(item)
                 item.status, accepted = "accepted", accepted + 1
         session.commit()
         return {"accepted": accepted}
