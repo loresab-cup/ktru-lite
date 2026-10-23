@@ -1881,3 +1881,40 @@ h3 {
     flex: 1 1 100%;
   }
 }
+
+/* --- review progress above the results ------------------------------------------------ */
+
+.review {
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+  padding: var(--s4) var(--s5);
+  margin-bottom: var(--s4);
+}
+
+.review-text {
+  flex: none;
+  min-width: 190px;
+}
+
+.review-title {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.review-bar {
+  flex: 1;
+  height: 8px;
+}
+
+@media (max-width: 760px) {
+  .review {
+    flex-wrap: wrap;
+  }
+
+  .review-bar {
+    flex-basis: 100%;
+    order: 3;
+  }
+}

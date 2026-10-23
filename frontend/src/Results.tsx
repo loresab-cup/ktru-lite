@@ -224,6 +224,21 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
   const counts = job.counts
   const finished = job.status === 'done' || job.status === 'cancelled'
   const seconds = finished ? job.stage_seconds.total : undefined
+  // Review progress: rows with a settled code against rows that still need a look
+  const done = (counts?.auto ?? 0) + (counts?.corrected ?? 0) + (counts?.accepted ?? 0)
+  const left = (counts?.needs_review ?? 0) + (counts?.failed ?? 0)
+  const started = (counts?.corrected ?? 0) + (counts?.accepted ?? 0) > 0
+  const donePercent = job.total ? (100 * done) / job.total : 0
+
+  /** Show only the rows that need a look and open the first of them. */
+  const startReview = () => {
+    pending.current = 'unreviewed'
+    setFilter('needs_review')
+    setSearch('')
+    setQuery('') // at once, not after the search pause
+    setPage(1)
+    setVersion((v) => v + 1) // load even when this filter is already on
+  }
 
   return (
     <>
@@ -234,6 +249,29 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
           {seconds !== undefined && ` · ${T.results.took(seconds)}`}
         </div>
       </div>
+      <section className="review card" aria-label={T.results.review.start}>
+        <div className="review-text">
+          <div className="review-title num">{T.results.review.done(done, job.total)}</div>
+          <div className="cell-sub num">
+            {left > 0 ? T.results.review.left(left) : T.results.review.allDone}
+          </div>
+        </div>
+        <div className="bar review-bar" aria-hidden="true">
+          <span className="accent-fill" style={{ width: `${donePercent}%` }} />
+        </div>
+        {left > 0 && (
+          <button
+            type="button"
+            className="btn primary"
+            onClick={startReview}
+            title={T.results.review.hint}
+          >
+            <Eye size={16} aria-hidden="true" />{' '}
+            {started ? T.results.review.resume : T.results.review.start}
+          </button>
+        )}
+      </section>
+
       {Boolean(job.fallback) && (
         <div className="alert warn" role="status" style={{ margin: '0 0 20px' }}>
           <Info size={18} aria-hidden="true" style={{ flex: 'none' }} />
