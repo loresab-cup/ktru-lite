@@ -23,6 +23,12 @@ server {
     root /usr/share/nginx/html;
     client_max_body_size 12m;
     server_tokens off;
+    # The bundle is ~840 KB of script: compressed it is a third of that; the JSON answers shrink too
+    gzip on;
+    gzip_comp_level 5;
+    gzip_min_length 1024;
+    gzip_vary on;
+    gzip_types text/css application/javascript application/json image/svg+xml text/plain;
     add_header X-Content-Type-Options nosniff always;
     add_header X-Frame-Options DENY always;
     add_header Referrer-Policy same-origin always;

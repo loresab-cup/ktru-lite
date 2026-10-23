@@ -10,7 +10,7 @@ import {
   Search,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { api, ApiError, type Item, type Job } from './api'
+import { api, ApiError, type ItemRow, type Job } from './api'
 import { Link } from './Link'
 import { navigate, paths } from './router'
 import { T } from './texts'
@@ -43,7 +43,7 @@ export function ExportButton({ jobId }: { jobId: string }) {
   )
 }
 
-function attributeLines(item: Item): [string, string][] {
+function attributeLines(item: ItemRow): [string, string][] {
   const a = item.attributes
   const lines: [string, string | undefined][] = [
     [T.drawer.name, a.name],
@@ -54,7 +54,7 @@ function attributeLines(item: Item): [string, string][] {
 }
 
 function ResultCard({ item, jobId, open, onToggle }: {
-  item: Item
+  item: ItemRow
   jobId: string
   open: boolean
   onToggle: () => void
@@ -140,7 +140,7 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
-  const [data, setData] = useState<{ total: number; items: Item[] } | null>(null)
+  const [data, setData] = useState<{ total: number; items: ItemRow[] } | null>(null)
   const [version, setVersion] = useState(0)
   const [showAll, setShowAll] = useState(false)
   const [opened, setOpened] = useState<Set<number>>(new Set())

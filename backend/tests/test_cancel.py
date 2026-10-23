@@ -162,6 +162,23 @@ def test_item_page_knows_its_neighbours(api):
         assert client.get("/api/items/99999").status_code == 404
 
 
+def test_item_list_can_leave_the_candidates_out(api):
+    job_id = uuid.uuid4()
+    with api.SessionLocal() as session:
+        session.add(api.Job(id=job_id, filename="a.txt"))
+        session.add(
+            api.Item(
+                job_id=job_id, row_number=1, raw_text="x", status="auto", candidates=[{"c": 1}]
+            )
+        )
+        session.commit()
+    with TestClient(api.app) as client:
+        full = client.get(f"/api/jobs/{job_id}/items").json()["items"][0]
+        light = client.get(f"/api/jobs/{job_id}/items", params={"candidates": "false"}).json()
+    assert full["candidates"] == [{"c": 1}]
+    assert "candidates" not in light["items"][0] and light["total"] == 1
+
+
 def test_job_list_has_the_counts_of_each_job(api):
     first, second = uuid.uuid4(), uuid.uuid4()
     with api.SessionLocal() as session:

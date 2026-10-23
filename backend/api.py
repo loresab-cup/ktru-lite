@@ -1,7 +1,7 @@
 """HTTP API, the job queue and the export.
 
 Queue = the jobs table: WORKERS background threads take a queued job with
-SELECT ... FOR UPDATE SKIP LOCKED and process it in batches of 100, updating `processed`.
+SELECT ... FOR UPDATE SKIP LOCKED and process it in batches of BATCH rows, updating `processed`.
 Pipeline of a batch: extractor (LLM or rules) -> embedder (bge-m3) -> search -> confidence.
 """
 
@@ -37,7 +37,7 @@ from sqlalchemy import (
     select,
     update,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, defer, mapped_column, sessionmaker
 
 import chooser
 import confidence
@@ -516,6 +516,7 @@ def list_items(
     q: str = Query("", max_length=200),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    candidates: bool = True,  # the list of cards does not show them: ~10 KB less per row
 ):
     with SessionLocal() as session:
         job = get_or_404(session, Job, job_id, "Задание")
@@ -533,7 +534,11 @@ def list_items(
             )
         total = session.scalar(select(func.count()).select_from(query.subquery()))
         items = session.scalars(query.order_by(Item.id).limit(limit).offset(offset))
-        return {"total": total, "items": [to_dict(item) for item in items]}
+        rows = [to_dict(item) for item in items]
+        if not candidates:
+            for row in rows:
+                del row["candidates"]
+        return {"total": total, "items": rows}
 
 
 ORIGINAL_FIELDS = ("ktru_code", "ktru_name", "confidence", "zone", "status", "summary")
@@ -812,7 +817,9 @@ def export(job_id: str, format: str = Query("xlsx", pattern="^(xlsx|csv)$")):
         job = get_or_404(session, Job, job_id, "Задание")
         if job.status not in ("done", "cancelled"):
             raise HTTPException(409, "Выгрузка доступна после окончания обработки")
-        items = session.scalars(select(Item).where(Item.job_id == job.id).order_by(Item.id)).all()
+        # The five candidates of a row (~10 KB) are not exported: they are not read from the base
+        query = select(Item).options(defer(Item.candidates)).where(Item.job_id == job.id)
+        items = session.scalars(query.order_by(Item.id)).all()
     rows = export_rows(list(items))
     if format == "csv":
         content, media = to_csv(rows), "text/csv; charset=utf-8"

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-KTRU classifier (B2B-RTS hackathon, task 5). A user uploads a procurement spec (xlsx/csv/docx/pdf/txt); the system extracts attributes per row, picks a KTRU catalog code with a confidence %, a human reviews doubtful rows, and exports xlsx/csv. `README.md` (Russian) is detailed and accurate — read the relevant section before touching an area. `OWNERSHIP.md` defines per-person file zones and cross-zone contracts; if a change crosses a zone, say so to the user instead of silently editing.
+KTRU classifier (B2B-RTS hackathon, task 5). A user uploads a procurement spec (xlsx/csv/docx/pdf/txt); the system extracts attributes per row, picks a KTRU catalog code with a confidence %, a human reviews doubtful rows, and exports xlsx/csv. `README.md` (Russian) describes every module and the data flow — read the relevant section before touching an area; the old measurements and decision log are in `docs/notes-and-measurements.md`. `OWNERSHIP.md` defines per-person file zones and cross-zone contracts; if a change crosses a zone, say so to the user instead of silently editing.
 
 ## Commands
 

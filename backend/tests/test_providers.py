@@ -340,6 +340,7 @@ def test_a_job_keeps_only_a_few_unfinished_batches_in_the_pool(monkeypatch):
     monkeypatch.setattr(extractor, "PROVIDERS", [openai()])
     monkeypatch.setattr(extractor, "SLOTS", 1)
     monkeypatch.setattr(extractor, "AHEAD_ROUNDS", 2)
+    monkeypatch.setattr(extractor, "BATCH_SIZE", 10)
     monkeypatch.setattr(providers, "chat", slow_chat)
     texts = [f"Товар {i}" for i in range(100)]  # 10 batches
     job = extractor.JobExtractor(texts)

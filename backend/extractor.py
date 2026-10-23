@@ -28,8 +28,8 @@ logger = logging.getLogger(__name__)
 
 PROVIDERS = providers.load()
 # Rows in one request. A bigger batch means fewer requests: free plans limit the requests per
-# minute (Gemini ~30), not the rows.
-BATCH_SIZE = int(os.getenv("LLM_BATCH", "10"))
+# minute (Gemini 15 per key), not the rows. 20 rows still fit the answer limit.
+BATCH_SIZE = int(os.getenv("LLM_BATCH", "20"))
 # Seconds for all LLM requests of one job; the rows left after it get the rules. 240 s plus the
 # search (~25 s on a GPU) stays within the 5 minutes required for 1000 rows.
 JOB_BUDGET = float(os.getenv("LLM_BUDGET", "240"))

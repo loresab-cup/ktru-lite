@@ -71,6 +71,9 @@ export interface ItemPage extends Item {
   next_unreviewed_id: number | null
 }
 
+/** A row of the list of the cards: the candidates are left out to keep the answer small. */
+export type ItemRow = Omit<Item, 'candidates'>
+
 export interface Health {
   catalog: 'ready' | 'loading' | 'error'
   codes: number
@@ -136,14 +139,19 @@ async function send(url: string, init?: RequestInit): Promise<Response> {
   }
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await send(url, init)
-  if (response.status === 204) return undefined as T
+/** The body of a good answer; a body that is not JSON (a proxy page) counts as no connection. */
+async function readJson<T>(response: Response): Promise<T> {
   try {
     return (await response.json()) as T
   } catch {
-    throw new ApiError(T.errors.http(response.status), response.status)
+    throw new ApiError(T.errors.network)
   }
+}
+
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await send(url, init)
+  if (response.status === 204) return undefined as T
+  return readJson<T>(response)
 }
 
 const json = (method: string, body?: unknown): RequestInit => ({
@@ -157,7 +165,7 @@ export const api = {
   /** The newest jobs and how many there are in all. */
   jobs: async (limit = 8) => {
     const response = await send(`/api/jobs?limit=${limit}`)
-    const jobs = (await response.json()) as Job[]
+    const jobs = await readJson<Job[]>(response)
     return { jobs, total: Number(response.headers.get('X-Total-Count') ?? jobs.length) }
   },
   job: (id: string) => request<Job>(`/api/jobs/${encodeURIComponent(id)}`),
@@ -171,8 +179,9 @@ export const api = {
       q: params.q ?? '',
       limit: String(params.limit),
       offset: String(params.offset),
+      candidates: 'false',
     })
-    return request<{ total: number; items: Item[] }>(
+    return request<{ total: number; items: ItemRow[] }>(
       `/api/jobs/${encodeURIComponent(id)}/items?${query}`,
     )
   },
