@@ -14,7 +14,10 @@ import {
 } from 'lucide-react'
 import { useRef, useState, type DragEvent } from 'react'
 import { api, ApiError } from './api'
-import { Waves } from './Art'
+import { JobCards } from './JobCards'
+import { Link } from './Link'
+import { navigate, paths } from './router'
+import { useJobs } from './useJobs'
 import { T } from './texts'
 
 const EXTENSIONS = ['.xlsx', '.csv', '.docx', '.pdf', '.txt']
@@ -24,8 +27,8 @@ const FEATURE_ICONS: LucideIcon[] = [FileSearch, Sparkles, ScanSearch, ListCheck
 /** How the service works: four steps, and how long it takes. */
 function HowItWorks() {
   return (
-    <aside className="side card" aria-labelledby="how-title">
-      <h2 id="how-title" className="card-title">
+    <section className="wrap section" aria-labelledby="how-title">
+      <h2 id="how-title" className="section-h">
         {T.upload.how}
       </h2>
       <ol className="how-list">
@@ -34,20 +37,18 @@ function HowItWorks() {
           return (
             <li key={title}>
               <span className="how-icon" aria-hidden="true">
-                <Icon size={18} strokeWidth={1.6} />
+                <Icon size={24} strokeWidth={1.5} />
               </span>
-              <span>
-                <b>{title}</b>
-                <span className="how-text">{text}</span>
-              </span>
+              <b>{title}</b>
+              <span className="muted">{text}</span>
             </li>
           )
         })}
       </ol>
-      <div className="how-speed">
+      <p className="how-speed muted">
         <Clock size={16} aria-hidden="true" /> {T.upload.speed}
-      </div>
-    </aside>
+      </p>
+    </section>
   )
 }
 
@@ -62,7 +63,7 @@ function FileList({ files, busy, onRemove, onClear, onProcess }: {
   return (
     <section className="file-list" aria-labelledby="files-title">
       <div className="file-list-head">
-        <h3 id="files-title">{T.upload.files}</h3>
+        <h2 id="files-title">{T.upload.files}</h2>
         <button type="button" className="btn small" onClick={onClear} disabled={Boolean(busy)}>
           {T.upload.clear}
         </button>
@@ -94,7 +95,7 @@ function FileList({ files, busy, onRemove, onClear, onProcess }: {
   )
 }
 
-export function UploadScreen({ onJob }: { onJob: (id: string) => void }) {
+export function UploadScreen() {
   const input = useRef<HTMLInputElement>(null)
   const [over, setOver] = useState(false)
   const [inactive, setInactive] = useState(false)
@@ -102,6 +103,7 @@ export function UploadScreen({ onJob }: { onJob: (id: string) => void }) {
   const [files, setFiles] = useState<File[]>([])
   const [errors, setErrors] = useState<string[]>([])
   const [sent, setSent] = useState(0)
+  const { jobs, percents } = useJobs(8)
 
   /** Files go to the list first; nothing is sent until "Process" is pressed. */
   const add = (list: FileList | null | undefined) => {
@@ -123,7 +125,7 @@ export function UploadScreen({ onJob }: { onJob: (id: string) => void }) {
     setSent(0)
   }
 
-  /** One job per file; the first one opens, the others are in the sidebar list. */
+  /** One job per file; the first one opens, the others stay in the list of the jobs. */
   const process = async () => {
     if (!files.length || uploading) return
     const ids: string[] = []
@@ -142,7 +144,7 @@ export function UploadScreen({ onJob }: { onJob: (id: string) => void }) {
     setFiles(left)
     setErrors(bad)
     setSent(ids.length)
-    if (ids.length && !bad.length) onJob(ids[0])
+    if (ids.length && !bad.length) navigate(paths.job(ids[0]))
   }
 
   const onDrop = (e: DragEvent) => {
@@ -153,15 +155,12 @@ export function UploadScreen({ onJob }: { onJob: (id: string) => void }) {
 
   return (
     <>
-      <div className="upload-grid">
-        <section className="hero card" aria-labelledby="hero-title">
-          <Waves className="hero-waves" />
-          <div className="hero-top">
-            <div className="hero-text">
-              <h2 id="hero-title">{T.upload.title}</h2>
-              <p className="lead">{T.upload.lead}</p>
-            </div>
-          </div>
+      <section className="band" aria-labelledby="hero-title">
+        <div className="wrap">
+          <h1 id="hero-title" className="page-title">
+            {T.upload.title}
+          </h1>
+          <p className="lead">{T.upload.lead}</p>
           <div
             className={`drop ${over ? 'over' : ''}`}
             role="button"
@@ -182,8 +181,8 @@ export function UploadScreen({ onJob }: { onJob: (id: string) => void }) {
             onDragLeave={() => setOver(false)}
             onDrop={onDrop}
           >
-            <span className="round drop-icon" aria-hidden="true">
-              <UploadCloud size={30} strokeWidth={1.6} />
+            <span className="drop-icon" aria-hidden="true">
+              <UploadCloud size={34} strokeWidth={1.5} />
             </span>
             <div>
               <div className="drop-title">
@@ -194,15 +193,6 @@ export function UploadScreen({ onJob }: { onJob: (id: string) => void }) {
                     : T.upload.dropTitle}
               </div>
               <div className="drop-hint">{T.upload.dropHint}</div>
-              <div
-                className="drop-options"
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => e.stopPropagation()}
-              >
-                <Checkbox checked={inactive} onChange={(e) => setInactive(e.target.checked)}>
-                  {T.upload.inactive}
-                </Checkbox>
-              </div>
             </div>
             <input
               ref={input}
@@ -215,6 +205,11 @@ export function UploadScreen({ onJob }: { onJob: (id: string) => void }) {
                 e.target.value = ''
               }}
             />
+          </div>
+          <div className="drop-options">
+            <Checkbox checked={inactive} onChange={(e) => setInactive(e.target.checked)}>
+              {T.upload.inactive}
+            </Checkbox>
           </div>
           {errors.map((error) => (
             <div key={error} className="alert" role="alert">
@@ -234,9 +229,24 @@ export function UploadScreen({ onJob }: { onJob: (id: string) => void }) {
             onClear={() => setFiles([])}
             onProcess={() => void process()}
           />
-        </section>
-        <HowItWorks />
-      </div>
+        </div>
+      </section>
+
+      <section className="wrap section" aria-labelledby="recent-title">
+        <div className="section-head">
+          <h2 id="recent-title" className="section-h">
+            {T.upload.recent}
+          </h2>
+          {jobs !== null && jobs.length > 0 && (
+            <Link className="more" to={paths.jobs}>
+              {T.upload.allJobs}
+            </Link>
+          )}
+        </div>
+        <JobCards jobs={jobs} percents={percents} />
+      </section>
+
+      <HowItWorks />
     </>
   )
 }

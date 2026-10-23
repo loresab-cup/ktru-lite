@@ -1,117 +1,25 @@
-import { Dropdown, Input, InputNumber, message, Table, type TableColumnsType } from 'antd'
+import { Checkbox, Dropdown, Input, InputNumber, message, Pagination } from 'antd'
 import {
   CheckCheck,
+  ChevronDown,
   Download,
   Eye,
-  Info,
   FileSpreadsheet,
   FileText,
-  PenLine,
+  Info,
   Search,
-  Sparkles,
 } from 'lucide-react'
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useState } from 'react'
 import { api, ApiError, type Item, type Job } from './api'
-import { ItemDrawer } from './ItemDrawer'
+import { Link } from './Link'
+import { navigate, paths } from './router'
 import { T } from './texts'
-import { Confidence, EmptyState, KtruCode, Skeleton, StatusChip } from './ui'
+import { Confidence, EmptyState, Skeleton, StatusChip, StatusMark } from './ui'
 
-const PAGE_SIZE = 50
-const TILES = [
-  { key: 'auto', icon: Sparkles },
-  { key: 'needs_review', icon: Eye },
-  { key: 'corrected', icon: PenLine },
-  { key: 'accepted', icon: CheckCheck },
-] as const
+const PAGE_SIZE = 20
+const FILTERS = ['auto', 'needs_review', 'corrected', 'accepted'] as const
 
-const columns: TableColumnsType<Item> = [
-  {
-    title: T.results.columns.row,
-    dataIndex: 'row_number',
-    width: 56,
-    responsive: ['md'],
-    render: (value: number) => <span className="num">{value}</span>,
-  },
-  {
-    title: T.results.columns.raw,
-    dataIndex: 'raw_text',
-    responsive: ['lg'], // narrow screens: the raw text is in the item panel
-    render: (value: string) => (
-      <span className="cell-raw" title={value}>
-        {value}
-      </span>
-    ),
-  },
-  {
-    title: T.results.columns.attrs,
-    width: 180,
-    responsive: ['md'],
-    render: (_, item) => (
-      <>
-        <div style={{ fontWeight: 600 }}>{item.attributes.name || T.drawer.none}</div>
-        <div className="cell-sub">
-          {[item.attributes.brand, item.attributes.model].filter(Boolean).join(' · ') ||
-            T.drawer.none}
-        </div>
-      </>
-    ),
-  },
-  {
-    title: T.results.columns.code,
-    width: 220,
-    render: (_, item) =>
-      item.ktru_code ? (
-        <>
-          <KtruCode code={item.ktru_code} />
-          <div className="cell-sub cell-raw">{item.ktru_name}</div>
-        </>
-      ) : (
-        <span className="cell-sub">{T.results.noCode}</span>
-      ),
-  },
-  {
-    title: T.results.columns.confidence,
-    width: 128,
-    render: (_, item) => <Confidence value={item.confidence} zone={item.zone} />,
-  },
-  {
-    title: T.results.columns.status,
-    width: 156,
-    responsive: ['md'], // phones: the zone icon of the confidence says the same
-    render: (_, item) => <StatusChip status={item.status} />,
-  },
-]
-
-/** A row that nobody has looked at yet: neither accepted nor corrected by hand. */
-const unreviewed = (item: Item) => item.status !== 'accepted' && item.status !== 'corrected'
-
-type Pending = 'first' | 'last' | 'unreviewed'
-
-/** The row to open on a freshly loaded page when the panel stepped over the page edge. */
-function pickRow(items: Item[], pending: Pending): Item | null {
-  if (pending === 'last') return items[items.length - 1] ?? null
-  if (pending === 'unreviewed') return items.find(unreviewed) ?? items[0] ?? null
-  return items[0] ?? null
-}
-
-/** Arrow keys move between rows, Enter opens the row (keys of a link inside are its own). */
-function rowKeys(event: KeyboardEvent<HTMLElement>, open: () => void) {
-  if (event.target !== event.currentTarget) return
-  const row = event.currentTarget
-  const target =
-    event.key === 'ArrowDown'
-      ? row.nextElementSibling
-      : event.key === 'ArrowUp'
-        ? row.previousElementSibling
-        : null
-  if (event.key === 'Enter') open()
-  if (target instanceof HTMLElement && target.tabIndex === 0) {
-    event.preventDefault()
-    target.focus()
-  }
-}
-
-function ExportButton({ jobId }: { jobId: string }) {
+export function ExportButton({ jobId }: { jobId: string }) {
   const items = [
     { key: 'xlsx', icon: <FileSpreadsheet size={16} />, label: T.results.exportXlsx },
     { key: 'csv', icon: <FileText size={16} />, label: T.results.exportCsv },
@@ -135,16 +43,114 @@ function ExportButton({ jobId }: { jobId: string }) {
   )
 }
 
+function attributeLines(item: Item): [string, string][] {
+  const a = item.attributes
+  const lines: [string, string | undefined][] = [
+    [T.drawer.name, a.name],
+    [T.drawer.brand, a.brand],
+    [T.drawer.model, a.model],
+  ]
+  return lines.filter((line): line is [string, string] => Boolean(line[1]))
+}
+
+function ResultCard({ item, jobId, open, onToggle }: {
+  item: Item
+  jobId: string
+  open: boolean
+  onToggle: () => void
+}) {
+  const to = paths.item(jobId, item.id)
+  const lines = attributeLines(item)
+  const characteristics = item.attributes.characteristics ?? []
+  return (
+    <article className="res-card">
+      <div className="res-main">
+        <div className="res-code-row">
+          {item.ktru_code ? (
+            <Link className="res-code" to={to}>
+              {item.ktru_code}
+            </Link>
+          ) : (
+            <Link className="res-code none" to={to}>
+              {T.results.noCode}
+            </Link>
+          )}
+          <StatusMark status={item.status} />
+        </div>
+        {item.ktru_name && (
+          <Link className="res-name" to={to} tabIndex={-1}>
+            {item.ktru_name}
+          </Link>
+        )}
+        <div className="res-meta">
+          <span className="res-meta-label">{T.results.sourceText}:</span> {item.raw_text}
+        </div>
+        {lines.length > 0 && (
+          <div className="res-meta">
+            {lines.map(([label, value]) => (
+              <span key={label} className="res-attr">
+                <span className="res-meta-label">{label}:</span> {value}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="res-side">
+        <h3 className="res-side-title">{T.results.prefix}</h3>
+        <dl className="facts">
+          <div>
+            <dt>{T.results.confidence}</dt>
+            <dd>
+              <Confidence value={item.confidence} zone={item.zone} />
+            </dd>
+          </div>
+          <div>
+            <dt>{T.results.status}</dt>
+            <dd>
+              <StatusChip status={item.status} />
+            </dd>
+          </div>
+          <div>
+            <dt>{T.results.row}</dt>
+            <dd className="num">{item.row_number}</dd>
+          </div>
+        </dl>
+      </div>
+      <button
+        type="button"
+        className="res-more"
+        aria-expanded={open}
+        onClick={onToggle}
+      >
+        {T.results.characteristics}
+        <ChevronDown size={18} aria-hidden="true" className={open ? 'flip' : ''} />
+      </button>
+      {open && (
+        <div className="res-chars">
+          {characteristics.length ? (
+            characteristics.map((c, i) => (
+              <span key={i} className="chip">
+                {[c.name, [c.value, c.unit].filter(Boolean).join(' ')].filter(Boolean).join(': ')}
+              </span>
+            ))
+          ) : (
+            <span className="muted">{T.results.noAttrs}</span>
+          )}
+        </div>
+      )}
+    </article>
+  )
+}
+
 export function Results({ job, onChanged }: { job: Job; onChanged: () => void }) {
   const [filter, setFilter] = useState('')
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
   const [data, setData] = useState<{ total: number; items: Item[] } | null>(null)
-  // Which row to open when the panel walks onto another page; read when that page arrives
-  const pending = useRef<Pending | null>(null)
   const [version, setVersion] = useState(0)
-  const [selected, setSelected] = useState<Item | null>(null)
+  const [showAll, setShowAll] = useState(false)
+  const [opened, setOpened] = useState<Set<number>>(new Set())
   const [threshold, setThreshold] = useState(85)
   const [toast, toastHolder] = message.useMessage()
 
@@ -158,236 +164,212 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
     const status = filter === 'needs_review' ? 'needs_review,failed' : filter
     api
       .items(job.id, { status, q: query, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE })
-      .then((next) => {
-        if (!alive) return
-        setData(next)
-        if (pending.current) {
-          setSelected(pickRow(next.items, pending.current))
-          pending.current = null
-        }
-      })
+      .then((next) => alive && setData(next))
       .catch((e) => alive && toast.error(e instanceof ApiError ? e.message : T.errors.network))
     return () => {
       alive = false
     }
-    // job.processed: new rows of a running job appear without touching what is open for editing
+    // job.processed: new rows of a running job appear without touching what is open
   }, [job.id, job.processed, filter, query, page, version, toast])
-
-  const items = data?.items ?? []
-  const index = selected ? items.findIndex((item) => item.id === selected.id) : -1
-  const pages = data ? Math.ceil(data.total / PAGE_SIZE) : 1
-  const position =
-    data && index >= 0 ? { index: (page - 1) * PAGE_SIZE + index + 1, total: data.total } : undefined
-
-  /** Previous or next row of the table, across pages too. */
-  const move = (step: 1 | -1) => {
-    const next = items[index + step]
-    if (next) return setSelected(next)
-    if (step === 1 && page < pages) {
-      pending.current = 'first'
-      setPage(page + 1)
-    }
-    if (step === -1 && page > 1) {
-      pending.current = 'last'
-      setPage(page - 1)
-    }
-  }
-
-  /** After "accept": the next row below that still needs a look. */
-  const acceptNext = () => {
-    const next = items.slice(index + 1).find(unreviewed)
-    if (next) return setSelected(next)
-    if (page < pages) {
-      pending.current = 'unreviewed'
-      setPage(page + 1)
-      return
-    }
-    setSelected(null)
-    toast.success(T.results.reviewDone)
-  }
-
-  const reload = () => {
-    setVersion((v) => v + 1)
-    onChanged()
-  }
 
   const acceptAll = async () => {
     try {
       const { accepted } = await api.acceptAll(job.id, threshold)
       toast.success(T.results.accepted(accepted))
-      reload()
+      setVersion((v) => v + 1)
+      onChanged()
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : T.errors.network)
     }
   }
 
   const counts = job.counts
-  const finished = job.status === 'done' || job.status === 'cancelled'
-  const seconds = finished ? job.stage_seconds.total : undefined
   // Review progress: rows with a settled code against rows that still need a look
   const done = (counts?.auto ?? 0) + (counts?.corrected ?? 0) + (counts?.accepted ?? 0)
   const left = (counts?.needs_review ?? 0) + (counts?.failed ?? 0)
   const started = (counts?.corrected ?? 0) + (counts?.accepted ?? 0) > 0
   const donePercent = job.total ? (100 * done) / job.total : 0
 
-  /** Show only the rows that need a look and open the first of them. */
-  const startReview = () => {
-    pending.current = 'unreviewed'
-    setFilter('needs_review')
-    setSearch('')
-    setQuery('') // at once, not after the search pause
-    setPage(1)
-    setVersion((v) => v + 1) // load even when this filter is already on
+  /** Open the first row that still needs a look; "Enter" there goes on to the next ones. */
+  const startReview = async () => {
+    try {
+      const first = await api.items(job.id, { status: 'needs_review,failed', limit: 1, offset: 0 })
+      if (first.items[0]) navigate(paths.item(job.id, first.items[0].id))
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : T.errors.network)
+    }
   }
+
+  const filtered = Boolean(filter || search)
+  const reset = () => {
+    setFilter('')
+    setSearch('')
+    setQuery('')
+    setPage(1)
+  }
+
+  const toggle = (id: number) =>
+    setOpened((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
 
   return (
     <>
       {toastHolder}
-      <div className="results-head">
-        <div className="meta num">
-          {T.results.positions(job.total)}
-          {seconds !== undefined && ` · ${T.results.took(seconds)}`}
-        </div>
-      </div>
-      <section className="review card" aria-label={T.results.review.start}>
-        <div className="review-text">
-          <div className="review-title num">{T.results.review.done(done, job.total)}</div>
-          <div className="cell-sub num">
-            {left > 0 ? T.results.review.left(left) : T.results.review.allDone}
+      <div className="results-grid">
+        <div className="results-main">
+          <section className="review" aria-label={T.results.review.start}>
+            <div className="review-text">
+              <div className="review-title num">{T.results.review.done(done, job.total)}</div>
+              <div className="muted num">
+                {left > 0 ? T.results.review.left(left) : T.results.review.allDone}
+              </div>
+            </div>
+            <div className="bar review-bar" aria-hidden="true">
+              <span className="accent-fill" style={{ width: `${donePercent}%` }} />
+            </div>
+            {left > 0 && (
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => void startReview()}
+                title={T.results.review.hint}
+              >
+                <Eye size={16} aria-hidden="true" />{' '}
+                {started ? T.results.review.resume : T.results.review.start}
+              </button>
+            )}
+          </section>
+
+          {Boolean(job.fallback) && (
+            <div className="alert warn" role="status">
+              <Info size={18} aria-hidden="true" style={{ flex: 'none' }} />
+              {T.results.fallback(job.fallback ?? 0, job.total)}
+            </div>
+          )}
+
+          <div className="list-bar">
+            <Checkbox checked={showAll} onChange={(e) => setShowAll(e.target.checked)}>
+              {T.results.showAttrs}
+            </Checkbox>
+            {data && (
+              <span className="muted num">
+                {T.results.pageTotal(
+                  data.total ? (page - 1) * PAGE_SIZE + 1 : 0,
+                  Math.min(page * PAGE_SIZE, data.total),
+                  data.total,
+                )}
+              </span>
+            )}
           </div>
-        </div>
-        <div className="bar review-bar" aria-hidden="true">
-          <span className="accent-fill" style={{ width: `${donePercent}%` }} />
-        </div>
-        {finished && <ExportButton jobId={job.id} />}
-        {left > 0 && (
-          <button
-            type="button"
-            className="btn primary"
-            onClick={startReview}
-            title={T.results.review.hint}
-          >
-            <Eye size={16} aria-hidden="true" />{' '}
-            {started ? T.results.review.resume : T.results.review.start}
-          </button>
-        )}
-      </section>
 
-      {Boolean(job.fallback) && (
-        <div className="alert warn" role="status" style={{ margin: '0 0 20px' }}>
-          <Info size={18} aria-hidden="true" style={{ flex: 'none' }} />
-          {T.results.fallback(job.fallback ?? 0, job.total)}
-        </div>
-      )}
+          {data === null ? (
+            [0, 1, 2].map((i) => <Skeleton key={i} height={170} style={{ marginBottom: 16 }} />)
+          ) : data.items.length === 0 ? (
+            <EmptyState title={T.results.empty} hint={T.results.emptyHint} />
+          ) : (
+            <div className="res-list">
+              {data.items.map((item) => (
+                <ResultCard
+                  key={item.id}
+                  item={item}
+                  jobId={job.id}
+                  open={showAll || opened.has(item.id)}
+                  onToggle={() => toggle(item.id)}
+                />
+              ))}
+            </div>
+          )}
 
-      <div className="tiles" role="group" aria-label={T.results.tileHint}>
-        {TILES.map(({ key, icon: Icon }) => {
-          const value =
-            (counts?.[key] ?? 0) + (key === 'needs_review' ? (counts?.failed ?? 0) : 0)
-          return (
-            <button
-              key={key}
-              type="button"
-              className="tile card"
-              aria-pressed={filter === key}
-              title={T.results.tileHint}
-              onClick={() => {
-                setFilter(filter === key ? '' : key)
+          {data !== null && data.total > PAGE_SIZE && (
+            <Pagination
+              className="pager"
+              current={page}
+              pageSize={PAGE_SIZE}
+              total={data.total}
+              showSizeChanger={false}
+              onChange={(next) => {
+                setPage(next)
+                window.scrollTo(0, 0)
+              }}
+            />
+          )}
+        </div>
+
+        <aside className="params" aria-label={T.results.params}>
+          <h2 className="params-title">{T.results.params}</h2>
+
+          <div className="param">
+            <label className="param-label" htmlFor="list-search">
+              {T.results.search}
+            </label>
+            <Input
+              id="list-search"
+              allowClear
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value)
                 setPage(1)
               }}
-            >
-              <span className="tile-icon" aria-hidden="true">
-                <Icon size={20} />
-              </span>
-              <span>
-                <div className="tile-value num">{value}</div>
-                <div className="tile-label">{T.results.tiles[key]}</div>
-              </span>
-            </button>
-          )
-        })}
-      </div>
+              prefix={<Search size={15} aria-hidden="true" />}
+              placeholder={T.results.searchHint}
+            />
+          </div>
 
-      <section className="table-panel card">
-        <div className="toolbar">
-          <Input
-            allowClear
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
-              setPage(1)
-            }}
-            prefix={<Search size={15} aria-hidden="true" />}
-            placeholder={T.results.search}
-            aria-label={T.results.search}
-            style={{ maxWidth: 340 }}
-          />
-          {filter && (
-            <button type="button" className="btn" onClick={() => setFilter('')}>
+          <div className="param" role="group" aria-label={T.results.statusFilter}>
+            <div className="param-label">{T.results.statusFilter}</div>
+            {FILTERS.map((key) => {
+              const value = (counts?.[key] ?? 0) + (key === 'needs_review' ? (counts?.failed ?? 0) : 0)
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className="filter-row"
+                  aria-pressed={filter === key}
+                  onClick={() => {
+                    setFilter(filter === key ? '' : key)
+                    setPage(1)
+                  }}
+                >
+                  <span className="filter-box" aria-hidden="true" />
+                  <span className="filter-name">{T.results.statuses[key]}</span>
+                  <span className="filter-count num">{value}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="param">
+            <label className="param-label" htmlFor="threshold">
+              {T.results.acceptTitle}
+            </label>
+            <div className="accept-row">
+              <span className="muted">{T.results.acceptFrom}</span>
+              <InputNumber
+                id="threshold"
+                min={0}
+                max={100}
+                value={threshold}
+                onChange={(v) => setThreshold(v ?? 85)}
+                suffix="%"
+                style={{ width: 92 }}
+              />
+            </div>
+            <button type="button" className="btn primary block" onClick={() => void acceptAll()}>
+              <CheckCheck size={16} aria-hidden="true" /> {T.results.acceptButton}
+            </button>
+          </div>
+
+          {filtered && (
+            <button type="button" className="btn block" onClick={reset}>
               {T.results.reset}
             </button>
           )}
-          <span className="grow" />
-          <label className="cell-sub" htmlFor="threshold">
-            {T.results.acceptFrom}
-          </label>
-          <InputNumber
-            id="threshold"
-            min={0}
-            max={100}
-            value={threshold}
-            onChange={(v) => setThreshold(v ?? 85)}
-            suffix="%"
-            style={{ width: 96 }}
-          />
-          <button type="button" className="btn primary" onClick={acceptAll}>
-            <CheckCheck size={16} aria-hidden="true" /> {T.results.acceptButton}
-          </button>
-        </div>
-
-        {data === null ? (
-          [0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} height={44} style={{ margin: 10 }} />)
-        ) : (
-          <Table<Item>
-            rowKey="id"
-            size="small"
-            sticky
-            scroll={{ x: 350 }}
-            columns={columns}
-            dataSource={data.items}
-            locale={{
-              emptyText: <EmptyState title={T.results.empty} hint={T.results.emptyHint} />,
-            }}
-            onRow={(item) => ({
-              tabIndex: 0,
-              className: 'row-click',
-              onClick: () => setSelected(item),
-              onKeyDown: (e) => rowKeys(e, () => setSelected(item)),
-            })}
-            pagination={{
-              current: page,
-              pageSize: PAGE_SIZE,
-              total: data.total,
-              showSizeChanger: false,
-              hideOnSinglePage: true,
-              onChange: setPage,
-              showTotal: (total, [from, to]) => T.results.pageTotal(from, to, total),
-            }}
-          />
-        )}
-      </section>
-
-      <ItemDrawer
-        item={selected}
-        position={position}
-        onMove={move}
-        onAcceptNext={acceptNext}
-        onClose={() => setSelected(null)}
-        onChanged={(item) => {
-          setSelected(item)
-          reload()
-        }}
-      />
+        </aside>
+      </div>
     </>
   )
 }

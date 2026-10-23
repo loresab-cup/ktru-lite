@@ -50,7 +50,7 @@ file→rows    LLM/rules attrs   Ollama bge-m3   in-memory exact cosine   confid
 - Catalog loading takes ~20 s on first start and is cached as a matrix in `CACHE_DIR`; `/api/health` reports `catalog: loading|ready|error` and `llm: on|off|down`.
 - Confidence is a logistic of `top1` score and `margin` to the second candidate (`W_SCORE`, `W_MARGIN`, `BIAS` in `confidence.py`); ≥85 % `high`/`auto`, 60–85 % `medium`, <60 % `low`; cancelled codes and non-products are never `auto`.
 - Item statuses: `auto / needs_review / corrected / accepted / failed` (`ITEM_STATUSES` in `api.py`). Manual edits: `PATCH /items/{id}` (code), `PUT /items/{id}/attributes` (re-runs search), `POST /items/{id}/accept`.
-- Frontend: React 19 + antd 6 + Vite, no router library (History API in `App.tsx`: `/` and `/jobs/<id>`), polling every second in `JobScreen`. `api.ts` holds all request functions and the TS types mirroring backend contracts (`Item.attributes`, `Candidate`).
+- Frontend: React 19 + antd 6 + Vite, no router library (History API in `router.ts`: `/`, `/jobs`, `/jobs/<id>`, `/jobs/<id>/items/<id>`), polling every second in `JobScreen`. `api.ts` holds all request functions and the TS types mirroring backend contracts (`Item.attributes`, `Candidate`).
 
 ## Conventions that are easy to break
 

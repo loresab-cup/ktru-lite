@@ -1,11 +1,14 @@
-import { ConfigProvider, theme as antTheme } from 'antd'
+import { App as AntApp, ConfigProvider, theme as antTheme } from 'antd'
 import ruRU from 'antd/locale/ru_RU'
 import { FileStack, LucideProvider, Moon, Plus, Sun } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { api, readyPercent, type Health, type Job } from './api'
-import { JobScreen, type PageInfo } from './JobScreen'
+import { useEffect, useMemo, useState } from 'react'
+import { api, type Health } from './api'
+import { ItemScreen } from './ItemScreen'
+import { JobScreen } from './JobScreen'
+import { JobsScreen } from './JobsScreen'
+import { Link } from './Link'
+import { parseRoute, paths, usePath } from './router'
 import { T } from './texts'
-import { MiniRing } from './ui'
 import { UploadScreen } from './UploadScreen'
 
 type Theme = 'light' | 'dark'
@@ -73,22 +76,6 @@ function readTokens(theme: Theme) {
   }
 }
 
-/** Two routes: "/" and "/jobs/<id>"; plain history API, nginx serves index.html for both. */
-function usePath(): [string, (path: string) => void] {
-  const [path, setPath] = useState(window.location.pathname)
-  useEffect(() => {
-    const onPop = () => setPath(window.location.pathname)
-    window.addEventListener('popstate', onPop)
-    return () => window.removeEventListener('popstate', onPop)
-  }, [])
-  const navigate = useCallback((next: string) => {
-    window.history.pushState(null, '', next)
-    setPath(next)
-    window.scrollTo(0, 0)
-  }, [])
-  return [path, navigate]
-}
-
 function HealthBadge() {
   const [health, setHealth] = useState<Health | null | 'offline'>(null)
   useEffect(() => {
@@ -126,109 +113,17 @@ function HealthBadge() {
   )
 }
 
-/** Ready share of each finished job; the list itself has no counts, so each job is asked. */
-async function loadPercents(list: Job[]): Promise<Record<string, number>> {
-  const finished = list.filter((job) => job.status === 'done' || job.status === 'cancelled')
-  const pairs = await Promise.all(
-    finished.map((job) =>
-      api
-        .job(job.id)
-        .then((full) => [job.id, readyPercent(full)] as const)
-        .catch(() => null),
-    ),
-  )
-  return Object.fromEntries(pairs.filter((pair) => pair !== null))
-}
-
-/** Recent jobs; refreshed on every page change and every 3 s while one of them runs. */
-function useRecentJobs(path: string) {
-  const [jobs, setJobs] = useState<Job[] | null>(null)
-  const [percents, setPercents] = useState<Record<string, number>>({})
-  useEffect(() => {
-    let alive = true
-    let timer = 0
-    const load = () =>
-      api
-        .jobs()
-        .then((list) => {
-          if (!alive) return
-          setJobs(list)
-          void loadPercents(list).then((next) => alive && setPercents(next))
-          if (list.some((job) => job.status === 'queued' || job.status === 'processing')) {
-            timer = window.setTimeout(load, 3000)
-          }
-        })
-        .catch(() => alive && setJobs([]))
-    load()
-    return () => {
-      alive = false
-      window.clearTimeout(timer)
-    }
-  }, [path])
-  return { jobs, percents }
-}
-
-function Sidebar({ jobs, percents, jobId, live, navigate }: {
-  jobs: Job[] | null
-  percents: Record<string, number>
-  jobId?: string
-  live?: number // ready percent of the open job, fresh after every accept
-  navigate: (path: string) => void
-}) {
+function Missing() {
   return (
-    <nav className="sidebar" aria-label={T.app.title}>
-      <a
-        className="brand"
-        href="/"
-        aria-label={T.app.home}
-        onClick={(e) => {
-          e.preventDefault()
-          navigate('/')
-        }}
-      >
-        <span className="brand-mark" aria-hidden="true">
-          <FileStack size={20} />
-        </span>
-        <span>
-          <div className="brand-title">{T.app.title}</div>
-          <div className="brand-sub">{T.app.subtitle}</div>
-        </span>
-      </a>
-      <button type="button" className="side-button" onClick={() => navigate('/')}>
-        <Plus size={18} aria-hidden="true" /> <span className="side-button-text">{T.app.newFile}</span>
-      </button>
-      <div className="side-title">{T.app.recent}</div>
-      <div className="side-jobs">
-        {jobs?.length === 0 && <div className="side-empty">{T.app.recentEmpty}</div>}
-        {jobs?.map((job) => {
-          const percent = job.id === jobId && live !== undefined ? live : percents[job.id]
-          return (
-            <button
-              key={job.id}
-              type="button"
-              className="side-job"
-              aria-current={job.id === jobId ? 'page' : undefined}
-              onClick={() => navigate(`/jobs/${job.id}`)}
-            >
-              {percent !== undefined ? (
-                <MiniRing percent={percent} />
-              ) : (
-                <span className="side-bullet" aria-hidden="true" />
-              )}
-              <span>
-                <div className="side-job-name" title={job.filename}>
-                  {job.filename}
-                </div>
-                <div className="side-job-meta num">
-                  {T.upload.positions(job.total)} ·{' '}
-                  {percent !== undefined ? T.app.ready(percent) : (T.jobStatus[job.status] ?? job.status)}
-                </div>
-              </span>
-            </button>
-          )
-        })}
+    <section className="band">
+      <div className="wrap">
+        <h1 className="page-title">{T.app.notFound}</h1>
+        <p className="lead">{T.app.notFoundHint}</p>
+        <Link className="btn primary" to={paths.home}>
+          {T.app.home}
+        </Link>
       </div>
-    </nav>
+    </section>
   )
 }
 
@@ -238,15 +133,9 @@ export function App() {
     applyTheme(initial)
     return initial
   })
-  const [path, navigate] = usePath()
-  // Page info belongs to the path it was reported for: another page starts with none
-  const [reported, setReported] = useState<PageInfo & { path?: string }>({})
-  const { jobs, percents } = useRecentJobs(path)
+  const path = usePath()
+  const route = parseRoute(path)
   const config = useMemo(() => readTokens(theme), [theme])
-  const jobId = path.match(/^\/jobs\/([\w-]+)/)?.[1]
-
-  const info: PageInfo = reported.path === path ? reported : {}
-  const onInfo = useCallback((next: PageInfo) => setReported({ ...next, path }), [path])
 
   const toggleTheme = () => {
     const next = theme === 'light' ? 'dark' : 'light'
@@ -259,42 +148,77 @@ export function App() {
     }
   }
 
+  const inJobs = route.page === 'jobs' || route.page === 'job' || route.page === 'item'
+  const page = () => {
+    switch (route.page) {
+      case 'home':
+        return <UploadScreen />
+      case 'jobs':
+        return <JobsScreen />
+      case 'job':
+        return <JobScreen key={route.jobId} jobId={route.jobId} />
+      case 'item':
+        return <ItemScreen key={route.itemId} jobId={route.jobId} itemId={route.itemId} />
+      default:
+        return <Missing />
+    }
+  }
+
   return (
     <ConfigProvider theme={config} locale={ruRU}>
       {/* every icon gets the "icon" class and one thin stroke */}
       <LucideProvider className="icon" strokeWidth={1.75}>
-        <div className="shell">
-          <Sidebar
-            jobs={jobs}
-            percents={percents}
-            jobId={jobId}
-            live={info.ring?.percent}
-            navigate={navigate}
-          />
-          <div className="main">
-            <header className="topbar">
-              <h1>{jobId ? (info.title ?? T.progress.pageTitle) : T.app.pageUpload}</h1>
-              <div className="topbar-spacer" />
-              <HealthBadge />
-              <button
-                type="button"
-                className="round ghost small"
-                onClick={toggleTheme}
-                aria-label={theme === 'light' ? T.app.themeDark : T.app.themeLight}
-                title={theme === 'light' ? T.app.themeDark : T.app.themeLight}
-              >
-                {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
-              </button>
+        <AntApp component={false}>
+          <div className="site">
+            <header className="site-head">
+              <div className="top-strip">
+                <div className="wrap top-strip-in">
+                  <span className="top-note">{T.app.topLine}</span>
+                  <div className="top-tools">
+                    <HealthBadge />
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      onClick={toggleTheme}
+                      aria-label={theme === 'light' ? T.app.themeDark : T.app.themeLight}
+                      title={theme === 'light' ? T.app.themeDark : T.app.themeLight}
+                    >
+                      {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+                    </button>
+                    <Link className="cabinet" to={paths.home}>
+                      <Plus size={16} aria-hidden="true" /> {T.app.newFile}
+                    </Link>
+                  </div>
+                </div>
+              </div>
+              <div className="wrap brand-row">
+                <Link className="brand" to={paths.home} aria-label={T.app.home}>
+                  <span className="brand-mark" aria-hidden="true">
+                    <FileStack size={26} />
+                  </span>
+                  <span>
+                    <span className="brand-title">{T.app.title}</span>
+                    <span className="brand-sub">{T.app.subtitle}</span>
+                  </span>
+                </Link>
+              </div>
+              <div className="nav-line">
+                <nav className="wrap main-nav" aria-label={T.app.title}>
+                  <Link to={paths.home} aria-current={route.page === 'home' ? 'page' : undefined}>
+                    {T.app.nav.upload}
+                  </Link>
+                  <Link to={paths.jobs} aria-current={inJobs ? 'page' : undefined}>
+                    {T.app.nav.jobs}
+                  </Link>
+                </nav>
+              </div>
             </header>
-            <main className="page" key={jobId ?? 'home'}>
-              {jobId ? (
-                <JobScreen jobId={jobId} onHome={() => navigate('/')} onInfo={onInfo} />
-              ) : (
-                <UploadScreen onJob={(id) => navigate(`/jobs/${id}`)} />
-              )}
-            </main>
+            <main>{page()}</main>
+            <footer className="site-foot">
+              <div className="wrap">{T.app.subtitle}</div>
+            </footer>
           </div>
-        </div>
+        </AntApp>
       </LucideProvider>
     </ConfigProvider>
   )

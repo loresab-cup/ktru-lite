@@ -51,7 +51,7 @@
 
 | Файлы | Что |
 |---|---|
-| `frontend/src/*.tsx` | экраны и компоненты: `App`, `UploadScreen`, `JobScreen`, `Results`, `ItemDrawer`, `ui`, `Art` |
+| `frontend/src/*.tsx` | экраны и компоненты: `App`, `UploadScreen`, `JobsScreen`, `JobScreen`, `Results`, `ItemScreen`, `JobCards`, `Link`, `ui`, `Art` |
 | `frontend/src/theme.css` | **все** цвета и вёрстка; в компонентах цветов нет |
 | `frontend/src/texts.ts` | **все** тексты интерфейса |
 | `frontend/src/api.ts` | функции вызовов (типы — вместе с Женей) |

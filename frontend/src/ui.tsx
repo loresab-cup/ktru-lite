@@ -64,6 +64,33 @@ export function StatusChip({ status }: { status: ItemStatus }) {
   )
 }
 
+const MARK_ICONS: Record<ItemStatus, typeof CircleCheck> = {
+  auto: CircleCheck,
+  accepted: CircleCheck,
+  corrected: CircleCheck,
+  needs_review: CircleAlert,
+  failed: CircleX,
+}
+
+const MARK_TONE: Record<ItemStatus, string> = {
+  auto: 'high',
+  accepted: 'high',
+  corrected: 'high',
+  needs_review: 'medium',
+  failed: 'low',
+}
+
+/** The round mark next to a code, like the green tick of a catalog position. */
+export function StatusMark({ status, size = 24 }: { status: ItemStatus; size?: number }) {
+  const Icon = MARK_ICONS[status]
+  return (
+    <span className={`mark ${MARK_TONE[status]}`} title={T.itemStatus[status]}>
+      <Icon size={size} aria-hidden="true" />
+      <span className="sr-only">{T.itemStatus[status]}</span>
+    </span>
+  )
+}
+
 export function JobStatusChip({ status }: { status: string }) {
   const tone = status === 'done' ? 'high' : status === 'failed' ? 'low' : ''
   return (

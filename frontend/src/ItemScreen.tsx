@@ -1,15 +1,17 @@
-import { Drawer, Input, message } from 'antd'
+import { App as AntApp, Input } from 'antd'
 import {
+  ArrowLeft,
   Check,
   CheckCheck,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
   Info,
   PenLine,
   Plus,
   Search,
   Trash2,
-  X,
+  Undo2,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import {
@@ -19,10 +21,14 @@ import {
   type CatalogCode,
   type Characteristic,
   type Item,
+  type ItemPage,
+  type Job,
   ktruUrl,
 } from './api'
+import { Link } from './Link'
+import { navigate, paths } from './router'
 import { T } from './texts'
-import { Confidence, KtruCode, Skeleton, StatusChip } from './ui'
+import { Confidence, KtruCode, Skeleton, StatusChip, StatusMark } from './ui'
 
 function CodeCard({ code, current, score, matched, onChoose }: {
   code: CatalogCode
@@ -309,23 +315,19 @@ function CodeEditor({ item, busy, onSave }: {
   }
 
   return (
-    <div className="section">
-      <div className="section-head">
-        <div className="section-title">{T.drawer.code}</div>
+    <div className="code-edit">
+      <div className="code-edit-row">
+        {item.ktru_code ? (
+          <KtruCode code={item.ktru_code} />
+        ) : (
+          <span className="muted">{T.drawer.noCode}</span>
+        )}
         {!open && (
           <button type="button" className="btn small" onClick={() => setOpen(true)}>
             <PenLine size={15} aria-hidden="true" /> {T.drawer.enterCode}
           </button>
         )}
       </div>
-      {item.ktru_code ? (
-        <div className="cand-name">
-          <KtruCode code={item.ktru_code} />
-          <div>{item.ktru_name}</div>
-        </div>
-      ) : (
-        <div className="cell-sub">{T.drawer.noCode}</div>
-      )}
       {open && (
         <form
           className="edit-form"
@@ -365,7 +367,7 @@ function CodeEditor({ item, busy, onSave }: {
   )
 }
 
-/** Keys of the review mode work everywhere in the panel except fields, buttons and links. */
+/** Keys of the review mode work everywhere on the page except fields, buttons and links. */
 function isTyping(target: EventTarget | null) {
   return (
     target instanceof HTMLElement &&
@@ -373,24 +375,161 @@ function isTyping(target: EventTarget | null) {
   )
 }
 
-export function ItemDrawer({ item, position, onClose, onChanged, onMove, onAcceptNext }: {
-  item: Item | null
-  position?: { index: number; total: number } // place of the row in the whole table
-  onClose: () => void
-  onChanged: (item: Item) => void
-  onMove?: (step: 1 | -1) => void
-  onAcceptNext?: () => void // after "accept": open the next row that still needs a look
+type Tab = 'general' | 'source' | 'candidates'
+const TABS: Tab[] = ['general', 'source', 'candidates']
+
+/** What the catalog says about the code: from the candidates, else asked from the service. */
+function useCatalogInfo(item: ItemPage): CatalogCode | null | undefined {
+  const code = item.ktru_code
+  const known = item.candidates.find((c) => c.code === code)
+  const [fetched, setFetched] = useState<{ code: string; info: CatalogCode | null } | null>(null)
+  useEffect(() => {
+    if (!code || known) return
+    let alive = true
+    api
+      .catalog(code)
+      .then((list) => alive && setFetched({ code, info: list.find((c) => c.code === code) ?? null }))
+      .catch(() => alive && setFetched({ code, info: null }))
+    return () => {
+      alive = false
+    }
+  }, [code, known])
+  if (!code) return null
+  if (known) return known
+  return fetched?.code === code ? fetched.info : undefined // undefined: still loading
+}
+
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="fact">
+      <dt>{label}</dt>
+      <dd>{children}</dd>
+    </div>
+  )
+}
+
+function GeneralTab({ item, busy, onChoose }: {
+  item: ItemPage
+  busy: boolean
+  onChoose: (code: string) => Promise<boolean>
 }) {
-  const [toast, toastHolder] = message.useMessage()
+  const info = useCatalogInfo(item)
+  return (
+    <>
+      <h2 className="tab-h">{T.item.general}</h2>
+      <dl className="facts-list">
+        <Fact label={T.item.codeLabel}>
+          <CodeEditor item={item} busy={busy} onSave={onChoose} />
+        </Fact>
+        <Fact label={T.item.catalogName}>{info?.name ?? item.ktru_name ?? T.item.none}</Fact>
+        <Fact label={T.item.okpd2}>{info?.okpd2_code || T.item.none}</Fact>
+        <Fact label={T.item.codeState}>
+          {info ? (T.codeStatus[info.status] ?? info.status) : T.item.none}
+        </Fact>
+        <Fact label={T.results.confidence}>
+          <div className="fact-conf">
+            <Confidence value={item.confidence} zone={item.zone} />
+          </div>
+        </Fact>
+        {item.summary && <Fact label={T.item.why}>{item.summary}</Fact>}
+      </dl>
+      {info && info.characteristics.length > 0 && (
+        <>
+          <h2 className="tab-h">{T.item.catalogChars}</h2>
+          <dl className="facts-list">
+            {info.characteristics.map(([name, values]) => (
+              <Fact key={name} label={name}>
+                {values.join('; ')}
+              </Fact>
+            ))}
+          </dl>
+        </>
+      )}
+      {info === null && item.ktru_code && <p className="muted">{T.item.noCatalog}</p>}
+    </>
+  )
+}
+
+function SourceTab({ item, busy, editing, onEdit, onSave }: {
+  item: ItemPage
+  busy: boolean
+  editing: boolean
+  onEdit: (on: boolean) => void
+  onSave: (attributes: AttributesInput) => void
+}) {
+  return (
+    <>
+      <h2 className="tab-h">{T.drawer.source}</h2>
+      <div className="raw">{item.raw_text}</div>
+      <div className="section-head">
+        <h2 className="tab-h">{T.drawer.attributes}</h2>
+        {!editing && (
+          <button type="button" className="btn small" onClick={() => onEdit(true)}>
+            <PenLine size={15} aria-hidden="true" /> {T.drawer.edit}
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <AttributesForm item={item} busy={busy} onSave={onSave} onCancel={() => onEdit(false)} />
+      ) : (
+        <AttributesView item={item} />
+      )}
+    </>
+  )
+}
+
+function CandidatesTab({ item, onChoose }: { item: ItemPage; onChoose: (code: string) => void }) {
+  return (
+    <>
+      <h2 className="tab-h">{T.drawer.candidates}</h2>
+      {item.candidates.map((c) => (
+        <CodeCard
+          key={c.code}
+          code={c}
+          score={c.score}
+          matched={c.matched_characteristics}
+          current={c.code === item.ktru_code}
+          onChoose={() => onChoose(c.code)}
+        />
+      ))}
+      <CatalogSearch key={`search-${item.id}`} item={item} onChoose={onChoose} />
+    </>
+  )
+}
+
+export function ItemScreen({ jobId, itemId }: { jobId: string; itemId: number }) {
+  // The app-level message outlives this page: the undo of "accepted" stays after the walk on
+  const { message: toast } = AntApp.useApp()
+  const [item, setItem] = useState<ItemPage | null>(null)
+  const [job, setJob] = useState<Job | null>(null)
+  const [missing, setMissing] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [editing, setEditing] = useState<number | null>(null) // id of the edited item
+  const [tab, setTab] = useState<Tab>('general')
+  const [editing, setEditing] = useState(false)
+
+  const load = () =>
+    api
+      .item(itemId)
+      .then((next) => {
+        if (next.job_id !== jobId) throw new ApiError(T.app.notFound)
+        setItem(next)
+      })
+      .catch((e) => setMissing(e instanceof ApiError ? e.message : T.errors.network))
+
+  useEffect(() => {
+    void load()
+    api.job(jobId).then(setJob).catch(() => undefined)
+    // the page is keyed by the item, so this runs once per position
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   /** Runs a change of the item; false when it failed (the error is shown as a message). */
-  const run = async (action: () => Promise<Item>, done: string) => {
+  const run = async (action: () => Promise<Item>, done?: string) => {
     setBusy(true)
     try {
-      onChanged(await action())
-      toast.success(done)
+      await action()
+      await load()
+      if (done) toast.success(done)
       return true
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : T.errors.network)
@@ -400,169 +539,249 @@ export function ItemDrawer({ item, position, onClose, onChanged, onMove, onAccep
     }
   }
 
-  const choose = (code: string) =>
-    item ? run(() => api.correct(item.id, code), T.drawer.saved) : Promise.resolve(false)
+  const choose = (code: string) => run(() => api.correct(itemId, code), T.drawer.saved)
   const saveAttributes = async (attributes: AttributesInput) => {
-    if (!item) return
     // On an error the form stays open with what the person typed
-    if (await run(() => api.editAttributes(item.id, attributes), T.drawer.edited)) setEditing(null)
+    if (await run(() => api.editAttributes(itemId, attributes), T.drawer.edited)) setEditing(false)
   }
-  const attrs = item?.attributes
 
-  /** Accept the code and go on; an already accepted row is just skipped. */
-  const acceptAndNext = async () => {
+  const revert = (done = T.item.reverted) => run(() => api.revert(itemId), done)
+
+  /** Accept, then walk on to the next position that still needs a look. */
+  const accept = async (goNext: boolean) => {
     if (!item || busy) return
-    if (item.status === 'accepted') return onAcceptNext?.()
-    if (!item.ktru_code) return
-    if (await run(() => api.accept(item.id), T.drawer.acceptedDone)) onAcceptNext?.()
+    if (item.status !== 'accepted') {
+      if (!item.ktru_code) return
+      setBusy(true)
+      try {
+        await api.accept(itemId)
+      } catch (e) {
+        toast.error(e instanceof ApiError ? e.message : T.errors.network)
+        setBusy(false)
+        return
+      }
+      setBusy(false)
+      toast.open({
+        type: 'success',
+        duration: 6,
+        content: (
+          <span>
+            {T.item.acceptedDone}{' '}
+            <button
+              type="button"
+              className="toast-undo"
+              onClick={() =>
+                void api
+                  .revert(itemId)
+                  .then(() => {
+                    toast.info(T.item.undone)
+                    void load()
+                  })
+                  .catch((e) => toast.error(e instanceof ApiError ? e.message : T.errors.network))
+              }
+            >
+              <Undo2 size={14} aria-hidden="true" /> {T.item.undo}
+            </button>
+          </span>
+        ),
+      })
+    }
+    if (!goNext) return void load()
+    if (item.next_unreviewed_id) navigate(paths.item(jobId, item.next_unreviewed_id))
+    else {
+      toast.success(T.results.reviewDone)
+      void load()
+    }
   }
 
-  // Review mode: ↑ ↓ (or K J) move between rows, Enter accepts and opens the next one
+  // Review mode: ↑ ↓ (or K J) move between positions, Enter accepts and opens the next one
   useEffect(() => {
     if (!item) return
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return
       if (e.key === 'ArrowDown' || e.code === 'KeyJ') {
-        e.preventDefault()
-        onMove?.(1)
+        if (item.next_id) {
+          e.preventDefault()
+          navigate(paths.item(jobId, item.next_id))
+        }
       } else if (e.key === 'ArrowUp' || e.code === 'KeyK') {
-        e.preventDefault()
-        onMove?.(-1)
+        if (item.prev_id) {
+          e.preventDefault()
+          navigate(paths.item(jobId, item.prev_id))
+        }
       } else if (e.key === 'Enter') {
         e.preventDefault()
-        void acceptAndNext()
+        void accept(true)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  return (
-    <Drawer
-      open={item !== null}
-      onClose={onClose}
-      placement="right"
-      size={520}
-      destroyOnHidden
-      title={
-        item ? (
-          <span>
-            {T.drawer.title(item.row_number)}
-            {position && (
-              <span className="cell-sub num">
-                {' · '}
-                {T.drawer.position(position.index, position.total)}
-              </span>
-            )}
-          </span>
-        ) : (
-          ''
-        )
-      }
-      closeIcon={<X size={18} aria-label={T.drawer.close} />}
-      extra={
-        item && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {onMove && (
-              <>
-                <button
-                  type="button"
-                  className="round ghost small"
-                  aria-label={T.drawer.prev}
-                  title={T.drawer.prev}
-                  onClick={() => onMove(-1)}
-                >
-                  <ChevronUp size={17} aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  className="round ghost small"
-                  aria-label={T.drawer.next}
-                  title={T.drawer.next}
-                  onClick={() => onMove(1)}
-                >
-                  <ChevronDown size={17} aria-hidden="true" />
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              className="btn primary"
-              disabled={busy || (!item.ktru_code && item.status !== 'accepted')}
-              onClick={() => void acceptAndNext()}
-            >
-              <CheckCheck size={16} aria-hidden="true" />{' '}
-              {onAcceptNext ? T.drawer.acceptNext : T.drawer.accept}
-            </button>
-          </div>
-        )
-      }
-    >
-      {toastHolder}
-      {item && attrs && (
+  const back = (
+    <nav className="crumbs" aria-label={T.item.backToList}>
+      <ArrowLeft size={16} aria-hidden="true" />
+      <Link to={paths.job(jobId)}>{T.item.backToList}</Link>
+      {job && (
         <>
-          <div className="section" style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-            <Confidence value={item.confidence} zone={item.zone} />
-            <StatusChip status={item.status} />
-          </div>
-          {onMove && (
-            <div className="cell-sub" style={{ margin: '-4px 0 16px' }}>
-              {T.drawer.keysHint}
-            </div>
-          )}
-
-          <CodeEditor key={`editor-${item.id}`} item={item} busy={busy} onSave={choose} />
-
-          <div className="section">
-            <div className="section-title">{T.drawer.source}</div>
-            <div className="raw">{item.raw_text}</div>
-          </div>
-
-          <div className="section">
-            <div className="section-head">
-              <div className="section-title">{T.drawer.attributes}</div>
-              {editing !== item.id && (
-                <button type="button" className="btn small" onClick={() => setEditing(item.id)}>
-                  <PenLine size={15} aria-hidden="true" /> {T.drawer.edit}
-                </button>
-              )}
-            </div>
-            {editing === item.id ? (
-              <AttributesForm
-                item={item}
-                busy={busy}
-                onSave={saveAttributes}
-                onCancel={() => setEditing(null)}
-              />
-            ) : (
-              <AttributesView item={item} />
-            )}
-          </div>
-
-          {item.summary && (
-            <div className="section">
-              <div className="section-title">{T.drawer.why}</div>
-              <div className="summary">{item.summary}</div>
-            </div>
-          )}
-
-          <div className="section">
-            <div className="section-title">{T.drawer.candidates}</div>
-            {item.candidates.map((c) => (
-              <CodeCard
-                key={c.code}
-                code={c}
-                score={c.score}
-                matched={c.matched_characteristics}
-                current={c.code === item.ktru_code}
-                onChoose={() => choose(c.code)}
-              />
-            ))}
-          </div>
-
-          <CatalogSearch key={`search-${item.id}`} item={item} onChoose={choose} />
+          <span className="crumb-sep" aria-hidden="true">
+            ›
+          </span>
+          <span className="crumb-now" title={job.filename}>
+            {job.filename}
+          </span>
         </>
       )}
-    </Drawer>
+      {item && (
+        <>
+          <span className="crumb-sep" aria-hidden="true">
+            ›
+          </span>
+          <span className="crumb-now">{T.item.crumb(item.row_number)}</span>
+        </>
+      )}
+    </nav>
+  )
+
+  if (missing) {
+    return (
+      <section className="band">
+        <div className="wrap">
+          {back}
+          <h1 className="page-title">{missing}</h1>
+          <p className="lead">{T.app.notFoundHint}</p>
+        </div>
+      </section>
+    )
+  }
+  if (!item) {
+    return (
+      <section className="band" aria-busy="true">
+        <div className="wrap">
+          {back}
+          <Skeleton height={190} />
+        </div>
+      </section>
+    )
+  }
+
+  const reviewed = item.status === 'accepted' || item.status === 'corrected'
+  const url = item.ktru_code ? ktruUrl(item.ktru_code) : null
+  return (
+    <>
+      <section className="band item-band">
+        <div className="wrap">
+          {back}
+          <div className="item-top">
+            <div className="item-head">
+              <div className="item-code-row">
+                <h1 className="item-code">{item.ktru_code ?? T.results.noCode}</h1>
+                <StatusMark status={item.status} size={28} />
+              </div>
+              {item.ktru_name && <div className="item-name">{item.ktru_name}</div>}
+              <div className="res-meta">
+                <span className="res-meta-label">{T.results.sourceText}:</span> {item.raw_text}
+              </div>
+              <div className="actions">
+                <button
+                  type="button"
+                  className="btn primary"
+                  disabled={busy || (!item.ktru_code && item.status !== 'accepted')}
+                  onClick={() => void accept(true)}
+                >
+                  <CheckCheck size={16} aria-hidden="true" />{' '}
+                  {item.next_unreviewed_id ? T.item.acceptNext : T.item.accept}
+                </button>
+                {reviewed && (
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={busy}
+                    title={T.item.revertHint}
+                    onClick={() => void revert()}
+                  >
+                    <Undo2 size={16} aria-hidden="true" /> {T.item.revert}
+                  </button>
+                )}
+                {url && (
+                  <a className="btn" href={url} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink size={16} aria-hidden="true" /> {T.results.openEis}
+                  </a>
+                )}
+              </div>
+              <p className="muted keys-hint">{T.item.keysHint}</p>
+            </div>
+            <aside className="item-side">
+              <h2 className="res-side-title">{T.item.title}</h2>
+              <dl className="facts">
+                <div>
+                  <dt>{T.results.row}</dt>
+                  <dd className="num">{item.row_number}</dd>
+                </div>
+                <div>
+                  <dt>{T.results.status}</dt>
+                  <dd>
+                    <StatusChip status={item.status} />
+                  </dd>
+                </div>
+                <div>
+                  <dt>{T.item.placeLabel}</dt>
+                  <dd className="num">{T.item.position(item.position, item.total)}</dd>
+                </div>
+              </dl>
+              <div className="walk">
+                <button
+                  type="button"
+                  className="btn small"
+                  disabled={!item.prev_id}
+                  title={T.item.prevTitle}
+                  onClick={() => item.prev_id && navigate(paths.item(jobId, item.prev_id))}
+                >
+                  <ChevronUp size={16} aria-hidden="true" /> {T.item.prev}
+                </button>
+                <button
+                  type="button"
+                  className="btn small"
+                  disabled={!item.next_id}
+                  title={item.next_id ? T.item.nextTitle : T.item.lastOne}
+                  onClick={() => item.next_id && navigate(paths.item(jobId, item.next_id))}
+                >
+                  <ChevronDown size={16} aria-hidden="true" /> {T.item.next}
+                </button>
+              </div>
+            </aside>
+          </div>
+          <div className="tabs" role="tablist">
+            {TABS.map((key) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                id={`tab-${key}`}
+                aria-selected={tab === key}
+                aria-controls="tab-body"
+                className="tab"
+                onClick={() => setTab(key)}
+              >
+                {T.item.tabs[key]}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+      <div className="wrap section tab-body" id="tab-body" role="tabpanel" aria-labelledby={`tab-${tab}`}>
+        {tab === 'general' && <GeneralTab item={item} busy={busy} onChoose={choose} />}
+        {tab === 'source' && (
+          <SourceTab
+            item={item}
+            busy={busy}
+            editing={editing}
+            onEdit={setEditing}
+            onSave={saveAttributes}
+          />
+        )}
+        {tab === 'candidates' && <CandidatesTab item={item} onChoose={(code) => void choose(code)} />}
+      </div>
+    </>
   )
 }

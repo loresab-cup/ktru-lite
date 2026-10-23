@@ -61,6 +61,16 @@ export interface Item {
   summary: string
 }
 
+/** One position with its place in the job: the page of a code walks to the neighbours. */
+export interface ItemPage extends Item {
+  job_id: string
+  position: number
+  total: number
+  prev_id: number | null
+  next_id: number | null
+  next_unreviewed_id: number | null
+}
+
 export interface Health {
   catalog: 'ready' | 'loading' | 'error'
   codes: number
@@ -106,6 +116,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
       }
       throw new ApiError(typeof detail === 'string' && detail ? detail : T.errors.http(response.status))
     }
+    if (response.status === 204) return undefined as T
     return await response.json() as T
   } catch (error) {
     if (error instanceof ApiError) throw error
@@ -123,8 +134,12 @@ const json = (method: string, body?: unknown): RequestInit => ({
 
 export const api = {
   health: () => request<Health>('/api/health'),
-  jobs: () => request<Job[]>('/api/jobs?limit=8'),
+  jobs: (limit = 8) => request<Job[]>(`/api/jobs?limit=${limit}`),
   job: (id: string) => request<Job>(`/api/jobs/${encodeURIComponent(id)}`),
+  deleteJob: (id: string) =>
+    request<void>(`/api/jobs/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  item: (id: number) => request<ItemPage>(`/api/items/${id}`),
+  revert: (itemId: number) => request<Item>(`/api/items/${itemId}/revert`, json('POST')),
   items: (id: string, params: { status?: string; q?: string; limit: number; offset: number }) => {
     const query = new URLSearchParams({
       status: params.status ?? '',

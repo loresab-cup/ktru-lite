@@ -1,15 +1,12 @@
-import { AlertTriangle, Check, Info, RotateCcw, Square, Upload } from 'lucide-react'
+import { message, Popconfirm } from 'antd'
+import { AlertTriangle, ArrowLeft, Check, Info, RotateCcw, Square, Trash2, Upload } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { api, ApiError, readyPercent, type Job } from './api'
-import { Results } from './Results'
+import { api, ApiError, type Job } from './api'
+import { ExportButton, Results } from './Results'
+import { Link } from './Link'
+import { navigate, paths } from './router'
 import { T } from './texts'
 import { Ring, Skeleton } from './ui'
-
-/** What the shell shows for the page: the title in the top bar and the ring in the sidebar. */
-export interface PageInfo {
-  title?: string
-  ring?: { percent: number; label: string }
-}
 
 /** Step states from the job counters: read -> extract -> search -> confidence. */
 function stepStates(job: Job): ('done' | 'active' | 'wait')[] {
@@ -37,7 +34,7 @@ function StopButton({ job, onStopped }: { job: Job; onStopped: (job: Job) => voi
   )
 }
 
-/** Thin progress line above the live table: rows keep arriving while the user works. */
+/** Thin progress line above the live list: rows keep arriving while the user works. */
 function LiveHead({ job, onStopped }: { job: Job; onStopped: (job: Job) => void }) {
   const percent = job.total ? Math.floor((100 * job.processed) / job.total) : 0
   return (
@@ -56,7 +53,7 @@ function LiveHead({ job, onStopped }: { job: Job; onStopped: (job: Job) => void 
         <span style={{ width: `${percent}%` }} />
       </div>
       <StopButton job={job} onStopped={onStopped} />
-      <p className="cell-sub" style={{ flexBasis: '100%', margin: 0 }}>
+      <p className="muted live-note">
         {job.total > 0 && job.processed === job.total ? T.progress.choosing : T.progress.live}
       </p>
     </section>
@@ -67,13 +64,12 @@ function ProgressCard({ job, onStopped }: { job: Job; onStopped: (job: Job) => v
   const percent = job.total ? Math.floor((100 * job.processed) / job.total) : 0
   const states = stepStates(job)
   return (
-    <section className="progress card" aria-live="polite" aria-labelledby="progress-title">
+    <section className="progress" aria-live="polite" aria-labelledby="progress-title">
       <Ring percent={percent} label={T.progress.ringLabel} />
       <div>
-        <h2 id="progress-title" className="panel-title">
+        <h2 id="progress-title" className="section-h">
           {T.progress.title}
         </h2>
-        <div className="cell-sub">{job.filename}</div>
         <ol className="steps">
           {T.progress.steps.map((step, i) => (
             <li key={step} className={states[i]}>
@@ -93,7 +89,7 @@ function ProgressCard({ job, onStopped }: { job: Job; onStopped: (job: Job) => v
             </>
           )}
         </div>
-        <div className="toolbar" style={{ margin: '16px 0 0' }}>
+        <div className="actions">
           <StopButton job={job} onStopped={onStopped} />
         </div>
       </div>
@@ -101,42 +97,62 @@ function ProgressCard({ job, onStopped }: { job: Job; onStopped: (job: Job) => v
   )
 }
 
-function Problem({ title, text, onRetry, onHome }: {
-  title: string
-  text: string
-  onRetry?: () => void
-  onHome: () => void
-}) {
+function Problem({ title, text, onRetry }: { title: string; text: string; onRetry?: () => void }) {
   return (
-    <section className="progress card" role="alert">
-      <span className="round" style={{ width: 96, height: 96 }} aria-hidden="true">
+    <section className="progress problem" role="alert">
+      <span className="problem-icon" aria-hidden="true">
         <AlertTriangle size={40} />
       </span>
       <div>
-        <h2 className="panel-title">{title}</h2>
-        <p className="summary" style={{ fontSize: 15 }}>
-          {text}
-        </p>
-        <div className="toolbar" style={{ margin: 0 }}>
+        <h2 className="section-h">{title}</h2>
+        <p className="summary">{text}</p>
+        <div className="actions">
           {onRetry && (
             <button type="button" className="btn primary" onClick={onRetry}>
               <RotateCcw size={16} aria-hidden="true" /> {T.progress.retry}
             </button>
           )}
-          <button type="button" className={onRetry ? 'btn' : 'btn primary'} onClick={onHome}>
+          <Link className={onRetry ? 'btn' : 'btn primary'} to={paths.home}>
             <Upload size={16} aria-hidden="true" /> {T.progress.another}
-          </button>
+          </Link>
         </div>
       </div>
     </section>
   )
 }
 
-export function JobScreen({ jobId, onHome, onInfo }: {
-  jobId: string
-  onHome: () => void
-  onInfo: (info: PageInfo) => void
-}) {
+function DeleteButton({ job }: { job: Job }) {
+  const [toast, holder] = message.useMessage()
+  const [busy, setBusy] = useState(false)
+  const remove = async () => {
+    setBusy(true)
+    try {
+      await api.deleteJob(job.id)
+      navigate(paths.jobs)
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : T.errors.network)
+      setBusy(false)
+    }
+  }
+  return (
+    <>
+      {holder}
+      <Popconfirm
+        title={T.job.deleteAsk(job.filename)}
+        okText={T.job.deleteYes}
+        cancelText={T.job.deleteNo}
+        okButtonProps={{ danger: true }}
+        onConfirm={remove}
+      >
+        <button type="button" className="btn danger" disabled={busy}>
+          <Trash2 size={16} aria-hidden="true" /> {T.job.delete}
+        </button>
+      </Popconfirm>
+    </>
+  )
+}
+
+export function JobScreen({ jobId }: { jobId: string }) {
   const [job, setJob] = useState<Job | null>(null)
   const [lost, setLost] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
@@ -166,59 +182,88 @@ export function JobScreen({ jobId, onHome, onInfo }: {
     }
   }, [jobId, attempt])
 
-  useEffect(() => {
-    if (!job) return
-    const ring = job.status === 'done' ? { percent: readyPercent(job), label: T.app.ringLabel } : undefined
-    onInfo({ title: job.filename, ring })
-  }, [job, onInfo])
-
   const refresh = useCallback(() => {
     api.job(jobId).then(setJob).catch(() => undefined)
   }, [jobId])
 
-  if (lost) {
-    return (
-      <Problem
-        title={T.errors.network}
-        text={lost}
-        onRetry={() => setAttempt((a) => a + 1)}
-        onHome={onHome}
-      />
-    )
-  }
-  if (!job) {
-    return (
-      <section className="progress card" aria-busy="true">
-        <Skeleton height={160} width={160} style={{ borderRadius: '50%' }} />
-        <div>
-          <Skeleton height={24} width="60%" />
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} height={18} style={{ marginTop: 16 }} />
-          ))}
-        </div>
-      </section>
-    )
-  }
-  if (job.status === 'failed') {
-    return <Problem title={T.progress.failed} text={job.error ?? ''} onHome={onHome} />
-  }
-  if (job.status === 'done') return <Results job={job} onChanged={refresh} />
-  if (job.status === 'cancelled') {
+  const finished = job?.status === 'done' || job?.status === 'cancelled'
+  const seconds = finished ? job?.stage_seconds.total : undefined
+
+  const body = () => {
+    if (lost) {
+      return <Problem title={T.errors.network} text={lost} onRetry={() => setAttempt((a) => a + 1)} />
+    }
+    if (!job) {
+      return (
+        <section className="progress" aria-busy="true">
+          <Skeleton height={160} width={160} style={{ borderRadius: '50%' }} />
+          <div style={{ flex: 1 }}>
+            <Skeleton height={24} width="60%" />
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} height={18} style={{ marginTop: 16 }} />
+            ))}
+          </div>
+        </section>
+      )
+    }
+    if (job.status === 'failed') return <Problem title={T.progress.failed} text={job.error ?? ''} />
+    if (job.status === 'done') return <Results job={job} onChanged={refresh} />
+    if (job.status === 'cancelled') {
+      return (
+        <>
+          <div className="alert warn" role="status">
+            <Info size={18} aria-hidden="true" style={{ flex: 'none' }} />
+            {T.progress.cancelled(job.processed, job.total)}
+          </div>
+          <Results job={job} onChanged={refresh} />
+        </>
+      )
+    }
+    if (job.processed === 0) return <ProgressCard job={job} onStopped={setJob} />
     return (
       <>
-        <div className="alert warn" role="status" style={{ margin: '0 0 20px' }}>
-          <Info size={18} aria-hidden="true" style={{ flex: 'none' }} />
-          {T.progress.cancelled(job.processed, job.total)}
-        </div>
+        <LiveHead job={job} onStopped={setJob} />
         <Results job={job} onChanged={refresh} />
       </>
     )
   }
-  if (job.processed === 0) return <ProgressCard job={job} onStopped={setJob} />
+
   return (
     <>
-      <LiveHead job={job} onStopped={setJob} />
-      <Results job={job} onChanged={refresh} />
+      <section className="band">
+        <div className="wrap">
+          <nav className="crumbs" aria-label={T.job.title}>
+            <ArrowLeft size={16} aria-hidden="true" />
+            <Link to={paths.jobs}>{T.job.backToJobs}</Link>
+            {job && (
+              <>
+                <span className="crumb-sep" aria-hidden="true">
+                  ›
+                </span>
+                <span className="crumb-now" title={job.filename}>
+                  {job.filename}
+                </span>
+              </>
+            )}
+          </nav>
+          <div className="title-row">
+            <h1 className="page-title">
+              {T.job.title}
+              {job && (
+                <span className="title-count num">{T.results.positions(job.total)}</span>
+              )}
+            </h1>
+            {job && job.status !== 'queued' && job.status !== 'processing' && (
+              <div className="actions top">
+                {finished && <ExportButton jobId={job.id} />}
+                <DeleteButton job={job} />
+              </div>
+            )}
+          </div>
+          {seconds !== undefined && <p className="muted num took">{T.results.took(seconds)}</p>}
+        </div>
+      </section>
+      <div className="wrap section">{body()}</div>
     </>
   )
 }
