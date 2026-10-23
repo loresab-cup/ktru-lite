@@ -1,11 +1,10 @@
 /* All colors, sizes and spacing of the app live here; components use only these variables.
    Style: the plain look of a public procurement portal - white pages, a light grey band with
    the page title, one strong blue, thin square borders, regular-weight headings, uppercase
-   small titles. Light and dark themes. Color also carries meaning: green - done, amber - check,
+   small titles. Color also carries meaning: green - done, amber - check,
    red - error, and every such color comes with an icon or a word. */
 
-:root,
-:root[data-theme='light'] {
+:root {
   color-scheme: light;
   --bg: #ffffff;
   --band: #eceff3;
@@ -35,6 +34,8 @@
   --green-bar: #7cb342;
   --amber-bar: #f0a020;
   --red-bar: #e0524a;
+  --red-solid: #d03e34;
+  --red-solid-hover: #b8322a;
   --tick: #7cb342;
   --btn-line: #c5ccd8;
   --shadow-card: 0 1px 2px rgba(47, 55, 80, 0.06), 0 2px 8px rgba(47, 55, 80, 0.05);
@@ -42,45 +43,6 @@
   --mask: rgba(47, 55, 80, 0.4);
   --skeleton: #eceff3;
   --skeleton-shine: #f8f9fb;
-}
-
-:root[data-theme='dark'] {
-  color-scheme: dark;
-  --bg: #11151e;
-  --band: #181d29;
-  --paper-card: #1a2030;
-  --paper-raised: #1f2638;
-  --paper-tint: #1d2333;
-  --edge: #2c3448;
-  --line: #262d3f;
-  --line-strong: #5c6783;
-  --ink: #e6e9f2;
-  --ink-2: #aab2c6;
-  --ink-3: #8e98b0;
-  --accent: #6ea8fe;
-  --accent-2: #8fbcff;
-  --accent-soft: rgba(110, 168, 254, 0.16);
-  --accent-softer: rgba(110, 168, 254, 0.07);
-  --primary-bg: #2f6fd6;
-  --primary-hover: #2459b4;
-  --primary-ink: #ffffff;
-  --mark: #28385a;
-  --green: #66d17f;
-  --amber: #f0b44c;
-  --red: #ff8d85;
-  --green-soft: rgba(102, 209, 127, 0.14);
-  --amber-soft: rgba(240, 180, 76, 0.14);
-  --red-soft: rgba(255, 141, 133, 0.14);
-  --green-bar: #4cbf68;
-  --amber-bar: #e8a93c;
-  --red-bar: #f27067;
-  --tick: #66d17f;
-  --btn-line: #3d475f;
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.25);
-  --shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.4), 0 12px 28px rgba(0, 0, 0, 0.45);
-  --mask: rgba(4, 6, 12, 0.7);
-  --skeleton: #20273a;
-  --skeleton-shine: #2a3248;
 }
 
 :root {
@@ -111,9 +73,9 @@
   --s8: 48px;
   /* shape: thin borders, almost square corners */
   --stroke: 1px;
-  --radius: 6px;
-  --radius-sm: 4px;
-  --radius-xs: 3px;
+  --radius: 4px;
+  --radius-sm: 3px;
+  --radius-xs: 2px;
   --page: 1180px;
   --control: 40px;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
@@ -304,16 +266,6 @@ a {
   gap: var(--s4);
   color: inherit;
   text-decoration: none;
-}
-
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 52px;
-  height: 52px;
-  border-radius: var(--radius);
-  background: var(--primary-bg);
-  color: var(--primary-ink);
 }
 
 .brand-title {
@@ -1073,13 +1025,6 @@ a {
   overflow-wrap: anywhere;
 }
 
-.res-main .res-meta:first-of-type {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
 .res-meta-label {
   color: var(--ink-3);
 }
@@ -1767,14 +1712,7 @@ a {
 /* --- modern touches: same portal look, softer and a bit livelier ---------------------- */
 
 .band {
-  background: linear-gradient(180deg, var(--band), color-mix(in srgb, var(--band) 55%, var(--bg)));
-  border-bottom: 1px solid var(--line);
-}
-
-.brand-mark {
-  border-radius: 8px;
-  background: linear-gradient(135deg, var(--primary-bg), color-mix(in srgb, var(--primary-bg) 70%, #5ab0ff));
-  box-shadow: 0 4px 12px rgba(11, 99, 206, 0.28);
+  background: var(--band);
 }
 
 .main-nav a {
@@ -1791,7 +1729,7 @@ a {
 .bulk-bar,
 .cand,
 .progress {
-  border-radius: 8px;
+  border-radius: var(--radius);
 }
 
 .tile {
@@ -1812,11 +1750,11 @@ a {
 
 .res-card,
 .item-top {
-  border-radius: 8px;
+  border-radius: var(--radius);
 }
 
 .item-top {
-  border-radius: 8px 8px 0 0;
+  border-radius: var(--radius) var(--radius) 0 0;
   box-shadow: var(--shadow-card);
 }
 
@@ -1828,11 +1766,7 @@ a {
 }
 
 .params {
-  padding: var(--s5);
-  border: 1px solid var(--edge);
-  border-radius: 8px;
-  background: var(--paper-card);
-  box-shadow: var(--shadow-card);
+  padding: 0;
 }
 
 .params-title {
@@ -1864,12 +1798,7 @@ a {
 }
 
 .filter-count {
-  min-width: 36px;
-  padding: 1px var(--s2);
-  border-radius: 999px;
-  background: var(--paper-tint);
-  font-size: var(--text-xs);
-  text-align: center;
+  font-size: var(--text-sm);
 }
 
 .live-bar,
@@ -1889,7 +1818,7 @@ a {
 }
 
 .res-more {
-  border-radius: 0 0 8px 8px;
+  border-radius: 0 0 var(--radius) var(--radius);
 }
 
 .tab {
@@ -1912,4 +1841,216 @@ a {
 
 .top-strip {
   box-shadow: 0 1px 0 var(--line);
+}
+
+
+/* --- header like the portal: logo, round link icons ------------------------------------- */
+
+.brand-row {
+  justify-content: space-between;
+  gap: var(--s6);
+  min-height: 112px;
+}
+
+.brand {
+  gap: var(--s5);
+}
+
+.brand-logo {
+  display: block;
+  height: 64px;
+  width: auto;
+}
+
+.brand-name {
+  display: grid;
+  padding-left: var(--s5);
+  border-left: 1px solid var(--edge);
+}
+
+.brand-title {
+  font-size: var(--text-lg);
+  letter-spacing: 0.03em;
+  color: var(--ink);
+}
+
+.brand-links {
+  display: flex;
+  align-items: center;
+  gap: var(--s7);
+}
+
+.round-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  color: var(--accent);
+  font-size: var(--text);
+  text-decoration: none;
+}
+
+.round-link:hover {
+  text-decoration: underline;
+}
+
+.round-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--primary-bg);
+  color: var(--primary-ink);
+  transition: background-color var(--fast) var(--ease);
+}
+
+.round-link:hover .round-icon {
+  background: var(--primary-hover);
+}
+
+/* --- result pages are white, only the landing page and the code page have the band --------- */
+
+.page-head {
+  padding: var(--s6) 0 0;
+}
+
+.page-head .page-title {
+  font-size: 44px;
+}
+
+.page-head .title-count {
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.res-top {
+  margin-bottom: var(--s2);
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+.res-preview {
+  margin-top: var(--s3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+.res-more-body {
+  grid-column: 1 / -1;
+  padding: 0 var(--s6) var(--s5);
+}
+
+.res-more-body .res-chars {
+  padding: 0;
+}
+
+.res-full {
+  margin-top: var(--s4);
+  line-height: 1.6;
+}
+
+.raw-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.text-link {
+  margin-top: var(--s2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.text-link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 760px) {
+  .brand-links {
+    display: none;
+  }
+  .brand-logo {
+    height: 48px;
+  }
+  .brand-name {
+    padding-left: var(--s3);
+  }
+  .brand-title {
+    font-size: var(--text-md);
+  }
+  .page-head .page-title {
+    font-size: 30px;
+  }
+}
+
+@media (max-width: 1000px) {
+  .brand-links {
+    gap: var(--s5);
+  }
+  .round-link {
+    font-size: var(--text-sm);
+  }
+}
+
+/* like the "search exactly" check box under the search line of the portal */
+.drop-options {
+  display: flex;
+  justify-content: flex-end;
+}
+
+
+/* --- the same solid button as the blue one, in the red of the site, for deleting ----------- */
+
+.btn.red {
+  border-color: var(--red-solid);
+  background: var(--red-solid);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(200, 55, 45, 0.25);
+}
+
+.btn.red .icon {
+  color: inherit;
+}
+
+.btn.red:hover:not(:disabled) {
+  border-color: var(--red-solid-hover);
+  background: var(--red-solid-hover);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(200, 55, 45, 0.3);
+}
+
+/* previous / next fill the column instead of running out of it */
+.walk {
+  flex-wrap: wrap;
+}
+
+.walk .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 var(--s2);
+  gap: var(--s1);
+}
+
+/* long button texts wrap instead of pushing the page wider than the screen */
+.actions .btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
+/* the warning of the error screen is drawn like the red delete button */
+.problem-icon {
+  border: 0;
+  background: var(--red-solid);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(200, 55, 45, 0.3);
 }

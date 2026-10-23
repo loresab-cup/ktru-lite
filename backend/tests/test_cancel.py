@@ -162,6 +162,27 @@ def test_item_page_knows_its_neighbours(api):
         assert client.get("/api/items/99999").status_code == 404
 
 
+def test_job_list_has_the_counts_of_each_job(api):
+    first, second = uuid.uuid4(), uuid.uuid4()
+    with api.SessionLocal() as session:
+        session.add_all([api.Job(id=first, filename="a.txt"), api.Job(id=second, filename="b.txt")])
+        session.add_all(
+            api.Item(job_id=first, row_number=n, raw_text="x", status=status)
+            for n, status in enumerate(["auto", "auto", "accepted"], 1)
+        )
+        session.commit()
+    with TestClient(api.app) as client:
+        jobs = {job["id"]: job for job in client.get("/api/jobs").json()}
+    assert jobs[str(first)]["counts"] == {
+        "auto": 2,
+        "needs_review": 0,
+        "corrected": 0,
+        "accepted": 1,
+        "failed": 0,
+    }
+    assert sum(jobs[str(second)]["counts"].values()) == 0
+
+
 def test_run_job_stops_between_batches_and_keeps_finished_rows(api, monkeypatch, tmp_path):
     monkeypatch.setattr(api.state, "catalog", tiny_catalog())
     monkeypatch.setattr(embedder, "embed", lambda texts: None)

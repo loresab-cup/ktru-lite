@@ -452,8 +452,17 @@ def create_job(
 @app.get("/api/jobs")
 def list_jobs(limit: int = Query(20, ge=1, le=100)):
     with SessionLocal() as session:
-        jobs = session.scalars(select(Job).order_by(Job.created_at.desc()).limit(limit))
-        return [to_dict(job) for job in jobs]
+        jobs = session.scalars(select(Job).order_by(Job.created_at.desc()).limit(limit)).all()
+        # One query for all the jobs: the page of the jobs shows how much of each is ready
+        rows = session.execute(
+            select(Item.job_id, Item.status, func.count())
+            .where(Item.job_id.in_([job.id for job in jobs]))
+            .group_by(Item.job_id, Item.status)
+        )
+        counts: dict = {job.id: {status: 0 for status in ITEM_STATUSES} for job in jobs}
+        for job_id, status, count in rows:
+            counts[job_id][status] = count
+        return [to_dict(job) | {"counts": counts[job.id]} for job in jobs]
 
 
 @app.get("/api/jobs/{job_id}")

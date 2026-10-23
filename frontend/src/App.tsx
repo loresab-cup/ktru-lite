@@ -1,8 +1,9 @@
-import { App as AntApp, ConfigProvider, theme as antTheme } from 'antd'
+import { App as AntApp, ConfigProvider } from 'antd'
 import ruRU from 'antd/locale/ru_RU'
-import { FileStack, LucideProvider, Moon, Plus, Sun } from 'lucide-react'
+import { BookOpen, ListChecks, LucideProvider, UploadCloud } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { api, type Health } from './api'
+import logo from './assets/logo.png'
 import { ItemScreen } from './ItemScreen'
 import { JobScreen } from './JobScreen'
 import { JobsScreen } from './JobsScreen'
@@ -11,31 +12,16 @@ import { parseRoute, paths, usePath } from './router'
 import { T } from './texts'
 import { UploadScreen } from './UploadScreen'
 
-type Theme = 'light' | 'dark'
-const THEME_KEY = 'ktru-theme'
-
-function savedTheme(): Theme {
-  try {
-    const value = localStorage.getItem(THEME_KEY)
-    if (value === 'light' || value === 'dark') return value
-  } catch {
-    // storage is blocked: fall back to the system preference
-  }
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-}
-
-function applyTheme(theme: Theme) {
-  document.documentElement.dataset.theme = theme
-}
+/** The KTRU catalog of the official procurement system, to check a code there. */
+const EIS_CATALOG = 'https://zakupki.gov.ru/epz/ktru/start/startPage.html'
 
 /** antd tokens are read from theme.css, so the colors and sizes stay in one place. */
-function readTokens(theme: Theme) {
+function readTokens() {
   const css = getComputedStyle(document.documentElement)
   const v = (name: string) => css.getPropertyValue(`--${name}`).trim()
   const px = (name: string) => parseFloat(v(name))
   const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
   return {
-    algorithm: theme === 'dark' ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
     token: {
       colorPrimary: v('primary-bg'),
       colorLink: v('accent-2'),
@@ -108,7 +94,7 @@ function HealthBadge() {
   return (
     <div className="health num">
       <span className={`dot ${tone}`} aria-hidden="true" />
-      {text} · {T.app.llm[health.llm] ?? T.app.llm.off}
+      {text}, {T.app.llm[health.llm] ?? T.app.llm.off}
     </div>
   )
 }
@@ -128,25 +114,9 @@ function Missing() {
 }
 
 export function App() {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const initial = savedTheme()
-    applyTheme(initial)
-    return initial
-  })
   const path = usePath()
   const route = parseRoute(path)
-  const config = useMemo(() => readTokens(theme), [theme])
-
-  const toggleTheme = () => {
-    const next = theme === 'light' ? 'dark' : 'light'
-    applyTheme(next) // before render: readTokens sees the new variables
-    setTheme(next)
-    try {
-      localStorage.setItem(THEME_KEY, next)
-    } catch {
-      // not saved: the theme still works for this visit
-    }
-  }
+  const config = useMemo(() => readTokens(), [])
 
   const inJobs = route.page === 'jobs' || route.page === 'job' || route.page === 'item'
   const page = () => {
@@ -176,31 +146,40 @@ export function App() {
                   <span className="top-note">{T.app.topLine}</span>
                   <div className="top-tools">
                     <HealthBadge />
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      onClick={toggleTheme}
-                      aria-label={theme === 'light' ? T.app.themeDark : T.app.themeLight}
-                      title={theme === 'light' ? T.app.themeDark : T.app.themeLight}
+                    <a
+                      className="cabinet"
+                      href={EIS_CATALOG}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={T.app.catalogLinkTitle}
                     >
-                      {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
-                    </button>
-                    <Link className="cabinet" to={paths.home}>
-                      <Plus size={16} aria-hidden="true" /> {T.app.newFile}
-                    </Link>
+                      <BookOpen size={16} aria-hidden="true" /> {T.app.catalogLink}
+                    </a>
                   </div>
                 </div>
               </div>
               <div className="wrap brand-row">
                 <Link className="brand" to={paths.home} aria-label={T.app.home}>
-                  <span className="brand-mark" aria-hidden="true">
-                    <FileStack size={26} />
-                  </span>
-                  <span>
+                  <img className="brand-logo" src={logo} alt="" />
+                  <span className="brand-name">
                     <span className="brand-title">{T.app.title}</span>
                     <span className="brand-sub">{T.app.subtitle}</span>
                   </span>
                 </Link>
+                <div className="brand-links">
+                  <Link className="round-link" to={paths.jobs}>
+                    <span className="round-icon" aria-hidden="true">
+                      <ListChecks size={20} />
+                    </span>
+                    {T.app.links.jobs}
+                  </Link>
+                  <Link className="round-link" to={paths.home}>
+                    <span className="round-icon" aria-hidden="true">
+                      <UploadCloud size={20} />
+                    </span>
+                    {T.app.links.upload}
+                  </Link>
+                </div>
               </div>
               <div className="nav-line">
                 <nav className="wrap main-nav" aria-label={T.app.title}>

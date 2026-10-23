@@ -54,7 +54,7 @@ file→rows    LLM/rules attrs   Ollama bge-m3   in-memory exact cosine   confid
 
 ## Conventions that are easy to break
 
-- Code and comments in English; user-facing text in Russian. In the frontend **all** UI strings live in `src/texts.ts` and **all** colors/layout in `src/theme.css` (CSS variables for light/dark themes; no colors in components). One UI library only (antd), icons from lucide-react, everything keyboard-accessible.
+- Code and comments in English; user-facing text in Russian. In the frontend **all** UI strings live in `src/texts.ts` and **all** colors/layout in `src/theme.css` (CSS variables, one light theme; no colors in components). One UI library only (antd), icons from lucide-react, everything keyboard-accessible.
 - Python: pinned `==` versions in `requirements.txt`, ruff line length 100, short functions, files ≲ 300 lines (`api.py`, `search.py` already exceed it — don't grow them gratuitously).
 - Accuracy changes (prompt, ranking weights, thresholds) must be justified with before/after measurements on both a real file and the draft reference set; improving one while hurting the other is not accepted.
 - Do not weaken security limits: upload size/signature checks, zip-bomb limits, value-vs-source check, export formula escaping (`cell()` prefixes `'` on `= + - @`).

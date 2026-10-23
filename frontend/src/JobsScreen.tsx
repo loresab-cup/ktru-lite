@@ -46,7 +46,7 @@ export function JobsScreen() {
 
   return (
     <>
-      <section className="band">
+      <section className="page-head">
         <div className="wrap">
           <nav className="crumbs" aria-label={T.jobs.title}>
             <ArrowLeft size={16} aria-hidden="true" />
@@ -83,7 +83,7 @@ export function JobsScreen() {
               disabled={chosen.length === 0}
               onConfirm={() => void remove()}
             >
-              <button type="button" className="btn danger" disabled={chosen.length === 0 || deleting}>
+              <button type="button" className="btn red" disabled={chosen.length === 0 || deleting}>
                 <Trash2 size={16} aria-hidden="true" /> {T.jobs.deleteSelected(chosen.length)}
               </button>
             </Popconfirm>

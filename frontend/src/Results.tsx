@@ -36,7 +36,7 @@ export function ExportButton({ jobId }: { jobId: string }) {
         onClick: ({ key }) => window.location.assign(api.exportUrl(jobId, key as 'xlsx' | 'csv')),
       }}
     >
-      <button type="button" className="btn">
+      <button type="button" className="btn primary">
         <Download size={16} aria-hidden="true" /> {T.results.export}
       </button>
     </Dropdown>
@@ -65,6 +65,7 @@ function ResultCard({ item, jobId, open, onToggle }: {
   return (
     <article className="res-card">
       <div className="res-main">
+        <div className="res-top">{T.results.fileRow(item.row_number)}</div>
         <div className="res-code-row">
           {item.ktru_code ? (
             <Link className="res-code" to={to}>
@@ -82,9 +83,6 @@ function ResultCard({ item, jobId, open, onToggle }: {
             {item.ktru_name}
           </Link>
         )}
-        <div className="res-meta">
-          <span className="res-meta-label">{T.results.sourceText}:</span> {item.raw_text}
-        </div>
         {lines.length > 0 && (
           <div className="res-meta">
             {lines.map(([label, value]) => (
@@ -94,9 +92,10 @@ function ResultCard({ item, jobId, open, onToggle }: {
             ))}
           </div>
         )}
+        {/* one line only: the whole text is under "Characteristics" */}
+        {!open && <div className="res-preview">{item.raw_text}</div>}
       </div>
       <div className="res-side">
-        <h3 className="res-side-title">{T.results.prefix}</h3>
         <dl className="facts">
           <div>
             <dt>{T.results.confidence}</dt>
@@ -110,32 +109,26 @@ function ResultCard({ item, jobId, open, onToggle }: {
               <StatusChip status={item.status} />
             </dd>
           </div>
-          <div>
-            <dt>{T.results.row}</dt>
-            <dd className="num">{item.row_number}</dd>
-          </div>
         </dl>
       </div>
-      <button
-        type="button"
-        className="res-more"
-        aria-expanded={open}
-        onClick={onToggle}
-      >
+      <button type="button" className="res-more" aria-expanded={open} onClick={onToggle}>
         {T.results.characteristics}
         <ChevronDown size={18} aria-hidden="true" className={open ? 'flip' : ''} />
       </button>
       {open && (
-        <div className="res-chars">
-          {characteristics.length ? (
-            characteristics.map((c, i) => (
-              <span key={i} className="chip">
-                {[c.name, [c.value, c.unit].filter(Boolean).join(' ')].filter(Boolean).join(': ')}
-              </span>
-            ))
-          ) : (
-            <span className="muted">{T.results.noAttrs}</span>
+        <div className="res-more-body">
+          {characteristics.length > 0 && (
+            <div className="res-chars">
+              {characteristics.map((c, i) => (
+                <span key={i} className="chip">
+                  {[c.name, [c.value, c.unit].filter(Boolean).join(' ')].filter(Boolean).join(': ')}
+                </span>
+              ))}
+            </div>
           )}
+          <div className="res-meta res-full">
+            <span className="res-meta-label">{T.results.sourceText}:</span> {item.raw_text}
+          </div>
         </div>
       )}
     </article>

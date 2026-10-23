@@ -1,6 +1,6 @@
 """Neural networks for extractor.py: settings from .env and one chat request with retries.
 
-LLM_PROVIDERS=gemini,gemini2,gemini3,gemini4,gigachat lists them; the order is the priority when
+LLM_PROVIDERS=gemini,gemini2,gemini3,gemini4,gemini5,gigachat lists them; the order is the priority when
 several are free. GigaChat is used only when none of the others can take the batch.
 - gigachat: GIGACHAT_* (OAuth key -> token for 30 minutes)
 - any other name X (gemini, gemini2, gemini3: one Google key each):
@@ -21,7 +21,8 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_PROVIDERS = "gemini,gemini2,gemini3,gemini4,gigachat"  # a provider without a key is skipped
+# A provider without a key is skipped
+DEFAULT_PROVIDERS = "gemini,gemini2,gemini3,gemini4,gemini5,gigachat"
 TEMPERATURE = 0.0001  # below 0.001 GigaChat answers the same way every time
 REQUEST_TIMEOUT = 40.0  # a batch of 10 rows takes 5-23 s; a hung request goes to a retry sooner
 RETRIES = 2
@@ -131,7 +132,7 @@ def load(env=os.environ) -> list[Provider]:
 
 
 def setting(env, name: str, key: str, default: str = "", shared: bool = True) -> str:
-    """X_KEY; for another Google key (gemini2, gemini4...) a missing one is GEMINI_KEY, so a new
+    """X_KEY; for another Google key (gemini2...gemini5) a missing one is GEMINI_KEY, so a new
     key needs only its own X_API_KEY line."""
     value = env.get(f"{name.upper()}_{key}") or ""
     if not value and shared and name.startswith("gemini"):

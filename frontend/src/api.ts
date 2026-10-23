@@ -84,7 +84,14 @@ export interface AttributesInput {
   characteristics: Characteristic[]
 }
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  status: number // HTTP status; 0 - no answer at all
+
+  constructor(message: string, status = 0) {
+    super(message)
+    this.status = status
+  }
+}
 
 /** Share of positions whose code needs no more work: auto, corrected and accepted. */
 export function readyPercent(job: Job): number {
@@ -114,7 +121,10 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
       } catch {
         // not JSON: nginx error page
       }
-      throw new ApiError(typeof detail === 'string' && detail ? detail : T.errors.http(response.status))
+      throw new ApiError(
+        typeof detail === 'string' && detail ? detail : T.errors.http(response.status),
+        response.status,
+      )
     }
     if (response.status === 204) return undefined as T
     return await response.json() as T

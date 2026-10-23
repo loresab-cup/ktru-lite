@@ -28,7 +28,7 @@ function StopButton({ job, onStopped }: { job: Job; onStopped: (job: Job) => voi
     }
   }
   return (
-    <button type="button" className="btn danger" onClick={stop} disabled={busy}>
+    <button type="button" className="btn red" onClick={stop} disabled={busy}>
       <Square size={14} aria-hidden="true" /> {busy ? T.progress.stopping : T.progress.stop}
     </button>
   )
@@ -97,6 +97,23 @@ function ProgressCard({ job, onStopped }: { job: Job; onStopped: (job: Job) => v
   )
 }
 
+interface LoadProblem {
+  title: string
+  text: string
+  retry: boolean // a deleted job does not come back, so there is nothing to retry
+}
+
+/** What the person sees when the job cannot be loaded: no connection, no such job, a server error. */
+function loadProblem(error: unknown): LoadProblem {
+  if (error instanceof ApiError && error.status === 404) {
+    return { title: T.job.missing, text: T.job.missingHint, retry: false }
+  }
+  if (error instanceof ApiError && error.status > 0) {
+    return { title: T.progress.loadFailed, text: error.message, retry: true }
+  }
+  return { title: T.errors.network, text: T.progress.lost, retry: true }
+}
+
 function Problem({ title, text, onRetry }: { title: string; text: string; onRetry?: () => void }) {
   return (
     <section className="progress problem" role="alert">
@@ -108,11 +125,14 @@ function Problem({ title, text, onRetry }: { title: string; text: string; onRetr
         <p className="summary">{text}</p>
         <div className="actions">
           {onRetry && (
-            <button type="button" className="btn primary" onClick={onRetry}>
+            <button type="button" className="btn red" onClick={onRetry}>
               <RotateCcw size={16} aria-hidden="true" /> {T.progress.retry}
             </button>
           )}
-          <Link className={onRetry ? 'btn' : 'btn primary'} to={paths.home}>
+          <Link className="btn" to={paths.jobs}>
+            {T.job.toJobs}
+          </Link>
+          <Link className="btn" to={paths.home}>
             <Upload size={16} aria-hidden="true" /> {T.progress.another}
           </Link>
         </div>
@@ -144,7 +164,7 @@ function DeleteButton({ job }: { job: Job }) {
         okButtonProps={{ danger: true }}
         onConfirm={remove}
       >
-        <button type="button" className="btn danger" disabled={busy}>
+        <button type="button" className="btn red" disabled={busy}>
           <Trash2 size={16} aria-hidden="true" /> {T.job.delete}
         </button>
       </Popconfirm>
@@ -154,7 +174,7 @@ function DeleteButton({ job }: { job: Job }) {
 
 export function JobScreen({ jobId }: { jobId: string }) {
   const [job, setJob] = useState<Job | null>(null)
-  const [lost, setLost] = useState<string | null>(null)
+  const [problem, setProblem] = useState<LoadProblem | null>(null)
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
@@ -165,14 +185,13 @@ export function JobScreen({ jobId }: { jobId: string }) {
         const next = await api.job(jobId)
         if (!alive) return
         setJob(next)
-        setLost(null)
+        setProblem(null)
         if (next.status === 'queued' || next.status === 'processing') {
           timer = window.setTimeout(poll, 1000)
         }
       } catch (e) {
         if (!alive) return
-        const own = e instanceof ApiError && e.message !== T.errors.network
-        setLost(own ? e.message : T.progress.lost)
+        setProblem(loadProblem(e))
       }
     }
     void poll()
@@ -190,8 +209,12 @@ export function JobScreen({ jobId }: { jobId: string }) {
   const seconds = finished ? job?.stage_seconds.total : undefined
 
   const body = () => {
-    if (lost) {
-      return <Problem title={T.errors.network} text={lost} onRetry={() => setAttempt((a) => a + 1)} />
+    if (problem) {
+      const retry = () => {
+        setProblem(null) // the skeleton shows that the request goes out again
+        setAttempt((a) => a + 1)
+      }
+      return <Problem title={problem.title} text={problem.text} onRetry={problem.retry ? retry : undefined} />
     }
     if (!job) {
       return (
@@ -230,7 +253,7 @@ export function JobScreen({ jobId }: { jobId: string }) {
 
   return (
     <>
-      <section className="band">
+      <section className="page-head">
         <div className="wrap">
           <nav className="crumbs" aria-label={T.job.title}>
             <ArrowLeft size={16} aria-hidden="true" />

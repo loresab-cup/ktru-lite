@@ -10,7 +10,7 @@ import {
   PenLine,
   Sparkles,
 } from 'lucide-react'
-import type { CSSProperties, ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { ktruUrl, type ItemStatus, type Zone } from './api'
 import { Waves } from './Art'
 import { T } from './texts'
@@ -146,6 +146,26 @@ export function KtruCode({ code }: { code: string }) {
       <ExternalLink size={12} aria-hidden="true" />
       <span className="sr-only">{T.results.openEis}</span>
     </a>
+  )
+}
+
+const LONG_TEXT = 220
+
+/** The source line of a position: a long one is cut to three lines and opens on demand. */
+export function RawText({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  const long = text.length > LONG_TEXT
+  return (
+    <div className="res-meta">
+      <div className={long && !open ? 'raw-clamp' : undefined}>
+        <span className="res-meta-label">{T.results.sourceText}:</span> {text}
+      </div>
+      {long && (
+        <button type="button" className="text-link" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? T.results.hide : T.results.showFull}
+        </button>
+      )}
+    </div>
   )
 }
 

@@ -201,7 +201,7 @@ def test_load_from_env():
     assert "reasoning_effort" not in providers.body(other, "s", "u")
     assert not providers.load({"LLM_PROVIDERS": "gemini3"})[0].configured  # no key
     names = [p.name for p in providers.load({})]
-    assert names == ["gemini", "gemini2", "gemini3", "gemini4", "gigachat"]
+    assert names == ["gemini", "gemini2", "gemini3", "gemini4", "gemini5", "gigachat"]
     # A new Google key needs only its own line: address, model and limits come from GEMINI_*
     shared = env | {
         "LLM_PROVIDERS": "gemini,gemini4",

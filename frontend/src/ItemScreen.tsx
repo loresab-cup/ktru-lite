@@ -28,7 +28,7 @@ import {
 import { Link } from './Link'
 import { navigate, paths } from './router'
 import { T } from './texts'
-import { Confidence, KtruCode, Skeleton, StatusChip, StatusMark } from './ui'
+import { Confidence, KtruCode, RawText, Skeleton, StatusChip, StatusMark } from './ui'
 
 function CodeCard({ code, current, score, matched, onChoose }: {
   code: CatalogCode
@@ -679,9 +679,7 @@ export function ItemScreen({ jobId, itemId }: { jobId: string; itemId: number })
                 <StatusMark status={item.status} size={28} />
               </div>
               {item.ktru_name && <div className="item-name">{item.ktru_name}</div>}
-              <div className="res-meta">
-                <span className="res-meta-label">{T.results.sourceText}:</span> {item.raw_text}
-              </div>
+              <RawText text={item.raw_text} />
               <div className="actions">
                 <button
                   type="button"
@@ -704,8 +702,14 @@ export function ItemScreen({ jobId, itemId }: { jobId: string; itemId: number })
                   </button>
                 )}
                 {url && (
-                  <a className="btn" href={url} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink size={16} aria-hidden="true" /> {T.results.openEis}
+                  <a
+                    className="btn"
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={T.results.openEis}
+                  >
+                    <ExternalLink size={16} aria-hidden="true" /> {T.item.openEis}
                   </a>
                 )}
               </div>

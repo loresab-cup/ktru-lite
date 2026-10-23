@@ -59,7 +59,7 @@ export function JobCards({ jobs, percents, selected, onToggle }: {
               <JobMark job={job} percent={percent} />
               <span className="tile-name">{job.filename}</span>
               <span className="tile-meta num">
-                {T.upload.positions(job.total)} ·{' '}
+                {T.upload.positions(job.total)},{' '}
                 {percent !== undefined ? T.app.ready(percent) : (T.jobStatus[job.status] ?? job.status)}
               </span>
               <span className="tile-date num">{formatDate(job.created_at)}</span>
