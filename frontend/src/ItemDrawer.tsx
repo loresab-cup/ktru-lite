@@ -511,7 +511,7 @@ export function ItemDrawer({ item, position, onClose, onChanged, onMove, onAccep
             </div>
           )}
 
-          <CodeEditor key={item.id} item={item} busy={busy} onSave={choose} />
+          <CodeEditor key={`editor-${item.id}`} item={item} busy={busy} onSave={choose} />
 
           <div className="section">
             <div className="section-title">{T.drawer.source}</div>
@@ -560,7 +560,7 @@ export function ItemDrawer({ item, position, onClose, onChanged, onMove, onAccep
             ))}
           </div>
 
-          <CatalogSearch key={item.id} item={item} onChoose={choose} />
+          <CatalogSearch key={`search-${item.id}`} item={item} onChoose={choose} />
         </>
       )}
     </Drawer>
