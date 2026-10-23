@@ -200,7 +200,21 @@ def test_load_from_env():
     assert providers.body(reasoning, "s", "u")["reasoning_effort"] == "low"
     assert "reasoning_effort" not in providers.body(other, "s", "u")
     assert not providers.load({"LLM_PROVIDERS": "gemini3"})[0].configured  # no key
-    assert [p.name for p in providers.load({})] == ["gigachat"]
+    names = [p.name for p in providers.load({})]
+    assert names == ["gemini", "gemini2", "gemini3", "gemini4", "gigachat"]
+    # A new Google key needs only its own line: address, model and limits come from GEMINI_*
+    shared = env | {
+        "LLM_PROVIDERS": "gemini,gemini4",
+        "GEMINI4_API_KEY": " k4 ",
+        "GEMINI_RPM": "14",
+    }
+    _, fourth = providers.load(shared)
+    assert (fourth.key, fourth.model, fourth.base_url) == (
+        "k4",
+        "gemini-3.5-flash-lite",
+        "https://g/v1",
+    )
+    assert (fourth.parallel, fourth.rpm) == (4, 14)
 
 
 # --- several providers in extract_chunk ----------------------------------------------------
@@ -250,6 +264,23 @@ def test_failed_batch_moves_to_the_next_provider(monkeypatch):
     [row] = extractor.extract_chunk(["Бумага"], time.monotonic() + 5)
     assert row["fallback"] == extractor.ERROR  # every provider failed
     assert first.slots.acquire(blocking=False) and second.slots.acquire(blocking=False)
+
+
+def test_gigachat_is_used_only_when_gemini_cannot_answer(monkeypatch):
+    refused = httpx.HTTPStatusError("500", request=None, response=httpx.Response(500))
+    gemini = openai(name="gemini")
+    giga = Provider("gigachat", "gigachat", "https://giga/v1", "key", "GigaChat-3-Ultra")
+    monkeypatch.setattr(extractor, "PROVIDERS", [giga, gemini])  # even listed first
+    calls = []
+    monkeypatch.setattr(providers, "chat", fake_chat(log=calls))
+    [row] = extractor.extract_chunk(["Бумага"], time.monotonic() + 5)
+    assert row["provider"] == "gemini" and calls == ["gemini"]
+    gemini.slots.acquire()  # Gemini is only busy: the batch waits instead of going to GigaChat
+    assert extractor.take_provider(set(), time.monotonic() + 0.2) is None
+    gemini.slots.release()
+    monkeypatch.setattr(providers, "chat", fake_chat({"gemini": refused}))
+    [row] = extractor.extract_chunk(["Бумага"], time.monotonic() + 5)
+    assert row["provider"] == "gigachat"  # Gemini failed: GigaChat takes over
 
 
 def test_budget_end_gives_budget_reason(monkeypatch):

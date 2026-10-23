@@ -1,7 +1,7 @@
 """Neural networks for extractor.py: settings from .env and one chat request with retries.
 
-LLM_PROVIDERS=gemini,gemini2,gemini3,gigachat lists them; the order is the priority when
-several are free.
+LLM_PROVIDERS=gemini,gemini2,gemini3,gemini4,gigachat lists them; the order is the priority when
+several are free. GigaChat is used only when none of the others can take the batch.
 - gigachat: GIGACHAT_* (OAuth key -> token for 30 minutes)
 - any other name X (gemini, gemini2, gemini3: one Google key each):
   X_BASE_URL, X_API_KEY, X_MODEL, X_PARALLEL (an OpenAI-compatible API), X_RPM
@@ -21,6 +21,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_PROVIDERS = "gemini,gemini2,gemini3,gemini4,gigachat"  # a provider without a key is skipped
 TEMPERATURE = 0.0001  # below 0.001 GigaChat answers the same way every time
 REQUEST_TIMEOUT = 40.0  # a batch of 10 rows takes 5-23 s; a hung request goes to a retry sooner
 RETRIES = 2
@@ -97,7 +98,7 @@ def load(env=os.environ) -> list[Provider]:
     """Providers from LLM_PROVIDERS, in that order."""
     result = []
     for name in dict.fromkeys(
-        n.strip().lower() for n in env.get("LLM_PROVIDERS", "gigachat").split(",")
+        n.strip().lower() for n in env.get("LLM_PROVIDERS", DEFAULT_PROVIDERS).split(",")
     ):
         if not name:
             continue
@@ -118,15 +119,24 @@ def load(env=os.environ) -> list[Provider]:
                 Provider(
                     name,
                     "openai",
-                    env.get(f"{p}_BASE_URL", ""),
-                    env.get(f"{p}_API_KEY", "").strip(),
-                    env.get(f"{p}_MODEL", "").strip(),
-                    int(env.get(f"{p}_PARALLEL", "1")),
+                    setting(env, name, "BASE_URL"),
+                    setting(env, name, "API_KEY", shared=False).strip(),
+                    setting(env, name, "MODEL").strip(),
+                    int(setting(env, name, "PARALLEL", "1")),
                 )
             )
         result[-1].reasoning = env.get(f"{p}_REASONING_EFFORT", "").strip()
-        result[-1].rpm = int(env.get(f"{p}_RPM", "0") or 0)
+        result[-1].rpm = int(setting(env, name, "RPM", "0", shared=name != "gigachat") or 0)
     return result
+
+
+def setting(env, name: str, key: str, default: str = "", shared: bool = True) -> str:
+    """X_KEY; for another Google key (gemini2, gemini4...) a missing one is GEMINI_KEY, so a new
+    key needs only its own X_API_KEY line."""
+    value = env.get(f"{name.upper()}_{key}") or ""
+    if not value and shared and name.startswith("gemini"):
+        value = env.get(f"GEMINI_{key}") or ""
+    return value or default
 
 
 # --- GigaChat token ------------------------------------------------------------------------

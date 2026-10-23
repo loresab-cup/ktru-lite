@@ -223,9 +223,12 @@ def llm_state() -> str:
 def take_provider(tried: set[str], deadline: float) -> providers.Provider | None:
     """A free request slot of the first provider in the list; waits while all are busy.
 
+    GigaChat is the last resort: it gets a batch only when no other provider is left for it, not
+    while the others are merely busy.
     None - every provider is down or has already failed this batch, or the budget is over."""
     while time.monotonic() < deadline:
         alive = [p for p in PROVIDERS if p.configured and not p.is_down() and p.name not in tried]
+        alive = [p for p in alive if p.kind != "gigachat"] or alive
         if not alive:
             return None
         for p in alive:
