@@ -1,30 +1,38 @@
 import { Checkbox } from 'antd'
 import {
-  AlertTriangle,
-  Clock,
+  ArrowRight,
   FileSearch,
+  FileSpreadsheet,
   FileText,
+  FileUp,
   ListChecks,
   Play,
+  Plus,
   ScanSearch,
+  Search,
   Sparkles,
+  TriangleAlert,
+  Upload,
   UploadCloud,
   X,
   type LucideIcon,
 } from 'lucide-react'
 import { useRef, useState, type DragEvent } from 'react'
 import { api, ApiError } from './api'
+import { CatalogPanel } from './CatalogPanel'
+import { useHealth } from './health'
 import { JobCards } from './JobCards'
 import { Link } from './Link'
 import { navigate, paths } from './router'
-import { useJobs } from './useJobs'
 import { T } from './texts'
+import { Notice } from './ui'
+import { useJobs } from './useJobs'
 
 const EXTENSIONS = ['.xlsx', '.csv', '.docx', '.pdf', '.txt']
 const MAX_BYTES = 10 * 1024 * 1024
 const FEATURE_ICONS: LucideIcon[] = [FileSearch, Sparkles, ScanSearch, ListChecks]
 
-/** How the service works: four steps, and how long it takes. */
+/** How the service works: four steps. */
 function HowItWorks() {
   return (
     <section className="wrap section" aria-labelledby="how-title">
@@ -37,7 +45,7 @@ function HowItWorks() {
           return (
             <li key={title}>
               <span className="how-icon" aria-hidden="true">
-                <Icon size={24} strokeWidth={1.5} />
+                <Icon size={20} />
               </span>
               <b>{title}</b>
               <span className="muted">{text}</span>
@@ -45,9 +53,6 @@ function HowItWorks() {
           )
         })}
       </ol>
-      <p className="how-speed muted">
-        <Clock size={16} aria-hidden="true" /> {T.upload.speed}
-      </p>
     </section>
   )
 }
@@ -59,19 +64,23 @@ function FileList({ files, busy, onRemove, onClear, onProcess }: {
   onClear: () => void
   onProcess: () => void
 }) {
-  if (!files.length) return <p className="file-empty">{T.upload.noFiles}</p>
+  if (!files.length) return null
   return (
     <section className="file-list" aria-labelledby="files-title">
       <div className="file-list-head">
-        <h2 id="files-title">{T.upload.files}</h2>
-        <button type="button" className="btn small" onClick={onClear} disabled={Boolean(busy)}>
+        <h2 id="files-title" className="section-h">
+          {T.upload.files}
+        </h2>
+        <button type="button" className="btn ghost small" onClick={onClear} disabled={Boolean(busy)}>
           {T.upload.clear}
         </button>
       </div>
       <ul>
         {files.map((file) => (
           <li key={`${file.name}-${file.size}`} className={busy === file.name ? 'busy' : ''}>
-            <FileText size={18} aria-hidden="true" />
+            <span className="file-tile" aria-hidden="true">
+              {file.name.toLowerCase().endsWith('.xlsx') ? <FileSpreadsheet size={18} /> : <FileText size={18} />}
+            </span>
             <span className="file-name">{file.name}</span>
             <span className="file-size num">{T.upload.size(file.size)}</span>
             <button
@@ -82,20 +91,47 @@ function FileList({ files, busy, onRemove, onClear, onProcess }: {
               disabled={Boolean(busy)}
               onClick={() => onRemove(file)}
             >
-              <X size={16} aria-hidden="true" />
+              <X size={18} aria-hidden="true" />
             </button>
           </li>
         ))}
       </ul>
-      <button type="button" className="btn primary process" onClick={onProcess} disabled={Boolean(busy)}>
-        <Play size={16} fill="currentColor" aria-hidden="true" />
-        {busy ? T.upload.uploading(busy) : T.upload.process(files.length)}
-      </button>
+      <div className="file-actions">
+        <button type="button" className="btn primary" onClick={onProcess} disabled={Boolean(busy)}>
+          <Play size={16} fill="currentColor" aria-hidden="true" />
+          {busy ? T.upload.uploading(busy) : T.upload.process(files.length)}
+        </button>
+      </div>
     </section>
   )
 }
 
-export function UploadScreen() {
+/** What the service says about itself before a file is sent: a loading catalog, no neural network. */
+function ServiceNotices() {
+  const health = useHealth()
+  if (!health || health === 'offline') return null
+  return (
+    <>
+      {health.catalog === 'loading' && (
+        <Notice kind="info" title={T.app.banner.catalogLoading}>
+          {T.app.banner.catalogLoadingHint}
+        </Notice>
+      )}
+      {health.llm === 'off' && (
+        <Notice kind="warn" title={T.app.banner.llmOff}>
+          {T.app.banner.llmOffHint}
+        </Notice>
+      )}
+      {health.llm === 'down' && (
+        <Notice kind="warn" title={T.app.banner.llmDown}>
+          {T.app.banner.llmDownHint}
+        </Notice>
+      )}
+    </>
+  )
+}
+
+export function UploadScreen({ mode }: { mode: 'upload' | 'search' }) {
   const input = useRef<HTMLInputElement>(null)
   const [over, setOver] = useState(false)
   const [inactive, setInactive] = useState(false)
@@ -104,6 +140,7 @@ export function UploadScreen() {
   const [errors, setErrors] = useState<string[]>([])
   const [sent, setSent] = useState(0)
   const { jobs, percents } = useJobs(8)
+  const searching = mode === 'search'
 
   /** Files go to the list first; nothing is sent until "Process" is pressed. */
   const add = (list: FileList | null | undefined) => {
@@ -125,7 +162,7 @@ export function UploadScreen() {
     setSent(0)
   }
 
-  /** One job per file; the first one opens, the others stay in the list of the jobs. */
+  /** One specification per file; the first one opens, the others stay in the list. */
   const process = async () => {
     if (!files.length || uploading) return
     const ids: string[] = []
@@ -153,100 +190,130 @@ export function UploadScreen() {
     add(e.dataTransfer.files)
   }
 
+  const tabs = [
+    { to: paths.home, label: T.upload.tabs.upload, icon: Upload, on: !searching },
+    { to: paths.catalog, label: T.upload.tabs.search, icon: Search, on: searching },
+  ]
+
   return (
     <>
       <section className="band" aria-labelledby="hero-title">
         <div className="wrap">
           <h1 id="hero-title" className="page-title">
-            {T.upload.title}
+            {searching ? T.catalogSearch.title : T.upload.title}
           </h1>
-          <p className="lead">{T.upload.lead}</p>
-          <div
-            className={`drop ${over ? 'over' : ''}`}
-            role="button"
-            tabIndex={0}
-            aria-label={T.upload.inputLabel}
-            aria-busy={Boolean(uploading)}
-            onClick={() => input.current?.click()}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                input.current?.click()
-              }
-            }}
-            onDragOver={(e) => {
-              e.preventDefault()
-              setOver(true)
-            }}
-            onDragLeave={() => setOver(false)}
-            onDrop={onDrop}
-          >
-            <span className="drop-icon" aria-hidden="true">
-              <UploadCloud size={34} strokeWidth={1.5} />
-            </span>
-            <div>
-              <div className="drop-title">
-                {uploading
-                  ? T.upload.uploading(uploading)
-                  : over
-                    ? T.upload.dropActive
-                    : T.upload.dropTitle}
-              </div>
-              <div className="drop-hint">{T.upload.dropHint}</div>
-            </div>
-            <input
-              ref={input}
-              type="file"
-              hidden
-              multiple
-              accept={EXTENSIONS.join(',')}
-              onChange={(e) => {
-                add(e.target.files)
-                e.target.value = ''
-              }}
-            />
+          <p className="lead">{searching ? T.catalogSearch.lead : T.upload.lead}</p>
+          {!searching && <ServiceNotices />}
+          <div className="card home-card">
+            <nav className="seg" aria-label={T.upload.tabsLabel}>
+              {tabs.map(({ to, label, icon: Icon, on }) => (
+                <Link key={to} to={to} aria-current={on ? 'page' : undefined}>
+                  <Icon size={18} aria-hidden="true" /> {label}
+                </Link>
+              ))}
+            </nav>
+
+            {searching ? (
+              <CatalogPanel />
+            ) : (
+              <>
+                <div
+                  className={`drop ${over ? 'over' : ''}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={T.upload.inputLabel}
+                  aria-busy={Boolean(uploading)}
+                  onClick={() => input.current?.click()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      input.current?.click()
+                    }
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    setOver(true)
+                  }}
+                  onDragLeave={() => setOver(false)}
+                  onDrop={onDrop}
+                >
+                  <span className="drop-icon" aria-hidden="true">
+                    {over ? <FileUp size={34} strokeWidth={1.5} /> : <UploadCloud size={34} strokeWidth={1.5} />}
+                  </span>
+                  <div className="drop-text">
+                    <div className="drop-title">
+                      {uploading
+                        ? T.upload.uploading(uploading)
+                        : over
+                          ? T.upload.dropActive
+                          : T.upload.dropTitle}
+                    </div>
+                    <div className="drop-hint">{T.upload.dropHint}</div>
+                  </div>
+                  {!over && (
+                    <span className="btn primary" aria-hidden="true">
+                      <Plus size={16} /> {T.upload.choose}
+                    </span>
+                  )}
+                  <input
+                    ref={input}
+                    type="file"
+                    hidden
+                    multiple
+                    accept={EXTENSIONS.join(',')}
+                    onChange={(e) => {
+                      add(e.target.files)
+                      e.target.value = ''
+                    }}
+                  />
+                </div>
+                <div className="drop-options">
+                  <Checkbox checked={inactive} onChange={(e) => setInactive(e.target.checked)}>
+                    {T.upload.inactive}
+                  </Checkbox>
+                </div>
+                {errors.map((error) => (
+                  <div key={error} className="notice error" role="alert">
+                    <TriangleAlert size={22} aria-hidden="true" />
+                    <div>
+                      <b>{error}</b>
+                    </div>
+                  </div>
+                ))}
+                {sent > 0 && errors.length > 0 && (
+                  <Notice kind="warn" title={T.upload.sent(sent)} />
+                )}
+                <FileList
+                  files={files}
+                  busy={uploading}
+                  onRemove={(file) => setFiles(files.filter((f) => f !== file))}
+                  onClear={() => setFiles([])}
+                  onProcess={() => void process()}
+                />
+              </>
+            )}
           </div>
-          <div className="drop-options">
-            <Checkbox checked={inactive} onChange={(e) => setInactive(e.target.checked)}>
-              {T.upload.inactive}
-            </Checkbox>
-          </div>
-          {errors.map((error) => (
-            <div key={error} className="alert" role="alert">
-              <AlertTriangle size={18} aria-hidden="true" />
-              {error}
-            </div>
-          ))}
-          {sent > 0 && errors.length > 0 && (
-            <div className="alert warn" role="status">
-              {T.upload.sent(sent)}
-            </div>
-          )}
-          <FileList
-            files={files}
-            busy={uploading}
-            onRemove={(file) => setFiles(files.filter((f) => f !== file))}
-            onClear={() => setFiles([])}
-            onProcess={() => void process()}
-          />
         </div>
       </section>
 
-      <section className="wrap section" aria-labelledby="recent-title">
-        <div className="section-head">
-          <h2 id="recent-title" className="section-h">
-            {T.upload.recent}
-          </h2>
-          {jobs !== null && jobs.length > 0 && (
-            <Link className="more" to={paths.jobs}>
-              {T.upload.allJobs}
-            </Link>
-          )}
-        </div>
-        <JobCards jobs={jobs} percents={percents} />
-      </section>
-
-      <HowItWorks />
+      {!searching && (
+        <>
+          <section className="wrap section" aria-labelledby="recent-title">
+            <div className="section-head">
+              <h2 id="recent-title" className="section-h">
+                {T.upload.recent}
+              </h2>
+              {jobs !== null && jobs.length > 0 && (
+                <Link className="more" to={paths.jobs}>
+                  {T.upload.allJobs} <ArrowRight size={16} aria-hidden="true" />
+                </Link>
+              )}
+            </div>
+            <JobCards jobs={jobs} percents={percents} />
+          </section>
+          <HowItWorks />
+        </>
+      )}
     </>
   )
 }

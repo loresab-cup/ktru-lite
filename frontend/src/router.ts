@@ -1,9 +1,10 @@
 import { useSyncExternalStore } from 'react'
 
-// Four pages, plain history API (nginx serves index.html for every path):
-//   /                          upload and recent jobs
-//   /jobs                      all jobs
-//   /jobs/<job>                list of the codes of one job
+// Five pages, plain history API (nginx serves index.html for every path):
+//   /                          upload and recent specifications
+//   /catalog                   search of the KTRU catalog (the other tab of the same page)
+//   /jobs                      all specifications
+//   /jobs/<job>                list of the codes of one specification
 //   /jobs/<job>/items/<item>   page of one code
 
 const CHANGED = 'ktru-navigate'
@@ -30,6 +31,7 @@ export function navigate(path: string) {
 
 export const paths = {
   home: '/',
+  catalog: '/catalog',
   jobs: '/jobs',
   job: (id: string) => `/jobs/${id}`,
   item: (jobId: string, itemId: number) => `/jobs/${jobId}/items/${itemId}`,
@@ -37,6 +39,7 @@ export const paths = {
 
 export type Route =
   | { page: 'home' }
+  | { page: 'catalog' }
   | { page: 'jobs' }
   | { page: 'job'; jobId: string }
   | { page: 'item'; jobId: string; itemId: number }
@@ -45,6 +48,7 @@ export type Route =
 export function parseRoute(path: string): Route {
   const clean = path.replace(/\/+$/, '') || '/'
   if (clean === '/') return { page: 'home' }
+  if (clean === '/catalog') return { page: 'catalog' }
   if (clean === '/jobs') return { page: 'jobs' }
   const item = clean.match(/^\/jobs\/([\w-]+)\/items\/(\d+)$/)
   if (item) return { page: 'item', jobId: item[1], itemId: Number(item[2]) }

@@ -1,19 +1,22 @@
-import { App as AntApp, Input } from 'antd'
+import { App as AntApp, Input, Modal } from 'antd'
 import {
+  ArrowDown,
   ArrowLeft,
+  ArrowRight,
+  ArrowUp,
   Check,
   CheckCheck,
-  ChevronDown,
-  ChevronUp,
+  ChevronRight,
   ExternalLink,
   Info,
-  PenLine,
+  Pencil,
   Plus,
+  ScanSearch,
   Search,
-  Trash2,
   Undo2,
+  X,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
   api,
   ApiError,
@@ -27,9 +30,10 @@ import {
 } from './api'
 import { Link } from './Link'
 import { navigate, paths } from './router'
-import { T } from './texts'
-import { Confidence, KtruCode, RawText, Skeleton, StatusChip, StatusMark } from './ui'
+import { capital, T } from './texts'
+import { Confidence, EmptyState, KtruCode, RawText, Skeleton, StatusChip } from './ui'
 
+/** A code of the catalog or a candidate of the search: code, name, what matched, the button. */
 function CodeCard({ code, current, score, matched, onChoose }: {
   code: CatalogCode
   current: boolean
@@ -39,47 +43,40 @@ function CodeCard({ code, current, score, matched, onChoose }: {
 }) {
   return (
     <div className={`cand ${current ? 'current' : ''}`}>
-      <div className="cand-head">
-        <div className="cand-name">
+      <div className="cand-main">
+        <div className="cand-title">
           <KtruCode code={code.code} />
-          <div>{code.name}</div>
+          <span className="cand-name sentence">{code.name}</span>
+          {code.status !== 'ACTIVE' && (
+            <span className="status status-failed">
+              <span className="status-dot" aria-hidden="true" />
+              {capital(T.codeStatus[code.status] ?? code.status)}
+            </span>
+          )}
         </div>
-        {code.status !== 'ACTIVE' && (
-          <span className="chip low">{T.codeStatus[code.status] ?? code.status}</span>
+        {((matched && matched.length > 0) || score !== undefined) && (
+          <div className="cand-meta">
+            {matched?.map((m) => (
+              <span key={m} className="chip good">
+                <Check size={14} strokeWidth={2.5} aria-hidden="true" />
+                {m}
+              </span>
+            ))}
+            {score !== undefined && (
+              <span className="muted num">{T.drawer.similarity(Math.round(score * 100))}</span>
+            )}
+          </div>
         )}
       </div>
-      {matched && matched.length > 0 && (
-        <div className="tags" style={{ marginTop: 8 }}>
-          {matched.map((m) => (
-            <span key={m} className="chip high">
-              {m}
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="cand-foot">
-        {score !== undefined && (
-          <>
-            <span className="cell-sub num">
-              {T.drawer.similarity} {score.toFixed(2)}
-            </span>
-            <div className="bar" aria-hidden="true">
-              <span className="accent-fill" style={{ width: `${score * 100}%` }} />
-            </div>
-          </>
-        )}
-        {score === undefined && <span style={{ flex: 1 }} />}
-        <button
-          type="button"
-          className={current ? 'btn' : 'btn primary'}
-          onClick={onChoose}
-          disabled={current}
-          style={{ height: 34 }}
-        >
-          {current ? <Check size={15} aria-hidden="true" /> : null}
-          {current ? T.drawer.chosen : T.drawer.choose}
-        </button>
-      </div>
+      <button
+        type="button"
+        className={`btn ${current ? 'soft' : ''}`}
+        onClick={onChoose}
+        disabled={current}
+      >
+        {current && <Check size={16} aria-hidden="true" />}
+        {current ? T.drawer.chosen : T.drawer.choose}
+      </button>
     </div>
   )
 }
@@ -109,30 +106,36 @@ function CatalogSearch({ item, onChoose }: { item: Item; onChoose: (code: string
 
   const visible = query.trim().length >= 2 ? found : null
   return (
-    <div className="section">
-      <div className="section-title">{T.drawer.search}</div>
+    <section className="card tab-card">
+      <h2 className="tab-h">{T.drawer.search}</h2>
       <Input
+        className="search-input"
+        size="large"
         allowClear
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        prefix={<Search size={15} aria-hidden="true" />}
+        prefix={<Search size={18} aria-hidden="true" />}
         placeholder={T.drawer.searchPlaceholder}
         aria-label={T.drawer.search}
       />
-      <div style={{ marginTop: 10 }} aria-live="polite">
-        {loading && <Skeleton height={60} />}
-        {!loading && visible?.length === 0 && <div className="cell-sub">{T.drawer.searchEmpty}</div>}
-        {!loading &&
-          visible?.map((code) => (
-            <CodeCard
-              key={code.code}
-              code={code}
-              current={code.code === item.ktru_code}
-              onChoose={() => onChoose(code.code)}
-            />
-          ))}
+      <div aria-live="polite">
+        {loading && <Skeleton height={72} />}
+        {!loading && visible?.length === 0 && <p className="muted">{T.drawer.searchEmpty}</p>}
+        {!loading && visible && visible.length > 0 && (
+          <div className="cand-list">
+            <b>{T.drawer.searchFound(visible.length)}</b>
+            {visible.map((code) => (
+              <CodeCard
+                key={code.code}
+                code={code}
+                current={code.code === item.ktru_code}
+                onChoose={() => onChoose(code.code)}
+              />
+            ))}
+          </div>
+        )}
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -146,38 +149,38 @@ function AttributesView({ item }: { item: Item }) {
     <>
       <dl className="attrs">
         <dt>{T.drawer.name}</dt>
-        <dd>{attrs.name || T.drawer.none}</dd>
+        <dd>{attrs.name || <span className="faint">{T.drawer.none}</span>}</dd>
         <dt>{T.drawer.brand}</dt>
-        <dd>{attrs.brand || T.drawer.none}</dd>
+        <dd>{attrs.brand || <span className="faint">{T.drawer.none}</span>}</dd>
         <dt>{T.drawer.model}</dt>
-        <dd>{attrs.model || T.drawer.none}</dd>
+        <dd>{attrs.model || <span className="faint">{T.drawer.none}</span>}</dd>
         <dt>{T.drawer.characteristics}</dt>
-        <dd className="tags">
-          {attrs.characteristics?.length
-            ? attrs.characteristics.map((c, i) => (
-                <span key={i} className="chip">
-                  {characteristicText(c)}
-                </span>
-              ))
-            : T.drawer.none}
+        <dd className="chips">
+          {attrs.characteristics?.length ? (
+            attrs.characteristics.map((c, i) => (
+              <span key={i} className="chip">
+                {characteristicText(c)}
+              </span>
+            ))
+          ) : (
+            <span className="faint">{T.drawer.none}</span>
+          )}
         </dd>
       </dl>
       {attrs.source === 'rules' && (
-        <div className="cell-sub" style={{ marginTop: 8 }}>
-          <Info size={13} aria-hidden="true" style={{ verticalAlign: -2 }} />{' '}
-          {T.drawer.fallback[attrs.fallback ?? ''] ?? T.drawer.byRules}
-        </div>
+        <p className="muted source-note">
+          <Info size={14} aria-hidden="true" /> {T.drawer.fallback[attrs.fallback ?? ''] ?? T.drawer.byRules}
+        </p>
       )}
       {attrs.source === 'llm' && attrs.provider && (
-        <div className="cell-sub" style={{ marginTop: 8 }}>
-          <Info size={13} aria-hidden="true" style={{ verticalAlign: -2 }} />{' '}
-          {T.drawer.byProvider(attrs.provider)}
-        </div>
+        <p className="muted source-note">
+          <Info size={14} aria-hidden="true" /> {T.drawer.byProvider(attrs.provider)}
+        </p>
       )}
       {attrs.source === 'manual' && (
-        <div className="cell-sub" style={{ marginTop: 8 }}>
-          <PenLine size={13} aria-hidden="true" style={{ verticalAlign: -2 }} /> {T.drawer.byHand}
-        </div>
+        <p className="muted source-note">
+          <Pencil size={14} aria-hidden="true" /> {T.drawer.byHand}
+        </p>
       )}
     </>
   )
@@ -216,154 +219,182 @@ function AttributesForm({ item, busy, onSave, onCancel }: {
         save()
       }}
     >
-      <label>
-        {T.drawer.name}
-        <Input
-          value={name}
-          maxLength={300}
-          status={error ? 'error' : undefined}
-          aria-invalid={error}
-          onChange={(e) => {
-            setName(e.target.value)
-            setError(false)
-          }}
-        />
-        {error && <span role="alert">{T.drawer.nameRequired}</span>}
-      </label>
-      <label>
-        {T.drawer.brand}
-        <Input value={brand} maxLength={100} onChange={(e) => setBrand(e.target.value)} />
-      </label>
-      <label>
-        {T.drawer.model}
-        <Input value={model} maxLength={100} onChange={(e) => setModel(e.target.value)} />
-      </label>
-      <div className="section-title">{T.drawer.characteristics}</div>
-      {chars.map((c, i) => (
-        <div key={i} className="char-row">
+      <div className="edit-main">
+        <label>
+          {T.drawer.name}
           <Input
-            value={c.name}
-            maxLength={100}
-            placeholder={T.drawer.charName}
-            aria-label={T.drawer.charName}
-            onChange={(e) => setChar(i, 'name', e.target.value)}
+            value={name}
+            maxLength={300}
+            status={error ? 'error' : undefined}
+            aria-invalid={error}
+            onChange={(e) => {
+              setName(e.target.value)
+              setError(false)
+            }}
           />
-          <Input
-            value={c.value}
-            maxLength={100}
-            placeholder={T.drawer.charValue}
-            aria-label={T.drawer.charValue}
-            onChange={(e) => setChar(i, 'value', e.target.value)}
-          />
-          <Input
-            value={c.unit}
-            maxLength={30}
-            placeholder={T.drawer.charUnit}
-            aria-label={T.drawer.charUnit}
-            onChange={(e) => setChar(i, 'unit', e.target.value)}
-          />
-          <button
-            type="button"
-            className="round ghost small"
-            aria-label={T.drawer.removeChar}
-            title={T.drawer.removeChar}
-            onClick={() => setChars(chars.filter((_, j) => j !== i))}
-          >
-            <Trash2 size={15} aria-hidden="true" />
-          </button>
-        </div>
-      ))}
-      {chars.length < 30 && (
-        <button
-          type="button"
-          className="btn small"
-          onClick={() => setChars([...chars, { name: '', value: '', unit: '' }])}
-        >
-          <Plus size={15} aria-hidden="true" /> {T.drawer.addChar}
-        </button>
-      )}
-      <div className="cell-sub">{T.drawer.editHint}</div>
+          {error && <span className="field-error" role="alert">{T.drawer.nameRequired}</span>}
+        </label>
+        <label>
+          {T.drawer.brand}
+          <Input value={brand} maxLength={100} placeholder={T.drawer.nameHint} onChange={(e) => setBrand(e.target.value)} />
+        </label>
+        <label>
+          {T.drawer.model}
+          <Input value={model} maxLength={100} placeholder={T.drawer.modelHint} onChange={(e) => setModel(e.target.value)} />
+        </label>
+      </div>
+      <div className="edit-chars">
+        <div className="field-title">{T.drawer.characteristics}</div>
+        {chars.length > 0 && (
+          <div className="char-row char-head" aria-hidden="true">
+            <span>{T.drawer.charName}</span>
+            <span>{T.drawer.charValue}</span>
+            <span>{T.drawer.charUnit}</span>
+            <span />
+          </div>
+        )}
+        {chars.map((c, i) => (
+          <div key={i} className="char-row">
+            <Input
+              value={c.name}
+              maxLength={100}
+              placeholder={T.drawer.charName}
+              aria-label={T.drawer.charName}
+              onChange={(e) => setChar(i, 'name', e.target.value)}
+            />
+            <Input
+              value={c.value}
+              maxLength={100}
+              placeholder={T.drawer.charValue}
+              aria-label={T.drawer.charValue}
+              onChange={(e) => setChar(i, 'value', e.target.value)}
+            />
+            <Input
+              value={c.unit}
+              maxLength={30}
+              placeholder={T.drawer.charUnitHint}
+              aria-label={T.drawer.charUnit}
+              onChange={(e) => setChar(i, 'unit', e.target.value)}
+            />
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label={T.drawer.removeChar}
+              title={T.drawer.removeChar}
+              onClick={() => setChars(chars.filter((_, j) => j !== i))}
+            >
+              <X size={18} aria-hidden="true" />
+            </button>
+          </div>
+        ))}
+        {chars.length < 30 && (
+          <div>
+            <button
+              type="button"
+              className="btn ghost small"
+              onClick={() => setChars([...chars, { name: '', value: '', unit: '' }])}
+            >
+              <Plus size={16} aria-hidden="true" /> {T.drawer.addChar}
+            </button>
+          </div>
+        )}
+      </div>
       <div className="edit-actions">
         <button type="submit" className="btn primary" disabled={busy}>
-          <Search size={15} aria-hidden="true" /> {T.drawer.save}
+          <Search size={16} aria-hidden="true" /> {T.drawer.save}
         </button>
         <button type="button" className="btn" onClick={onCancel}>
           {T.drawer.cancel}
         </button>
+        <span className="muted">{T.drawer.editHint}</span>
       </div>
     </form>
   )
 }
 
-/** The current code and its manual input: any code of the catalog, typed or pasted. */
-function CodeEditor({ item, busy, onSave }: {
-  item: Item
+type Known = { name: string; status: string } | 'unknown' | 'checking' | null
+
+/** Manual input of a code in a window: the code is checked against the catalog as it is typed. */
+function CodeDialog({ open, busy, onClose, onSave }: {
+  open: boolean
   busy: boolean
+  onClose: () => void
   onSave: (code: string) => Promise<boolean>
 }) {
-  const [open, setOpen] = useState(false)
   const [value, setValue] = useState('')
-  const [error, setError] = useState(false)
+  const [known, setKnown] = useState<Known>(null)
+  const code = value.replace(/\s+/g, '') // "10.12.10.000- 00000005" from a spreadsheet
+  const valid = ktruUrl(code) !== null
 
-  const save = async () => {
-    const code = value.replace(/\s+/g, '') // "10.12.10.000- 00000005" from a spreadsheet
-    if (!ktruUrl(code)) return setError(true)
+  useEffect(() => {
+    if (!valid) return
+    let alive = true
+    const timer = window.setTimeout(() => {
+      setKnown('checking')
+      api
+        .catalog(code)
+        .then((list) => {
+          const hit = list.find((c) => c.code === code)
+          if (alive) setKnown(hit ? { name: hit.name, status: hit.status } : 'unknown')
+        })
+        .catch(() => alive && setKnown('unknown'))
+    }, 300)
+    return () => {
+      alive = false
+      window.clearTimeout(timer)
+    }
+  }, [code, valid])
+
+  const state = valid ? known : null
+  const found = typeof state === 'object' && state !== null
+  const submit = async () => {
+    if (!found || busy) return
     if (await onSave(code)) {
-      setOpen(false)
       setValue('')
+      onClose()
     }
   }
 
+  let helper: ReactNode = <span className="muted">{T.drawer.codeFormat}</span>
+  if (value && !valid) helper = <span className="field-error">{T.drawer.codeFormat}</span>
+  else if (state === 'checking') helper = <span className="muted">{T.drawer.codeChecking}</span>
+  else if (state === 'unknown') helper = <span className="field-error">{T.drawer.codeUnknown}</span>
+  else if (found) {
+    helper = (
+      <span className="field-ok">
+        {T.drawer.codeFound(state.name, T.codeStatus[state.status] ?? state.status)}
+      </span>
+    )
+  }
+
   return (
-    <div className="code-edit">
-      <div className="code-edit-row">
-        {item.ktru_code ? (
-          <KtruCode code={item.ktru_code} />
-        ) : (
-          <span className="muted">{T.drawer.noCode}</span>
-        )}
-        {!open && (
-          <button type="button" className="btn small" onClick={() => setOpen(true)}>
-            <PenLine size={15} aria-hidden="true" /> {T.drawer.enterCode}
-          </button>
-        )}
-      </div>
-      {open && (
-        <form
-          className="edit-form"
-          style={{ marginTop: 12 }}
-          onSubmit={(e) => {
-            e.preventDefault()
-            void save()
-          }}
-        >
-          <label>
-            {T.drawer.enterCode}
-            <Input
-              autoFocus
-              value={value}
-              maxLength={40}
-              placeholder={T.drawer.codePlaceholder}
-              status={error ? 'error' : undefined}
-              aria-invalid={error}
-              onChange={(e) => {
-                setValue(e.target.value)
-                setError(false)
-              }}
-            />
-            {error && <span role="alert">{T.drawer.codeFormat}</span>}
-          </label>
-          <div className="edit-actions">
-            <button type="submit" className="btn primary" disabled={busy || !value.trim()}>
-              <Check size={15} aria-hidden="true" /> {T.drawer.saveCode}
-            </button>
-            <button type="button" className="btn" onClick={() => setOpen(false)}>
-              {T.drawer.cancel}
-            </button>
-          </div>
-        </form>
-      )}
-    </div>
+    <Modal
+      open={open}
+      centered
+      width={480}
+      title={T.drawer.enterCodeTitle}
+      okText={T.drawer.saveCode}
+      cancelText={T.drawer.cancel}
+      okButtonProps={{ disabled: !found || busy, icon: <Check size={16} /> }}
+      onOk={() => void submit()}
+      onCancel={onClose}
+      destroyOnHidden
+    >
+      <p className="muted">{T.drawer.enterCodeHint}</p>
+      <label className="modal-field">
+        {T.drawer.codeLabel}
+        <Input
+          autoFocus
+          value={value}
+          maxLength={40}
+          placeholder={T.drawer.codePlaceholder}
+          status={value && (!valid || state === 'unknown') ? 'error' : undefined}
+          onChange={(e) => setValue(e.target.value)}
+          onPressEnter={() => void submit()}
+        />
+        <span aria-live="polite">{helper}</span>
+      </label>
+    </Modal>
   )
 }
 
@@ -399,7 +430,7 @@ function useCatalogInfo(item: ItemPage): CatalogCode | null | undefined {
   return fetched?.code === code ? fetched.info : undefined // undefined: still loading
 }
 
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="fact">
       <dt>{label}</dt>
@@ -414,38 +445,57 @@ function GeneralTab({ item, busy, onChoose }: {
   onChoose: (code: string) => Promise<boolean>
 }) {
   const info = useCatalogInfo(item)
+  const [dialog, setDialog] = useState(false)
+  const active = info?.status === 'ACTIVE'
   return (
     <>
-      <h2 className="tab-h">{T.item.general}</h2>
-      <dl className="facts-list">
-        <Fact label={T.item.codeLabel}>
-          <CodeEditor item={item} busy={busy} onSave={onChoose} />
-        </Fact>
-        <Fact label={T.item.catalogName}>{info?.name ?? item.ktru_name ?? T.item.none}</Fact>
-        <Fact label={T.item.okpd2}>{info?.okpd2_code || T.item.none}</Fact>
-        <Fact label={T.item.codeState}>
-          {info ? (T.codeStatus[info.status] ?? info.status) : T.item.none}
-        </Fact>
-        <Fact label={T.results.confidence}>
-          <div className="fact-conf">
-            <Confidence value={item.confidence} zone={item.zone} />
-          </div>
-        </Fact>
-        {item.summary && <Fact label={T.item.why}>{item.summary}</Fact>}
-      </dl>
+      <section className="card tab-card">
+        <h2 className="tab-h">{T.item.general}</h2>
+        <dl className="facts-grid">
+          <Fact label={T.item.codeLabel}>
+            <div className="code-edit">
+              {item.ktru_code ? <KtruCode code={item.ktru_code} /> : <span className="muted">{T.drawer.noCode}</span>}
+              <button type="button" className="btn small" onClick={() => setDialog(true)}>
+                <Pencil size={16} aria-hidden="true" /> {T.drawer.enterCode}
+              </button>
+            </div>
+          </Fact>
+          <Fact label={T.results.confidence}>
+            <span className="fact-conf">
+              <Confidence value={item.confidence} zone={item.zone} />
+            </span>
+          </Fact>
+          <Fact label={T.item.catalogName}>
+            <span className="sentence">{info?.name ?? item.ktru_name ?? T.item.none}</span>
+          </Fact>
+          {item.summary && <Fact label={T.item.why}>{item.summary}</Fact>}
+          <Fact label={T.item.okpd2}>{info?.okpd2_code || T.item.none}</Fact>
+          <Fact label={T.item.codeState}>
+            {info ? (
+              <span className={`status ${active ? 'status-accepted' : 'status-failed'}`}>
+                <span className="status-dot" aria-hidden="true" />
+                {capital(T.codeStatus[info.status] ?? info.status)}
+              </span>
+            ) : (
+              T.item.none
+            )}
+          </Fact>
+        </dl>
+        {info === null && item.ktru_code && <p className="muted">{T.item.noCatalog}</p>}
+      </section>
       {info && info.characteristics.length > 0 && (
-        <>
+        <section className="card tab-card">
           <h2 className="tab-h">{T.item.catalogChars}</h2>
-          <dl className="facts-list">
+          <dl className="facts-grid thirds">
             {info.characteristics.map(([name, values]) => (
               <Fact key={name} label={name}>
                 {values.join('; ')}
               </Fact>
             ))}
           </dl>
-        </>
+        </section>
       )}
-      {info === null && item.ktru_code && <p className="muted">{T.item.noCatalog}</p>}
+      <CodeDialog open={dialog} busy={busy} onClose={() => setDialog(false)} onSave={onChoose} />
     </>
   )
 }
@@ -459,21 +509,25 @@ function SourceTab({ item, busy, editing, onEdit, onSave }: {
 }) {
   return (
     <>
-      <h2 className="tab-h">{T.drawer.source}</h2>
-      <div className="raw">{item.raw_text}</div>
-      <div className="section-head">
-        <h2 className="tab-h">{T.drawer.attributes}</h2>
-        {!editing && (
-          <button type="button" className="btn small" onClick={() => onEdit(true)}>
-            <PenLine size={15} aria-hidden="true" /> {T.drawer.edit}
-          </button>
+      <section className="card tab-card">
+        <h2 className="tab-h">{T.drawer.source}</h2>
+        <div className="raw">{item.raw_text}</div>
+      </section>
+      <section className="card tab-card">
+        <div className="tab-head">
+          <h2 className="tab-h">{editing ? T.drawer.editTitle : T.drawer.attributes}</h2>
+          {!editing && (
+            <button type="button" className="btn small" onClick={() => onEdit(true)}>
+              <Pencil size={16} aria-hidden="true" /> {T.drawer.edit}
+            </button>
+          )}
+        </div>
+        {editing ? (
+          <AttributesForm item={item} busy={busy} onSave={onSave} onCancel={() => onEdit(false)} />
+        ) : (
+          <AttributesView item={item} />
         )}
-      </div>
-      {editing ? (
-        <AttributesForm item={item} busy={busy} onSave={onSave} onCancel={() => onEdit(false)} />
-      ) : (
-        <AttributesView item={item} />
-      )}
+      </section>
     </>
   )
 }
@@ -481,18 +535,22 @@ function SourceTab({ item, busy, editing, onEdit, onSave }: {
 function CandidatesTab({ item, onChoose }: { item: ItemPage; onChoose: (code: string) => void }) {
   return (
     <>
-      <h2 className="tab-h">{T.drawer.candidates}</h2>
-      {item.candidates.map((c) => (
-        <CodeCard
-          key={c.code}
-          code={c}
-          score={c.score}
-          matched={c.matched_characteristics}
-          current={c.code === item.ktru_code}
-          onChoose={() => onChoose(c.code)}
-        />
-      ))}
       <CatalogSearch key={`search-${item.id}`} item={item} onChoose={onChoose} />
+      <section className="card tab-card">
+        <h2 className="tab-h">{T.drawer.candidates}</h2>
+        <div className="cand-list">
+          {item.candidates.map((c) => (
+            <CodeCard
+              key={c.code}
+              code={c}
+              score={c.score}
+              matched={c.matched_characteristics}
+              current={c.code === item.ktru_code}
+              onChoose={() => onChoose(c.code)}
+            />
+          ))}
+        </div>
+      </section>
     </>
   )
 }
@@ -511,10 +569,14 @@ export function ItemScreen({ jobId, itemId }: { jobId: string; itemId: number })
     api
       .item(itemId)
       .then((next) => {
-        if (next.job_id !== jobId) throw new ApiError(T.app.notFound)
+        if (next.job_id !== jobId) throw new ApiError(T.item.missing, 404)
         setItem(next)
       })
-      .catch((e) => setMissing(e instanceof ApiError ? e.message : T.errors.network))
+      .catch((e) => {
+        // the service words a missing position its own way; the page says it in its own words
+        if (e instanceof ApiError && e.status === 404) setMissing(T.item.missing)
+        else setMissing(e instanceof ApiError ? e.message : T.errors.network)
+      })
 
   useEffect(() => {
     void load()
@@ -546,6 +608,9 @@ export function ItemScreen({ jobId, itemId }: { jobId: string; itemId: number })
   }
 
   const revert = (done = T.item.reverted) => run(() => api.revert(itemId), done)
+
+  /** The next position to look at: the next one that still needs a look, else the next in order. */
+  const nextTarget = item ? (item.next_unreviewed_id ?? item.next_id) : null
 
   /** Accept, then walk on to the next position that still needs a look. */
   const accept = async (goNext: boolean) => {
@@ -599,6 +664,7 @@ export function ItemScreen({ jobId, itemId }: { jobId: string; itemId: number })
     if (!item) return
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return
+      if (document.querySelector('.ant-modal-root')) return // a window is open: keys belong to it
       if (e.key === 'ArrowDown' || e.code === 'KeyJ') {
         if (item.next_id) {
           e.preventDefault()
@@ -624,19 +690,15 @@ export function ItemScreen({ jobId, itemId }: { jobId: string; itemId: number })
       <Link to={paths.job(jobId)}>{T.item.backToList}</Link>
       {job && (
         <>
-          <span className="crumb-sep" aria-hidden="true">
-            ›
-          </span>
-          <span className="crumb-now" title={job.filename}>
+          <ChevronRight size={14} className="crumb-sep" aria-hidden="true" />
+          <Link className="crumb-now" to={paths.job(jobId)} title={job.filename}>
             {job.filename}
-          </span>
+          </Link>
         </>
       )}
       {item && (
         <>
-          <span className="crumb-sep" aria-hidden="true">
-            ›
-          </span>
+          <ChevronRight size={14} className="crumb-sep" aria-hidden="true" />
           <span className="crumb-now">{T.item.crumb(item.row_number)}</span>
         </>
       )}
@@ -645,147 +707,159 @@ export function ItemScreen({ jobId, itemId }: { jobId: string; itemId: number })
 
   if (missing) {
     return (
-      <section className="band">
-        <div className="wrap">
-          {back}
-          <h1 className="page-title">{missing}</h1>
-          <p className="lead">{T.app.notFoundHint}</p>
-        </div>
+      <section className="wrap section">
+        {back}
+        <EmptyState icon={ScanSearch} title={missing} hint={T.job.missingHint}>
+          <Link className="btn primary" to={paths.job(jobId)}>
+            {T.item.backToList}
+          </Link>
+        </EmptyState>
       </section>
     )
   }
   if (!item) {
     return (
-      <section className="band" aria-busy="true">
-        <div className="wrap">
-          {back}
-          <Skeleton height={190} />
-        </div>
+      <section className="wrap section" aria-busy="true">
+        {back}
+        <Skeleton height={260} />
       </section>
     )
   }
 
-  const reviewed = item.status === 'accepted' || item.status === 'corrected'
+  const accepted = item.status === 'accepted'
+  const reviewed = accepted || item.status === 'corrected'
   const url = item.ktru_code ? ktruUrl(item.ktru_code) : null
   return (
     <>
-      <section className="band item-band">
-        <div className="wrap">
-          {back}
-          <div className="item-top">
-            <div className="item-head">
-              <div className="item-code-row">
-                <h1 className="item-code">{item.ktru_code ?? T.results.noCode}</h1>
-                <StatusMark status={item.status} size={28} />
-              </div>
-              {item.ktru_name && <div className="item-name">{item.ktru_name}</div>}
-              <RawText text={item.raw_text} />
-              <div className="actions">
+      <section className="wrap item-page">
+        {back}
+        <div className="item-top">
+          <div className="card item-head">
+            <div className="item-code-row">
+              <h1 className="item-code">{item.ktru_code ?? T.results.noCode}</h1>
+              <StatusChip status={item.status} />
+            </div>
+            {item.ktru_name && <div className="item-name sentence">{item.ktru_name}</div>}
+            <RawText text={item.raw_text} />
+            <div className="actions">
+              {accepted ? (
                 <button
                   type="button"
                   className="btn primary"
-                  disabled={busy || (!item.ktru_code && item.status !== 'accepted')}
+                  disabled={busy || !nextTarget}
+                  title={nextTarget ? undefined : T.item.lastOne}
+                  onClick={() => nextTarget && navigate(paths.item(jobId, nextTarget))}
+                >
+                  <ArrowRight size={16} aria-hidden="true" /> {T.item.nextItem}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn primary"
+                  disabled={busy || !item.ktru_code}
                   onClick={() => void accept(true)}
                 >
                   <CheckCheck size={16} aria-hidden="true" />{' '}
                   {item.next_unreviewed_id ? T.item.acceptNext : T.item.accept}
                 </button>
-                {reviewed && (
-                  <button
-                    type="button"
-                    className="btn"
-                    disabled={busy}
-                    title={T.item.revertHint}
-                    onClick={() => void revert()}
-                  >
-                    <Undo2 size={16} aria-hidden="true" /> {T.item.revert}
-                  </button>
-                )}
-                {url && (
-                  <a
-                    className="btn"
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={T.results.openEis}
-                  >
-                    <ExternalLink size={16} aria-hidden="true" /> {T.item.openEis}
-                  </a>
-                )}
-              </div>
-              <p className="muted keys-hint">{T.item.keysHint}</p>
+              )}
+              {reviewed && (
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={busy}
+                  title={T.item.revertHint}
+                  onClick={() => void revert()}
+                >
+                  <Undo2 size={16} aria-hidden="true" /> {T.item.revert}
+                </button>
+              )}
+              {url && (
+                <a className="btn" href={url} target="_blank" rel="noopener noreferrer" title={T.results.openEis}>
+                  <ExternalLink size={16} aria-hidden="true" /> {T.item.openEis}
+                </a>
+              )}
             </div>
-            <aside className="item-side">
-              <h2 className="res-side-title">{T.item.title}</h2>
-              <dl className="facts">
-                <div>
-                  <dt>{T.results.row}</dt>
-                  <dd className="num">{item.row_number}</dd>
-                </div>
-                <div>
-                  <dt>{T.results.status}</dt>
-                  <dd>
-                    <StatusChip status={item.status} />
-                  </dd>
-                </div>
-                <div>
-                  <dt>{T.item.placeLabel}</dt>
-                  <dd className="num">{T.item.position(item.position, item.total)}</dd>
-                </div>
-              </dl>
-              <div className="walk">
-                <button
-                  type="button"
-                  className="btn small"
-                  disabled={!item.prev_id}
-                  title={T.item.prevTitle}
-                  onClick={() => item.prev_id && navigate(paths.item(jobId, item.prev_id))}
-                >
-                  <ChevronUp size={16} aria-hidden="true" /> {T.item.prev}
-                </button>
-                <button
-                  type="button"
-                  className="btn small"
-                  disabled={!item.next_id}
-                  title={item.next_id ? T.item.nextTitle : T.item.lastOne}
-                  onClick={() => item.next_id && navigate(paths.item(jobId, item.next_id))}
-                >
-                  <ChevronDown size={16} aria-hidden="true" /> {T.item.next}
-                </button>
+            <p className="muted keys-hint">{T.item.keysHint}</p>
+          </div>
+          <aside className="card item-side">
+            <h2 className="section-h">{T.item.title}</h2>
+            <dl className="side-facts">
+              <div>
+                <dt>{T.results.row}</dt>
+                <dd className="num">{item.row_number}</dd>
               </div>
-            </aside>
-          </div>
-          <div className="tabs" role="tablist">
-            {TABS.map((key) => (
+              <div>
+                <dt>{T.results.status}</dt>
+                <dd>
+                  <StatusChip status={item.status} />
+                </dd>
+              </div>
+              <div>
+                <dt>{T.results.confidence}</dt>
+                <dd>
+                  <Confidence value={item.confidence} zone={item.zone} />
+                </dd>
+              </div>
+              <div>
+                <dt>{T.item.placeLabel}</dt>
+                <dd className="num">{T.item.position(item.position, item.total)}</dd>
+              </div>
+            </dl>
+            <div className="walk">
               <button
-                key={key}
                 type="button"
-                role="tab"
-                id={`tab-${key}`}
-                aria-selected={tab === key}
-                aria-controls="tab-body"
-                className="tab"
-                onClick={() => setTab(key)}
+                className="btn small"
+                disabled={!item.prev_id}
+                title={T.item.prevTitle}
+                onClick={() => item.prev_id && navigate(paths.item(jobId, item.prev_id))}
               >
-                {T.item.tabs[key]}
+                <ArrowUp size={16} aria-hidden="true" /> {T.item.prev}
               </button>
-            ))}
-          </div>
+              <button
+                type="button"
+                className="btn small"
+                disabled={!item.next_id}
+                title={item.next_id ? T.item.nextTitle : T.item.lastOne}
+                onClick={() => item.next_id && navigate(paths.item(jobId, item.next_id))}
+              >
+                <ArrowDown size={16} aria-hidden="true" /> {T.item.next}
+              </button>
+            </div>
+          </aside>
+        </div>
+        <div className="tabs" role="tablist" aria-label={T.item.tabsLabel}>
+          {TABS.map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              id={`tab-${key}`}
+              aria-selected={tab === key}
+              aria-controls="tab-body"
+              className="tab"
+              aria-label={T.item.tabs[key]}
+              onClick={() => setTab(key)}
+            >
+              <span className="tab-long">{T.item.tabs[key]}</span>
+              <span className="tab-short">{T.item.tabsShort[key]}</span>
+            </button>
+          ))}
+        </div>
+        <div className="tab-body stack" id="tab-body" role="tabpanel" aria-labelledby={`tab-${tab}`}>
+          {tab === 'general' && <GeneralTab item={item} busy={busy} onChoose={choose} />}
+          {tab === 'source' && (
+            <SourceTab
+              item={item}
+              busy={busy}
+              editing={editing}
+              onEdit={setEditing}
+              onSave={saveAttributes}
+            />
+          )}
+          {tab === 'candidates' && <CandidatesTab item={item} onChoose={(code) => void choose(code)} />}
         </div>
       </section>
-      <div className="wrap section tab-body" id="tab-body" role="tabpanel" aria-labelledby={`tab-${tab}`}>
-        {tab === 'general' && <GeneralTab item={item} busy={busy} onChoose={choose} />}
-        {tab === 'source' && (
-          <SourceTab
-            item={item}
-            busy={busy}
-            editing={editing}
-            onEdit={setEditing}
-            onSave={saveAttributes}
-          />
-        )}
-        {tab === 'candidates' && <CandidatesTab item={item} onChoose={(code) => void choose(code)} />}
-      </div>
     </>
   )
 }

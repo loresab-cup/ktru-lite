@@ -1,58 +1,16 @@
-import { Checkbox, Dropdown, Input, InputNumber, message, Pagination } from 'antd'
-import {
-  CheckCheck,
-  ChevronDown,
-  Download,
-  Eye,
-  FileSpreadsheet,
-  FileText,
-  Info,
-  Search,
-} from 'lucide-react'
+import { Input, InputNumber, message, Pagination, Switch } from 'antd'
+import { CheckCheck, ChevronDown, Eye, Search, SlidersHorizontal } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api, ApiError, type ItemRow, type Job } from './api'
 import { Link } from './Link'
 import { navigate, paths } from './router'
 import { T } from './texts'
-import { Confidence, EmptyState, Skeleton, StatusChip, StatusMark } from './ui'
+import { Confidence, EmptyState, Notice, Skeleton, StatusChip } from './ui'
 
 const PAGE_SIZE = 20
 const FILTERS = ['auto', 'needs_review', 'corrected', 'accepted'] as const
 
-export function ExportButton({ jobId }: { jobId: string }) {
-  const items = [
-    { key: 'xlsx', icon: <FileSpreadsheet size={16} />, label: T.results.exportXlsx },
-    { key: 'csv', icon: <FileText size={16} />, label: T.results.exportCsv },
-  ] as const
-  return (
-    <Dropdown
-      trigger={['click']}
-      placement="bottomRight"
-      autoFocus // keyboard: the menu takes focus, arrows and Enter pick the format
-      menu={{
-        items: items.map(({ key, icon, label }) => ({ key, icon, label })),
-        // A menu item, not a link inside it: works with the mouse and with Enter alike;
-        // the file is an attachment, so the page stays where it is
-        onClick: ({ key }) => window.location.assign(api.exportUrl(jobId, key as 'xlsx' | 'csv')),
-      }}
-    >
-      <button type="button" className="btn primary">
-        <Download size={16} aria-hidden="true" /> {T.results.export}
-      </button>
-    </Dropdown>
-  )
-}
-
-function attributeLines(item: ItemRow): [string, string][] {
-  const a = item.attributes
-  const lines: [string, string | undefined][] = [
-    [T.drawer.name, a.name],
-    [T.drawer.brand, a.brand],
-    [T.drawer.model, a.model],
-  ]
-  return lines.filter((line): line is [string, string] => Boolean(line[1]))
-}
-
+/** One position: its row number, the code with its name, the confidence and the status. */
 function ResultCard({ item, jobId, open, onToggle }: {
   item: ItemRow
   jobId: string
@@ -60,65 +18,41 @@ function ResultCard({ item, jobId, open, onToggle }: {
   onToggle: () => void
 }) {
   const to = paths.item(jobId, item.id)
-  const lines = attributeLines(item)
   const characteristics = item.attributes.characteristics ?? []
   return (
     <article className="res-card">
-      <div className="res-main">
-        <div className="res-top">{T.results.fileRow(item.row_number)}</div>
-        <div className="res-code-row">
-          {item.ktru_code ? (
-            <Link className="res-code" to={to}>
-              {item.ktru_code}
-            </Link>
-          ) : (
-            <Link className="res-code none" to={to}>
-              {T.results.noCode}
+      <div className="res-top">
+        <span className="row-badge num" title={T.results.rowNumber(item.row_number)}>
+          <span className="sr-only">{T.results.row} </span>
+          {item.row_number}
+        </span>
+        <div className="res-title">
+          <Link className={`res-code ${item.ktru_code ? '' : 'none'}`} to={to}>
+            {item.ktru_code ?? T.results.noCode}
+          </Link>
+          {item.ktru_name && (
+            <Link className="res-name sentence" to={to} tabIndex={-1}>
+              {item.ktru_name}
             </Link>
           )}
-          <StatusMark status={item.status} />
         </div>
-        {item.ktru_name && (
-          <Link className="res-name" to={to} tabIndex={-1}>
-            {item.ktru_name}
-          </Link>
-        )}
-        {lines.length > 0 && (
-          <div className="res-meta">
-            {lines.map(([label, value]) => (
-              <span key={label} className="res-attr">
-                <span className="res-meta-label">{label}:</span> {value}
-              </span>
-            ))}
-          </div>
-        )}
-        {/* one line only: the whole text is under "Characteristics" */}
-        {!open && <div className="res-preview">{item.raw_text}</div>}
-      </div>
-      <div className="res-side">
-        <dl className="facts">
-          <div>
-            <dt>{T.results.confidence}</dt>
-            <dd>
-              <Confidence value={item.confidence} zone={item.zone} />
-            </dd>
-          </div>
-          <div>
-            <dt>{T.results.status}</dt>
-            <dd>
-              <StatusChip status={item.status} />
-            </dd>
-          </div>
-        </dl>
+        <div className="res-conf">
+          <span className="cap-small">{T.results.confidence}</span>
+          <Confidence value={item.confidence} zone={item.zone} />
+        </div>
+        <div className="res-status">
+          <span className="cap-small">{T.results.status}</span>
+          <StatusChip status={item.status} />
+        </div>
       </div>
       <button type="button" className="res-more" aria-expanded={open} onClick={onToggle}>
-        {T.results.characteristics}
+        {T.results.more}
         <ChevronDown size={18} aria-hidden="true" className={open ? 'flip' : ''} />
       </button>
       {open && (
         <div className="res-more-body">
           {characteristics.length > 0 && (
-            <div className="res-chars">
+            <div className="chips">
               {characteristics.map((c, i) => (
                 <span key={i} className="chip">
                   {[c.name, [c.value, c.unit].filter(Boolean).join(' ')].filter(Boolean).join(': ')}
@@ -126,8 +60,9 @@ function ResultCard({ item, jobId, open, onToggle }: {
               ))}
             </div>
           )}
-          <div className="res-meta res-full">
-            <span className="res-meta-label">{T.results.sourceText}:</span> {item.raw_text}
+          <div className="res-source">
+            <div className="cap">{T.results.sourceText}</div>
+            {item.raw_text}
           </div>
         </div>
       )}
@@ -214,136 +149,62 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
   return (
     <>
       {toastHolder}
-      <div className="results-grid">
-        <div className="results-main">
-          <section className="review" aria-label={T.results.review.start}>
-            <div className="review-text">
-              <div className="review-title num">{T.results.review.done(done, job.total)}</div>
-              <div className="muted num">
-                {left > 0 ? T.results.review.left(left) : T.results.review.allDone}
-              </div>
-            </div>
-            <div className="bar review-bar" aria-hidden="true">
-              <span className="accent-fill" style={{ width: `${donePercent}%` }} />
-            </div>
-            {left > 0 && (
-              <button
-                type="button"
-                className="btn primary"
-                onClick={() => void startReview()}
-                title={T.results.review.hint}
-              >
-                <Eye size={16} aria-hidden="true" />{' '}
-                {started ? T.results.review.resume : T.results.review.start}
-              </button>
-            )}
-          </section>
+      {Boolean(job.fallback) && (
+        <Notice kind="info" title={T.results.fallbackTitle}>
+          {T.results.fallback(job.fallback ?? 0, job.total)}
+        </Notice>
+      )}
 
-          {Boolean(job.fallback) && (
-            <div className="alert warn" role="status">
-              <Info size={18} aria-hidden="true" style={{ flex: 'none' }} />
-              {T.results.fallback(job.fallback ?? 0, job.total)}
+      <section className="panel" aria-label={T.results.params}>
+        <div className="review">
+          <div className="review-text">
+            <div className="review-title num">{T.results.review.done(done, job.total)}</div>
+            <div className="muted num">
+              {left > 0 ? T.results.review.left(left) : T.results.review.allDone}
             </div>
-          )}
-
-          <div className="list-bar">
-            <Checkbox checked={showAll} onChange={(e) => setShowAll(e.target.checked)}>
-              {T.results.showAttrs}
-            </Checkbox>
-            {data && (
-              <span className="muted num">
-                {T.results.pageTotal(
-                  data.total ? (page - 1) * PAGE_SIZE + 1 : 0,
-                  Math.min(page * PAGE_SIZE, data.total),
-                  data.total,
-                )}
-              </span>
-            )}
           </div>
-
-          {data === null ? (
-            [0, 1, 2].map((i) => <Skeleton key={i} height={170} style={{ marginBottom: 16 }} />)
-          ) : data.items.length === 0 ? (
-            <EmptyState title={T.results.empty} hint={T.results.emptyHint} />
-          ) : (
-            <div className="res-list">
-              {data.items.map((item) => (
-                <ResultCard
-                  key={item.id}
-                  item={item}
-                  jobId={job.id}
-                  open={showAll || opened.has(item.id)}
-                  onToggle={() => toggle(item.id)}
-                />
-              ))}
-            </div>
-          )}
-
-          {data !== null && data.total > PAGE_SIZE && (
-            <Pagination
-              className="pager"
-              current={page}
-              pageSize={PAGE_SIZE}
-              total={data.total}
-              showSizeChanger={false}
-              onChange={(next) => {
-                setPage(next)
-                window.scrollTo(0, 0)
-              }}
-            />
+          <div className="bar review-bar" aria-hidden="true">
+            <span style={{ width: `${donePercent}%` }} />
+          </div>
+          {left > 0 && (
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => void startReview()}
+              title={T.results.review.hint}
+            >
+              <Eye size={16} aria-hidden="true" /> {started ? T.results.review.resume : T.results.review.start}
+            </button>
           )}
         </div>
 
-        <aside className="params" aria-label={T.results.params}>
-          <h2 className="params-title">{T.results.params}</h2>
-
-          <div className="param">
-            <label className="param-label" htmlFor="list-search">
-              {T.results.search}
-            </label>
+        <div className="filters">
+          <div className="filters-head">
+            <h2 className="section-h">
+              <SlidersHorizontal size={20} aria-hidden="true" /> {T.results.params}
+            </h2>
+            {filtered && (
+              <button type="button" className="btn ghost small" onClick={reset}>
+                {T.results.reset}
+              </button>
+            )}
+          </div>
+          <div className="filters-row">
             <Input
               id="list-search"
+              className="grow"
               allowClear
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value)
                 setPage(1)
               }}
-              prefix={<Search size={15} aria-hidden="true" />}
+              prefix={<Search size={18} aria-hidden="true" />}
               placeholder={T.results.searchHint}
+              aria-label={T.results.search}
             />
-          </div>
-
-          <div className="param" role="group" aria-label={T.results.statusFilter}>
-            <div className="param-label">{T.results.statusFilter}</div>
-            {FILTERS.map((key) => {
-              const value = (counts?.[key] ?? 0) + (key === 'needs_review' ? (counts?.failed ?? 0) : 0)
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  className="filter-row"
-                  role="checkbox"
-                  aria-checked={filters.includes(key)}
-                  onClick={() => {
-                    setFilters(filters.includes(key) ? filters.filter((f) => f !== key) : [...filters, key])
-                    setPage(1)
-                  }}
-                >
-                  <span className="filter-box" aria-hidden="true" />
-                  <span className="filter-name">{T.results.statuses[key]}</span>
-                  <span className="filter-count num">{value}</span>
-                </button>
-              )
-            })}
-          </div>
-
-          <div className="param">
-            <label className="param-label" htmlFor="threshold">
-              {T.results.acceptTitle}
-            </label>
-            <div className="accept-row">
-              <span className="muted">{T.results.acceptFrom}</span>
+            <div className="accept-row" role="group" aria-label={T.results.acceptTitle}>
+              <label htmlFor="threshold">{T.results.acceptFrom}</label>
               <InputNumber
                 id="threshold"
                 min={0}
@@ -351,21 +212,99 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
                 value={threshold}
                 onChange={(v) => setThreshold(v ?? 85)}
                 suffix="%"
-                style={{ width: 92 }}
+                style={{ width: 96 }}
               />
+              <button type="button" className="btn primary" onClick={() => void acceptAll()}>
+                <CheckCheck size={16} aria-hidden="true" /> {T.results.acceptButton}
+              </button>
             </div>
-            <button type="button" className="btn primary block" onClick={() => void acceptAll()}>
-              <CheckCheck size={16} aria-hidden="true" /> {T.results.acceptButton}
-            </button>
           </div>
+          <div className="filter-chips" role="group" aria-label={T.results.statusFilter}>
+            <span className="filter-label">{T.results.statusFilter}</span>
+            {FILTERS.map((key) => {
+              const value = (counts?.[key] ?? 0) + (key === 'needs_review' ? (counts?.failed ?? 0) : 0)
+              const on = filters.includes(key)
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={`filter-chip ${on ? 'on' : ''}`}
+                  role="checkbox"
+                  aria-checked={on}
+                  onClick={() => {
+                    setFilters(on ? filters.filter((f) => f !== key) : [...filters, key])
+                    setPage(1)
+                  }}
+                >
+                  <span className={`status-dot dot-${key}`} aria-hidden="true" />
+                  {T.results.statuses[key]}
+                  <span className="filter-count num">{value}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </section>
 
+      <div className="list-bar">
+        <span className="muted num">
+          {data &&
+            T.results.pageShown(
+              data.total ? (page - 1) * PAGE_SIZE + 1 : 0,
+              Math.min(page * PAGE_SIZE, data.total),
+              data.total,
+            )}
+        </span>
+        <label className="switch-row">
+          <Switch checked={showAll} onChange={setShowAll} aria-label={T.results.showAttrs} />
+          {T.results.showAttrs}
+        </label>
+      </div>
+
+      {data === null ? (
+        [0, 1, 2].map((i) => <Skeleton key={i} height={110} style={{ marginBottom: 16 }} />)
+      ) : data.items.length === 0 ? (
+        <EmptyState icon={Search} title={T.results.empty} hint={T.results.emptyHint}>
           {filtered && (
-            <button type="button" className="btn block" onClick={reset}>
+            <button type="button" className="btn" onClick={reset}>
               {T.results.reset}
             </button>
           )}
-        </aside>
-      </div>
+        </EmptyState>
+      ) : (
+        <>
+          <div className="res-head" aria-hidden="true">
+            <span className="res-head-name">{T.results.columns.name}</span>
+            <span className="res-head-conf">{T.results.columns.confidence}</span>
+            <span className="res-head-status">{T.results.columns.status}</span>
+          </div>
+          <div className="res-list">
+            {data.items.map((item) => (
+              <ResultCard
+                key={item.id}
+                item={item}
+                jobId={job.id}
+                open={showAll || opened.has(item.id)}
+                onToggle={() => toggle(item.id)}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {data !== null && data.total > PAGE_SIZE && (
+        <Pagination
+          className="pager"
+          current={page}
+          pageSize={PAGE_SIZE}
+          total={data.total}
+          showSizeChanger={false}
+          onChange={(next) => {
+            setPage(next)
+            window.scrollTo(0, 0)
+          }}
+        />
+      )}
     </>
   )
 }

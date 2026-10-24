@@ -1,12 +1,24 @@
-import { message, Popconfirm } from 'antd'
-import { AlertTriangle, ArrowLeft, Check, Info, RotateCcw, Square, Trash2, Upload } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { App as AntApp, Dropdown, Tooltip } from 'antd'
+import {
+  ArrowLeft,
+  Check,
+  ChevronRight,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  RotateCcw,
+  Square,
+  Trash2,
+  TriangleAlert,
+  Upload,
+} from 'lucide-react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { api, ApiError, type Job } from './api'
-import { ExportButton, Results } from './Results'
 import { Link } from './Link'
+import { Results } from './Results'
 import { navigate, paths } from './router'
 import { T } from './texts'
-import { Ring, Skeleton } from './ui'
+import { EmptyState, Notice, Ring, Skeleton } from './ui'
 
 /** Step states from the job counters: read -> extract -> search -> confidence. */
 function stepStates(job: Job): ('done' | 'active' | 'wait')[] {
@@ -18,6 +30,7 @@ function stepStates(job: Job): ('done' | 'active' | 'wait')[] {
 }
 
 function StopButton({ job, onStopped }: { job: Job; onStopped: (job: Job) => void }) {
+  const { modal } = AntApp.useApp()
   const [busy, setBusy] = useState(false)
   const stop = async () => {
     setBusy(true)
@@ -27,8 +40,19 @@ function StopButton({ job, onStopped }: { job: Job; onStopped: (job: Job) => voi
       setBusy(false) // the next poll shows the real state
     }
   }
+  const ask = () =>
+    modal.confirm({
+      title: T.progress.stopTitle,
+      content: T.progress.stopBody,
+      icon: null,
+      centered: true,
+      okText: T.progress.stop,
+      cancelText: T.progress.stopKeep,
+      okButtonProps: { danger: true },
+      onOk: stop,
+    })
   return (
-    <button type="button" className="btn red" onClick={stop} disabled={busy}>
+    <button type="button" className="btn danger" onClick={ask} disabled={busy}>
       <Square size={14} fill="currentColor" aria-hidden="true" /> {busy ? T.progress.stopping : T.progress.stop}
     </button>
   )
@@ -40,7 +64,7 @@ function ProgressCard({ job, onStopped }: { job: Job; onStopped: (job: Job) => v
   return (
     <section className="progress" aria-live="polite" aria-labelledby="progress-title">
       <Ring percent={percent} label={T.progress.ringLabel} spinning />
-      <div>
+      <div className="progress-body">
         <h2 id="progress-title" className="section-h">
           {T.progress.title}
         </h2>
@@ -48,7 +72,7 @@ function ProgressCard({ job, onStopped }: { job: Job; onStopped: (job: Job) => v
           {T.progress.steps.map((step, i) => (
             <li key={step} className={states[i]}>
               <span className="step-dot" aria-hidden="true">
-                {states[i] === 'done' && <Check size={13} strokeWidth={3} />}
+                {states[i] === 'done' && <Check size={14} strokeWidth={3} />}
               </span>
               {step}
             </li>
@@ -93,61 +117,93 @@ function loadProblem(error: unknown): LoadProblem {
   return { title: T.errors.network, text: T.progress.lost, retry: true }
 }
 
-function Problem({ title, text, onRetry }: { title: string; text: string; onRetry?: () => void }) {
+function Problem({ title, text, onRetry, lost }: {
+  title: string
+  text: string
+  onRetry?: () => void
+  lost?: boolean // a missing page is a quiet blue picture, a failure a red one
+}) {
   return (
-    <section className="progress problem" role="alert">
-      <span className="problem-icon" aria-hidden="true">
-        <AlertTriangle size={40} />
-      </span>
-      <div>
-        <h2 className="section-h">{title}</h2>
-        <p className="summary">{text}</p>
-        <div className="actions">
-          {onRetry && (
-            <button type="button" className="btn red" onClick={onRetry}>
-              <RotateCcw size={16} aria-hidden="true" /> {T.progress.retry}
-            </button>
-          )}
-          <Link className="btn" to={paths.jobs}>
-            {T.job.toJobs}
-          </Link>
-          <Link className="btn" to={paths.home}>
-            <Upload size={16} aria-hidden="true" /> {T.progress.another}
-          </Link>
-        </div>
-      </div>
-    </section>
+    <EmptyState icon={TriangleAlert} tone={lost ? 'blue' : 'red'} title={title} hint={text} role="alert">
+      {onRetry && (
+        <button type="button" className="btn primary" onClick={onRetry}>
+          <RotateCcw size={16} aria-hidden="true" /> {T.progress.retry}
+        </button>
+      )}
+      <Link className={`btn ${onRetry ? '' : 'primary'}`} to={paths.jobs}>
+        {T.job.toJobs}
+      </Link>
+      <Link className="btn" to={paths.home}>
+        <Upload size={16} aria-hidden="true" /> {T.progress.another}
+      </Link>
+    </EmptyState>
   )
 }
 
-function DeleteButton({ job }: { job: Job }) {
-  const [toast, holder] = message.useMessage()
-  const [busy, setBusy] = useState(false)
+/** Round buttons fixed to the bottom of the window: export and delete. On a phone they are a bar. */
+function Dock({ job, exportable }: { job: Job; exportable: boolean }) {
+  const { message, modal } = AntApp.useApp()
   const remove = async () => {
-    setBusy(true)
     try {
       await api.deleteJob(job.id)
       navigate(paths.jobs)
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : T.errors.network)
-      setBusy(false)
+      message.error(e instanceof ApiError ? e.message : T.errors.network)
     }
   }
+  const ask = () =>
+    modal.confirm({
+      title: T.job.deleteTitle,
+      content: T.job.deleteBody(job.filename, job.total),
+      icon: null,
+      centered: true,
+      okText: T.job.deleteYes,
+      cancelText: T.job.deleteNo,
+      okButtonProps: { danger: true },
+      onOk: remove,
+    })
+  const entry = (key: 'xlsx' | 'csv', icon: ReactNode, name: string, hint: string) => ({
+    key,
+    icon,
+    label: (
+      <span className="menu-entry">
+        <b>{name}</b>
+        <small>{hint}</small>
+      </span>
+    ),
+  })
   return (
-    <>
-      {holder}
-      <Popconfirm
-        title={T.job.deleteAsk(job.filename)}
-        okText={T.job.deleteYes}
-        cancelText={T.job.deleteNo}
-        okButtonProps={{ danger: true }}
-        onConfirm={remove}
-      >
-        <button type="button" className="btn red" disabled={busy}>
-          <Trash2 size={16} aria-hidden="true" /> {T.job.delete}
+    <div className="dock" role="group" aria-label={T.dock.label}>
+      {exportable && (
+        <Tooltip title={T.dock.exportTitle} placement="left">
+          <Dropdown
+            trigger={['click']}
+            placement="topRight"
+            autoFocus // keyboard: the menu takes focus, arrows and Enter pick the format
+            menu={{
+              items: [
+                entry('xlsx', <FileSpreadsheet size={20} />, T.dock.exportXlsx, T.dock.exportXlsxHint),
+                entry('csv', <FileText size={20} />, T.dock.exportCsv, T.dock.exportCsvHint),
+              ],
+              // A menu item, not a link inside it: works with the mouse and with Enter alike;
+              // the file is an attachment, so the page stays where it is
+              onClick: ({ key }) => window.location.assign(api.exportUrl(job.id, key as 'xlsx' | 'csv')),
+            }}
+          >
+            <button type="button" className="round primary" aria-label={T.dock.exportTitle}>
+              <Download size={24} aria-hidden="true" />
+              <span className="dock-label">{T.dock.export}</span>
+            </button>
+          </Dropdown>
+        </Tooltip>
+      )}
+      <Tooltip title={T.job.delete} placement="left">
+        <button type="button" className="round danger" aria-label={T.job.delete} onClick={ask}>
+          <Trash2 size={24} aria-hidden="true" />
+          <span className="dock-label">{T.dock.delete}</span>
         </button>
-      </Popconfirm>
-    </>
+      </Tooltip>
+    </div>
   )
 }
 
@@ -184,8 +240,8 @@ export function JobScreen({ jobId }: { jobId: string }) {
     api.job(jobId).then(setJob).catch(() => undefined)
   }, [jobId])
 
+  const running = job?.status === 'queued' || job?.status === 'processing'
   const finished = job?.status === 'done' || job?.status === 'cancelled'
-  const seconds = finished ? job?.stage_seconds.total : undefined
 
   const body = () => {
     if (problem) {
@@ -193,15 +249,22 @@ export function JobScreen({ jobId }: { jobId: string }) {
         setProblem(null) // the skeleton shows that the request goes out again
         setAttempt((a) => a + 1)
       }
-      return <Problem title={problem.title} text={problem.text} onRetry={problem.retry ? retry : undefined} />
+      return (
+        <Problem
+          title={problem.title}
+          text={problem.text}
+          onRetry={problem.retry ? retry : undefined}
+          lost={!problem.retry}
+        />
+      )
     }
     if (!job) {
       return (
         <section className="progress" aria-busy="true">
-          <Skeleton height={160} width={160} style={{ borderRadius: '50%' }} />
+          <Skeleton height={132} width={132} style={{ borderRadius: '50%' }} />
           <div style={{ flex: 1 }}>
             <Skeleton height={24} width="60%" />
-            {[0, 1, 2, 3].map((i) => (
+            {[0, 1, 2].map((i) => (
               <Skeleton key={i} height={18} style={{ marginTop: 16 }} />
             ))}
           </div>
@@ -213,10 +276,9 @@ export function JobScreen({ jobId }: { jobId: string }) {
     if (job.status === 'cancelled') {
       return (
         <>
-          <div className="alert warn" role="status">
-            <Info size={18} aria-hidden="true" style={{ flex: 'none' }} />
+          <Notice kind="warn" title={T.progress.cancelledTitle}>
             {T.progress.cancelled(job.processed, job.total)}
-          </div>
+          </Notice>
           <Results job={job} onChanged={refresh} />
         </>
       )
@@ -230,6 +292,15 @@ export function JobScreen({ jobId }: { jobId: string }) {
     )
   }
 
+  const subtitle = () => {
+    if (!job) return null
+    if (job.status === 'done') return T.results.took(job.stage_seconds.total ?? 0)
+    if (job.status === 'cancelled') return T.progress.stoppedAt(job.processed, job.total)
+    if (running) return T.progress.running
+    return null
+  }
+
+  const showDock = Boolean(job) && !running && !problem
   return (
     <>
       <section className="page-head">
@@ -239,33 +310,22 @@ export function JobScreen({ jobId }: { jobId: string }) {
             <Link to={paths.jobs}>{T.job.backToJobs}</Link>
             {job && (
               <>
-                <span className="crumb-sep" aria-hidden="true">
-                  ›
-                </span>
+                <ChevronRight size={14} className="crumb-sep" aria-hidden="true" />
                 <span className="crumb-now" title={job.filename}>
                   {job.filename}
                 </span>
               </>
             )}
           </nav>
-          <div className="title-row">
-            <h1 className="page-title">
-              {T.job.title}
-              {job && (
-                <span className="title-count num">{T.results.positions(job.total)}</span>
-              )}
-            </h1>
-            {job && job.status !== 'queued' && job.status !== 'processing' && (
-              <div className="actions top">
-                {finished && <ExportButton jobId={job.id} />}
-                <DeleteButton job={job} />
-              </div>
-            )}
-          </div>
-          {seconds !== undefined && <p className="muted num took">{T.results.took(seconds)}</p>}
+          <h1 className="page-title">
+            {T.job.title}
+            {job && <span className="title-count num">{T.results.positions(job.total)}</span>}
+          </h1>
+          {subtitle() && <p className="muted num took">{subtitle()}</p>}
         </div>
       </section>
-      <div className="wrap section">{body()}</div>
+      <div className={`wrap section stack ${showDock ? 'has-dock' : ''}`}>{body()}</div>
+      {showDock && job && <Dock job={job} exportable={finished} />}
     </>
   )
 }

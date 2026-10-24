@@ -1,25 +1,26 @@
-import { App as AntApp, Checkbox, Popconfirm } from 'antd'
-import { ArrowLeft, Trash2 } from 'lucide-react'
+import { App as AntApp, Checkbox } from 'antd'
+import { FolderOpen, Trash2, Upload } from 'lucide-react'
 import { useState } from 'react'
 import { api } from './api'
 import { JobCards } from './JobCards'
 import { Link } from './Link'
 import { paths } from './router'
 import { T } from './texts'
+import { EmptyState } from './ui'
 import { isBusy, useJobs } from './useJobs'
 
 const MAX = 1000
-const PAGE = 100 // jobs per "show more"; the service gives up to 1000 at once
+const PAGE = 100 // specifications per "show more"; the service gives up to 1000 at once
 
-/** All jobs, newest first; a tile opens the list of the codes of that job. */
+/** All specifications, newest first; a tile opens the list of their codes. */
 export function JobsScreen() {
-  const { message } = AntApp.useApp()
+  const { message, modal } = AntApp.useApp()
   const [limit, setLimit] = useState(PAGE)
   const { jobs, total, percents, reload } = useJobs(limit)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
 
-  // Jobs that are still running cannot be deleted, so "select all" skips them
+  // Specifications that are still running cannot be deleted, so "select all" skips them
   const removable = (jobs ?? []).filter((job) => !isBusy(job)).map((job) => job.id)
   const chosen = removable.filter((id) => selected.has(id))
   const allChosen = removable.length > 0 && chosen.length === removable.length
@@ -34,7 +35,7 @@ export function JobsScreen() {
 
   const remove = async () => {
     setDeleting(true)
-    // One after another: the service answers each delete on its own, a failure skips only that job
+    // One after another: the service answers each delete on its own, a failure skips only that one
     const results: boolean[] = []
     for (const id of chosen) {
       results.push(await api.deleteJob(id).then(() => true, () => false))
@@ -48,23 +49,45 @@ export function JobsScreen() {
     reload()
   }
 
+  const ask = () =>
+    modal.confirm({
+      title: T.jobs.deleteTitle(chosen.length),
+      content: T.jobs.deleteBody,
+      icon: null,
+      centered: true,
+      okText: T.jobs.deleteYes,
+      cancelText: T.jobs.deleteNo,
+      okButtonProps: { danger: true },
+      onOk: remove,
+    })
+
+  const empty = jobs !== null && jobs.length === 0
   return (
     <>
       <section className="page-head">
         <div className="wrap">
-          <nav className="crumbs" aria-label={T.jobs.title}>
-            <ArrowLeft size={16} aria-hidden="true" />
-            <Link to={paths.home}>{T.jobs.back}</Link>
-          </nav>
-          <h1 className="page-title">
-            {T.jobs.title}
-            {jobs !== null && jobs.length > 0 && (
-              <span className="title-count num">{T.jobs.count(total)}</span>
-            )}
-          </h1>
+          <div className="title-row">
+            <div>
+              <h1 className="page-title">
+                {T.jobs.title}
+                {jobs !== null && jobs.length > 0 && <span className="title-count num">{total}</span>}
+              </h1>
+              <p className="muted">{T.jobs.lead}</p>
+            </div>
+            <Link className="btn primary" to={paths.home}>
+              <Upload size={16} aria-hidden="true" /> {T.jobs.upload}
+            </Link>
+          </div>
         </div>
       </section>
       <section className="wrap section">
+        {empty && (
+          <EmptyState icon={FolderOpen} title={T.jobs.empty} hint={T.jobs.emptyHint}>
+            <Link className="btn primary" to={paths.home}>
+              <Upload size={16} aria-hidden="true" /> {T.jobs.upload}
+            </Link>
+          </EmptyState>
+        )}
         {jobs !== null && jobs.length > 0 && (
           <div className="bulk-bar">
             <Checkbox
@@ -79,21 +102,17 @@ export function JobsScreen() {
               {T.jobs.selected(chosen.length)}
             </span>
             <span className="grow" />
-            <Popconfirm
-              title={T.jobs.deleteAsk(chosen.length)}
-              okText={T.jobs.deleteYes}
-              cancelText={T.jobs.deleteNo}
-              okButtonProps={{ danger: true }}
-              disabled={chosen.length === 0}
-              onConfirm={() => void remove()}
+            <button
+              type="button"
+              className="btn danger small"
+              disabled={chosen.length === 0 || deleting}
+              onClick={ask}
             >
-              <button type="button" className="btn red" disabled={chosen.length === 0 || deleting}>
-                <Trash2 size={16} aria-hidden="true" /> {T.jobs.deleteSelected(chosen.length)}
-              </button>
-            </Popconfirm>
+              <Trash2 size={16} aria-hidden="true" /> {T.jobs.deleteSelected(chosen.length)}
+            </button>
           </div>
         )}
-        <JobCards jobs={jobs} percents={percents} selected={selected} onToggle={toggle} />
+        {!empty && <JobCards jobs={jobs} percents={percents} selected={selected} onToggle={toggle} />}
         {jobs !== null && jobs.length < total && limit < MAX && (
           <div className="more-row">
             <button type="button" className="btn" onClick={() => setLimit(limit + PAGE)}>

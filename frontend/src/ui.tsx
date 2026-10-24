@@ -1,106 +1,24 @@
-import {
-  AlertTriangle,
-  CheckCheck,
-  CircleAlert,
-  CircleCheck,
-  CircleX,
-  ExternalLink,
-  Eye,
-  Loader,
-  PenLine,
-  Sparkles,
-} from 'lucide-react'
+import { CircleCheck, ExternalLink, Info, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { ktruUrl, type ItemStatus, type Zone } from './api'
-import { Waves } from './Art'
 import { T } from './texts'
 
-const ZONE_ICONS = { high: CircleCheck, medium: CircleAlert, low: CircleX }
-
-export function ZoneIcon({ zone, size = 15 }: { zone: Zone; size?: number }) {
-  const Icon = ZONE_ICONS[zone] ?? CircleX
-  return <Icon className={`zone-icon zone-${zone}`} size={size} aria-hidden="true" />
-}
-
-/** Percent + thin bar of the zone color; the zone is also said by the icon and its label. */
+/** The percent in the color of its zone; the zone is also said in words for screen readers. */
 export function Confidence({ value, zone }: { value: number | null; zone: Zone }) {
   const percent = value ?? 0
   return (
-    <div className="conf" title={`${T.drawer.similarity}: ${T.zone[zone]}`}>
-      <div className="conf-top num">
-        <ZoneIcon zone={zone} />
-        {percent.toFixed(0)} %<span className="sr-only">, {T.zone[zone]}</span>
-      </div>
-      <div className="bar" aria-hidden="true">
-        <span className={`zone-${zone}`} style={{ width: `${percent}%` }} />
-      </div>
-    </div>
+    <span className={`conf num zone-${zone}`} title={T.zone[zone]}>
+      {percent.toFixed(0)} %<span className="sr-only">, {T.zone[zone]}</span>
+    </span>
   )
 }
 
-const STATUS_ICONS: Record<ItemStatus, typeof Eye> = {
-  auto: Sparkles,
-  needs_review: Eye,
-  corrected: PenLine,
-  accepted: CheckCheck,
-  failed: AlertTriangle,
-}
-
-const STATUS_TONE: Record<ItemStatus, string> = {
-  auto: 'high',
-  needs_review: 'medium',
-  corrected: '',
-  accepted: 'high',
-  failed: 'low',
-}
-
+/** A colored dot and the word: the status never rests on color alone. */
 export function StatusChip({ status }: { status: ItemStatus }) {
-  const Icon = STATUS_ICONS[status]
   return (
-    <span className={`chip ${STATUS_TONE[status]}`}>
-      <Icon size={13} aria-hidden="true" />
+    <span className={`status status-${status}`}>
+      <span className="status-dot" aria-hidden="true" />
       {T.itemStatus[status]}
-    </span>
-  )
-}
-
-const MARK_ICONS: Record<ItemStatus, typeof CircleCheck> = {
-  auto: CircleCheck,
-  accepted: CircleCheck,
-  corrected: CircleCheck,
-  needs_review: CircleAlert,
-  failed: CircleX,
-}
-
-const MARK_TONE: Record<ItemStatus, string> = {
-  auto: 'high',
-  accepted: 'high',
-  corrected: 'high',
-  needs_review: 'medium',
-  failed: 'low',
-}
-
-/** The round mark next to a code, like the green tick of a catalog position. */
-export function StatusMark({ status, size = 24 }: { status: ItemStatus; size?: number }) {
-  const Icon = MARK_ICONS[status]
-  return (
-    <span className={`mark ${MARK_TONE[status]}`} title={T.itemStatus[status]}>
-      <Icon size={size} aria-hidden="true" />
-      <span className="sr-only">{T.itemStatus[status]}</span>
-    </span>
-  )
-}
-
-export function JobStatusChip({ status }: { status: string }) {
-  const tone = status === 'done' ? 'high' : status === 'failed' ? 'low' : ''
-  return (
-    <span className={`chip ${tone}`}>
-      {status === 'processing' || status === 'queued' ? (
-        <Loader size={12} aria-hidden="true" />
-      ) : (
-        <span className={`dot ${tone}`} aria-hidden="true" />
-      )}
-      {T.jobStatus[status] ?? status}
     </span>
   )
 }
@@ -113,17 +31,48 @@ export function Skeleton({ height = 16, width = '100%', style }: {
   return <div className="skeleton" style={{ height, width, ...style }} aria-hidden="true" />
 }
 
-export function EmptyState({ title, hint, children }: {
+/** A round icon, a title, a hint and buttons: lists with nothing in them, failures, lost pages. */
+export function EmptyState({ icon: Icon, tone = 'blue', title, hint, children, role }: {
+  icon: LucideIcon
+  tone?: 'blue' | 'red'
   title: string
   hint?: string
   children?: ReactNode
+  role?: 'alert' | 'status'
 }) {
   return (
-    <div className="empty">
-      <Waves />
-      <b>{title}</b>
-      {hint && <span>{hint}</span>}
-      {children}
+    <section className="empty" role={role}>
+      <span className={`empty-icon ${tone}`} aria-hidden="true">
+        <Icon size={40} strokeWidth={1.5} />
+      </span>
+      <h2 className="empty-title">{title}</h2>
+      {hint && <p className="empty-hint">{hint}</p>}
+      {children && <div className="empty-actions">{children}</div>}
+    </section>
+  )
+}
+
+const NOTICE_ICONS: Record<'info' | 'warn' | 'error' | 'ok', LucideIcon> = {
+  info: Info,
+  warn: TriangleAlert,
+  error: TriangleAlert,
+  ok: CircleCheck,
+}
+
+/** A colored strip on the page: what the person should know before going on. */
+export function Notice({ kind, title, children }: {
+  kind: keyof typeof NOTICE_ICONS
+  title: string
+  children?: ReactNode
+}) {
+  const Icon = NOTICE_ICONS[kind]
+  return (
+    <div className={`notice ${kind}`} role={kind === 'error' ? 'alert' : 'status'}>
+      <Icon size={22} aria-hidden="true" />
+      <div>
+        <b>{title}</b>
+        {children && <p>{children}</p>}
+      </div>
     </div>
   )
 }
@@ -143,7 +92,7 @@ export function KtruCode({ code }: { code: string }) {
       onKeyDown={(e) => e.stopPropagation()}
     >
       {code}
-      <ExternalLink size={12} aria-hidden="true" />
+      <ExternalLink size={14} aria-hidden="true" />
       <span className="sr-only">{T.results.openEis}</span>
     </a>
   )
@@ -156,10 +105,9 @@ export function RawText({ text }: { text: string }) {
   const [open, setOpen] = useState(false)
   const long = text.length > LONG_TEXT
   return (
-    <div className="res-meta">
-      <div className={long && !open ? 'raw-clamp' : undefined}>
-        <span className="res-meta-label">{T.results.sourceText}:</span> {text}
-      </div>
+    <div className="raw-text">
+      <div className="cap">{T.results.sourceText}</div>
+      <div className={long && !open ? 'raw-clamp' : undefined}>{text}</div>
       {long && (
         <button type="button" className="text-link" aria-expanded={open} onClick={() => setOpen(!open)}>
           {open ? T.results.hide : T.results.showFull}
@@ -169,34 +117,36 @@ export function RawText({ text }: { text: string }) {
   )
 }
 
-const RADIUS = 80
-const CIRCLE = 2 * Math.PI * RADIUS
+const MINI = { radius: 19, circle: 2 * Math.PI * 19 }
 
-const MINI_RADIUS = 9
-const MINI_CIRCLE = 2 * Math.PI * MINI_RADIUS
-
-/** Small ring for lists; the percent itself is said in the text next to it. */
-export function MiniRing({ percent, size = 20 }: { percent: number; size?: number }) {
+/** Small ring with the percent inside, for the tiles of the specifications. */
+export function PercentRing({ percent, size = 48 }: { percent: number; size?: number }) {
   return (
-    <svg className="mini-ring" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <circle className="ring-track" cx="12" cy="12" r={MINI_RADIUS} fill="none" strokeWidth="3" />
+    <svg className="mini-ring" width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
+      <circle className="ring-track" cx="24" cy="24" r={MINI.radius} fill="none" strokeWidth="6" />
       <circle
         className="ring-value"
-        cx="12"
-        cy="12"
-        r={MINI_RADIUS}
+        cx="24"
+        cy="24"
+        r={MINI.radius}
         fill="none"
-        strokeWidth="3"
+        strokeWidth="6"
         strokeLinecap="round"
-        strokeDasharray={MINI_CIRCLE}
-        strokeDashoffset={MINI_CIRCLE * (1 - percent / 100)}
-        transform="rotate(-90 12 12)"
+        strokeDasharray={MINI.circle}
+        strokeDashoffset={MINI.circle * (1 - percent / 100)}
+        transform="rotate(-90 24 24)"
       />
+      <text className="ring-mini-text num" x="24" y="28.5" textAnchor="middle">
+        {percent}%
+      </text>
     </svg>
   )
 }
 
-export function Ring({ percent, label, size = 200, spinning = false }: {
+const RADIUS = 80
+const CIRCLE = 2 * Math.PI * RADIUS
+
+export function Ring({ percent, label, size = 132, spinning = false }: {
   percent: number
   label: string
   size?: number
@@ -204,14 +154,14 @@ export function Ring({ percent, label, size = 200, spinning = false }: {
 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 200 200" role="img" aria-label={`${percent} % ${label}`}>
-      <circle className="ring-track" cx="100" cy="100" r={RADIUS} fill="none" strokeWidth="10" />
+      <circle className="ring-track" cx="100" cy="100" r={RADIUS} fill="none" strokeWidth="18" />
       <circle
         className="ring-value"
         cx="100"
         cy="100"
         r={RADIUS}
         fill="none"
-        strokeWidth="10"
+        strokeWidth="18"
         strokeLinecap="round"
         strokeDasharray={CIRCLE}
         strokeDashoffset={CIRCLE * (1 - percent / 100)}
@@ -224,16 +174,13 @@ export function Ring({ percent, label, size = 200, spinning = false }: {
           cy="100"
           r={RADIUS}
           fill="none"
-          strokeWidth="10"
+          strokeWidth="18"
           strokeLinecap="round"
           strokeDasharray={`${CIRCLE / 8} ${CIRCLE}`}
         />
       )}
-      <text className="ring-text num" x="100" y="106" textAnchor="middle">
+      <text className="ring-text num" x="100" y="115" textAnchor="middle">
         {percent} %
-      </text>
-      <text className="ring-sub" x="100" y="132" textAnchor="middle">
-        {label}
       </text>
     </svg>
   )
