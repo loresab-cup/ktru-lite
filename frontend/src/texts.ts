@@ -104,7 +104,6 @@ export const T = {
     emptyHint: 'Загрузите файл со спецификацией закупки, и здесь появятся результаты разбора.',
     open: 'Открыть список кодов',
     select: (name: string) => `Выбрать «${name}»`,
-    busy: 'Спецификация обрабатывается: сначала остановите её',
     selectAll: 'Выбрать все',
     selected: (n: number) => `Выбрано: ${n}`,
     deleteSelected: (n: number) => `Удалить выбранные (${n})`,
@@ -116,6 +115,8 @@ export const T = {
     deleted: (n: number) => `Удалено спецификаций: ${n}`,
     deleteFailed: (n: number) => `Не удалось удалить спецификаций: ${n}`,
     showMore: (n: number) => `Показать ещё ${n}`,
+    processing: (done: number, total: number) => `Обработка: ${done} из ${total}`,
+    processingLabel: 'Ход обработки',
   },
   jobStatus: {
     queued: 'В очереди',

@@ -619,6 +619,10 @@ a {
   animation: ring-turn 1.4s linear infinite;
 }
 
+.ring-spin.mini {
+  transform-origin: 24px 24px;
+}
+
 .ring-text {
   font-size: 44px;
   font-weight: 600;
@@ -629,6 +633,11 @@ a {
   font-size: 12px;
   font-weight: 600;
   fill: var(--ink);
+}
+
+.ring-mini-text.tight {
+  font-size: 9.5px; /* "100%" has to fit inside the ring */
+  letter-spacing: -0.2px;
 }
 
 .mini-ring {
@@ -1230,9 +1239,33 @@ a {
   color: var(--red);
 }
 
-.job-mark.spin {
-  color: var(--accent);
-  animation: spin 1s linear infinite;
+/* a running specification: the ring turns and a bar at the foot of the tile fills and shimmers */
+.tile.busy {
+  border-color: var(--accent-line);
+}
+
+.tile-progress {
+  position: relative;
+  display: block;
+  height: 6px;
+  margin-top: var(--s1);
+  border-radius: 3px;
+  background: var(--line-soft);
+  overflow: hidden;
+}
+
+.tile-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-line) 50%, var(--accent) 100%);
+  background-size: 200% 100%;
+  animation: shine 1.4s linear infinite;
+  transition: width 600ms var(--ease);
+}
+
+.tile-progress.wait > span {
+  animation: shine 1.4s linear infinite, pulse 1.4s ease-in-out infinite;
 }
 
 .bulk-bar {
@@ -2197,6 +2230,12 @@ a {
   }
   to {
     background-position: -100% 0;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.45;
   }
 }
 

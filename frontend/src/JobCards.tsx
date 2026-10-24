@@ -1,5 +1,5 @@
 import { Checkbox } from 'antd'
-import { Clock, FileSpreadsheet, FileText, Loader, TriangleAlert } from 'lucide-react'
+import { Clock, FileSpreadsheet, FileText, TriangleAlert } from 'lucide-react'
 import type { Job } from './api'
 import { Link } from './Link'
 import { paths } from './router'
@@ -7,12 +7,33 @@ import { isBusy } from './useJobs'
 import { T, formatDate } from './texts'
 import { PercentRing, Skeleton } from './ui'
 
-/** The ring with the ready share; a running job spins, a failed one says so. */
+/** Share of the rows a running specification has done. */
+const doneShare = (job: Job) => (job.total ? Math.floor((100 * job.processed) / job.total) : 0)
+
+/** The ring with the ready share; a running one shows the progress and turns, a failed one says so. */
 function JobMark({ job, percent }: { job: Job; percent?: number }) {
   if (job.status === 'failed') return <TriangleAlert size={28} className="job-mark low" aria-hidden="true" />
-  if (isBusy(job)) return <Loader size={28} className="job-mark spin" aria-hidden="true" />
+  if (isBusy(job)) return <PercentRing percent={doneShare(job)} spinning />
   if (percent === undefined) return <Clock size={28} className="job-mark" aria-hidden="true" />
   return <PercentRing percent={percent} />
+}
+
+/** A thin bar at the foot of a running tile: it fills with the rows done and shimmers, so the
+ *  wait is seen in the list as well as inside the specification. */
+function TileProgress({ job }: { job: Job }) {
+  const share = doneShare(job)
+  return (
+    <span
+      className={`tile-progress ${job.processed === 0 ? 'wait' : ''}`}
+      role="progressbar"
+      aria-label={T.jobs.processingLabel}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={share}
+    >
+      <span style={{ width: job.processed === 0 ? '100%' : `${Math.max(share, 6)}%` }} />
+    </span>
+  )
 }
 
 /** The file type tile: a table for xlsx, a sheet of text for the rest. */
@@ -48,32 +69,40 @@ export function JobCards({ jobs, percents, selected, onToggle }: {
       {jobs.map((job) => {
         const percent = percents[job.id]
         const checked = selected?.has(job.id) ?? false
-        const state = percent !== undefined ? T.app.ready(percent) : (T.jobStatus[job.status] ?? job.status)
+        const busy = isBusy(job)
+        const state = busy
+          ? job.status === 'queued'
+            ? T.jobStatus.queued
+            : T.jobs.processing(job.processed, job.total)
+          : percent !== undefined
+            ? T.app.ready(percent)
+            : (T.jobStatus[job.status] ?? job.status)
         return (
           <li key={job.id} className="tile-wrap">
             <Link
-              className={`tile ${checked ? 'selected' : ''}`}
+              className={`tile ${checked ? 'selected' : ''} ${busy ? 'busy' : ''}`}
               to={paths.job(job.id)}
               title={T.jobs.open}
             >
               <span className="tile-head">
                 <FileTile name={job.filename} />
-                {!selected && <JobMark job={job} percent={percent} />}
+                {(!selected || busy) && <JobMark job={job} percent={percent} />}
               </span>
               <span className="tile-name">{job.filename}</span>
               <span className="tile-meta num">
-                {T.upload.positions(job.total)}, {selected ? state : formatDate(job.created_at)}
+                {T.upload.positions(job.total)}, {selected || busy ? state : formatDate(job.created_at)}
               </span>
-              {selected && <span className="tile-date num">{formatDate(job.created_at)}</span>}
+              {(selected || busy) && <span className="tile-date num">{formatDate(job.created_at)}</span>}
+              {busy && <TileProgress job={job} />}
             </Link>
-            {selected && (
+            {/* a running one cannot be deleted: its ring stands where the check box would be */}
+            {selected && !busy && (
               <span className="tile-check">
                 <Checkbox
                   checked={checked}
-                  disabled={isBusy(job)}
                   onChange={() => onToggle?.(job.id)}
                   aria-label={T.jobs.select(job.filename)}
-                  title={isBusy(job) ? T.jobs.busy : T.jobs.select(job.filename)}
+                  title={T.jobs.select(job.filename)}
                 />
               </span>
             )}
