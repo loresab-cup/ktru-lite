@@ -272,7 +272,7 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
           )}
         </EmptyState>
       ) : (
-        <>
+        <div className="res-tray">
           <div className="res-head" aria-hidden="true">
             <span className="res-head-name">{T.results.columns.name}</span>
             <span className="res-head-conf">{T.results.columns.confidence}</span>
@@ -289,7 +289,7 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
               />
             ))}
           </div>
-        </>
+        </div>
       )}
 
       {data !== null && data.total > PAGE_SIZE && (

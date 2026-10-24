@@ -115,6 +115,18 @@ a {
   color: var(--accent-2);
 }
 
+/* On a wide screen the whole page is a little smaller: one number, no style is touched.
+   The viewport units are not zoomed, so the page height is divided by the same number. */
+:root {
+  --zoom: 0.9;
+}
+
+@media (min-width: 1001px) {
+  html {
+    zoom: var(--zoom);
+  }
+}
+
 .site {
   min-height: 100vh;
   display: flex;
@@ -123,6 +135,12 @@ a {
 
 .site main {
   flex: 1;
+}
+
+@media (min-width: 1001px) {
+  .site {
+    min-height: calc(100vh / var(--zoom));
+  }
 }
 
 .wrap {
@@ -1524,16 +1542,19 @@ a {
   cursor: pointer;
 }
 
-/* captions of the columns: a soft bar over the first card, each caption over its column */
+/* the cards lie in one grey tray; its top row names the columns, each caption over its column */
+.res-tray {
+  padding: 0 var(--s2) var(--s2);
+  border-radius: var(--radius-lg);
+  background: var(--head-bar);
+}
+
 .res-head {
   display: flex;
   align-items: center;
   gap: var(--s7);
-  height: 44px;
+  height: 48px;
   padding: 0 28px;
-  margin-bottom: calc(-1 * var(--s2));
-  border-radius: 14px;
-  background: var(--head-bar);
   color: var(--ink-2);
   font-size: var(--text-sm);
   font-weight: 600;
@@ -2384,6 +2405,11 @@ a {
 
   .res-head {
     display: none;
+  }
+
+  .res-tray {
+    padding: 0;
+    background: none;
   }
 
   .res-top {
