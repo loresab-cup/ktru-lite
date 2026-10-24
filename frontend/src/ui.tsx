@@ -120,11 +120,7 @@ export function RawText({ text }: { text: string }) {
 const MINI = { radius: 19, circle: 2 * Math.PI * 19 }
 
 /** Small ring with the percent inside, for the tiles of the specifications. */
-export function PercentRing({ percent, size = 48, spinning = false }: {
-  percent: number
-  size?: number
-  spinning?: boolean // a running job: a short arc keeps going round
-}) {
+export function PercentRing({ percent, size = 48 }: { percent: number; size?: number }) {
   return (
     <svg className="mini-ring" width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
       <circle className="ring-track" cx="24" cy="24" r={MINI.radius} fill="none" strokeWidth="6" />
@@ -140,18 +136,6 @@ export function PercentRing({ percent, size = 48, spinning = false }: {
         strokeDashoffset={MINI.circle * (1 - percent / 100)}
         transform="rotate(-90 24 24)"
       />
-      {spinning && (
-        <circle
-          className="ring-spin mini"
-          cx="24"
-          cy="24"
-          r={MINI.radius}
-          fill="none"
-          strokeWidth="6"
-          strokeLinecap="round"
-          strokeDasharray={`${MINI.circle / 6} ${MINI.circle}`}
-        />
-      )}
       <text className={`ring-mini-text num ${percent >= 100 ? 'tight' : ''}`} x="24" y="28.5" textAnchor="middle">
         {percent}%
       </text>

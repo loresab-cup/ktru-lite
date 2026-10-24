@@ -619,10 +619,6 @@ a {
   animation: ring-turn 1.4s linear infinite;
 }
 
-.ring-spin.mini {
-  transform-origin: 24px 24px;
-}
-
 .ring-text {
   font-size: 44px;
   font-weight: 600;

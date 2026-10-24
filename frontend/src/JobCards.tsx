@@ -10,10 +10,10 @@ import { PercentRing, Skeleton } from './ui'
 /** Share of the rows a running specification has done. */
 const doneShare = (job: Job) => (job.total ? Math.floor((100 * job.processed) / job.total) : 0)
 
-/** The ring with the ready share; a running one shows the progress and turns, a failed one says so. */
+/** The ring with the ready share, or a mark when there is none. A running one has no ring:
+ *  its progress is the bar at the foot of the tile. */
 function JobMark({ job, percent }: { job: Job; percent?: number }) {
   if (job.status === 'failed') return <TriangleAlert size={28} className="job-mark low" aria-hidden="true" />
-  if (isBusy(job)) return <PercentRing percent={doneShare(job)} spinning />
   if (percent === undefined) return <Clock size={28} className="job-mark" aria-hidden="true" />
   return <PercentRing percent={percent} />
 }
@@ -86,7 +86,7 @@ export function JobCards({ jobs, percents, selected, onToggle }: {
             >
               <span className="tile-head">
                 <FileTile name={job.filename} />
-                {(!selected || busy) && <JobMark job={job} percent={percent} />}
+                {!selected && !busy && <JobMark job={job} percent={percent} />}
               </span>
               <span className="tile-name">{job.filename}</span>
               <span className="tile-meta num">
@@ -95,7 +95,7 @@ export function JobCards({ jobs, percents, selected, onToggle }: {
               {(selected || busy) && <span className="tile-date num">{formatDate(job.created_at)}</span>}
               {busy && <TileProgress job={job} />}
             </Link>
-            {/* a running one cannot be deleted: its ring stands where the check box would be */}
+            {/* a running one cannot be deleted, so it gets no check box */}
             {selected && !busy && (
               <span className="tile-check">
                 <Checkbox
