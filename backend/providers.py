@@ -99,7 +99,12 @@ class Provider:
 
     @property
     def configured(self) -> bool:
-        return bool(self.key and self.model)
+        return bool(self.key and self.model) and not self.placeholder
+
+    @property
+    def placeholder(self) -> bool:
+        """A sample value left in .env («<API-ключ 1>»): keys and folder IDs are plain ASCII."""
+        return any(not v.isascii() or "<" in v for v in (self.key, self.model, self.folder))
 
     def is_down(self) -> bool:
         return time.monotonic() < self.down_until

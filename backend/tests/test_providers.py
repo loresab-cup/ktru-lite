@@ -216,6 +216,16 @@ def test_load_from_env():
     assert providers.body(reasoning, "s", "u")["reasoning_effort"] == "low"
     assert "reasoning_effort" not in providers.body(other, "s", "u")
     assert not providers.load({"LLM_PROVIDERS": "yandex3"})[0].configured  # no key
+    # the sample values of the guide left in .env are not a key
+    sample = {
+        "LLM_PROVIDERS": "yandex",
+        "YANDEX_API_KEY": "<API-ключ 1>",
+        "YANDEX_FOLDER_ID": "b1g",
+    }
+    assert providers.load(sample)[0].placeholder
+    assert not providers.load(sample)[0].configured
+    sample |= {"YANDEX_API_KEY": "AQVN1", "YANDEX_FOLDER_ID": "<ID каталога ключа 1>"}
+    assert not providers.load(sample)[0].configured
     # a key without its folder cannot address a model
     assert not providers.load({"LLM_PROVIDERS": "yandex", "YANDEX_API_KEY": "k"})[0].configured
     names = [p.name for p in providers.load({})]

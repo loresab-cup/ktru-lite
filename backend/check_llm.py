@@ -25,6 +25,11 @@ ROW = "Бумага офисная А4 80 г/м2"
 
 
 def check(p: providers.Provider) -> bool:
+    if p.placeholder:
+        print(
+            f"{p.name}: в .env осталась заготовка вместо ключа или ID каталога — впишите значения"
+        )
+        return False
     if not p.configured:
         print(f"{p.name}: не настроен — заполните ключ в .env")
         return False
