@@ -2156,6 +2156,22 @@ a {
 }
 
 .cand-title,
+/* the confidence of a candidate: the first thing under its code, in the color of its zone */
+.cand-conf {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  margin-top: var(--s1);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.cand-conf .num {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
 .cand-meta,
 .cand-differs {
   display: flex;

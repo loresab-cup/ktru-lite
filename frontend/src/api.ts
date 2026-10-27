@@ -104,6 +104,12 @@ export class ApiError extends Error {
   }
 }
 
+/** The zone of a confidence, by the thresholds HIGH and MEDIUM of backend/confidence.py. */
+export function zoneOf(confidence: number): Zone {
+  if (confidence >= 85) return 'high'
+  return confidence >= 60 ? 'medium' : 'low'
+}
+
 /** Share of positions whose code needs no more work: auto, corrected and accepted. */
 export function readyPercent(job: Job): number {
   const c = job.counts

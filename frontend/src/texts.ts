@@ -391,7 +391,7 @@ export const T = {
     codeFound: (name: string, state: string) => `Найдено: ${name}, ${state}`,
     saveCode: 'Применить',
     candidates: 'Топ-5 кандидатов',
-    candidateConfidence: (percent: number) => `Уверенность ${percent} %`,
+    candidateConfidence: 'Уверенность',
     differs: 'Отличается:',
     choose: 'Выбрать',
     chosen: 'Выбран',

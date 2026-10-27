@@ -27,6 +27,7 @@ import {
   type ItemPage,
   type Job,
   ktruUrl,
+  zoneOf,
 } from './api'
 import { Link } from './Link'
 import { navigate, paths, rememberItem } from './router'
@@ -55,17 +56,20 @@ function CodeCard({ code, current, confidence, matched, differs, onChoose }: {
             </span>
           )}
         </div>
-        {((matched && matched.length > 0) || confidence !== undefined) && (
+        {confidence !== undefined && (
+          <div className="cand-conf">
+            {T.drawer.candidateConfidence}
+            <span className={`num zone-${zoneOf(confidence)}`}>{Math.floor(confidence)} %</span>
+          </div>
+        )}
+        {matched && matched.length > 0 && (
           <div className="cand-meta">
-            {matched?.map((m) => (
+            {matched.map((m) => (
               <span key={m} className="chip good">
                 <Check size={14} strokeWidth={2.5} aria-hidden="true" />
                 {m}
               </span>
             ))}
-            {confidence !== undefined && (
-              <span className="muted num">{T.drawer.candidateConfidence(Math.floor(confidence))}</span>
-            )}
           </div>
         )}
         {differs && differs.length > 0 && (
