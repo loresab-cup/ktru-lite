@@ -76,6 +76,10 @@ function readTokens() {
       fontSize: px('text'),
       motion: !still,
     },
+    components: {
+      // tooltips are white cards (theme.css); the arrow takes its color from these tokens
+      Tooltip: { colorBgSpotlight: v('paper-raised'), colorTextLightSolid: v('ink') },
+    },
   }
 }
 

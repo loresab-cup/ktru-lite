@@ -9,7 +9,6 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
-  Info,
   Pencil,
   Plus,
   ScanSearch,
@@ -179,11 +178,6 @@ function AttributesView({ item }: { item: Item }) {
           )}
         </dd>
       </dl>
-      {attrs.source === 'rules' && (
-        <p className="muted source-note">
-          <Info size={14} aria-hidden="true" /> {T.drawer.fallback[attrs.fallback ?? ''] ?? T.drawer.byRules}
-        </p>
-      )}
     </>
   )
 }

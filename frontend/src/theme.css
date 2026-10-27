@@ -2121,13 +2121,6 @@ a {
   border-bottom: 0;
 }
 
-.source-note {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  font-size: var(--text-sm);
-}
-
 .search-input {
   max-width: 560px;
 }
@@ -2377,22 +2370,23 @@ a {
   font-weight: 600;
 }
 
-/* a message is a dark pill: the pill is the antd box itself, and the title has its own color */
+/* a message is a white card with a hairline, like the tooltips: dark text, a colored icon */
 .ant-message .ant-message-notice {
   padding: 14px 20px;
+  border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  background: var(--ink);
-  box-shadow: var(--shadow-float);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-lift);
 }
 
 .ant-message .ant-message-notice-wrapper,
 .ant-message .ant-message-notice-title {
-  color: #fff;
+  color: var(--ink);
   font-weight: 500;
 }
 
 .ant-message .ant-message-notice-icon-success {
-  color: var(--green-dot);
+  color: var(--green);
 }
 
 .toast-undo {
@@ -2403,7 +2397,7 @@ a {
   padding: 0;
   border: 0;
   background: none;
-  color: #9dc1ff;
+  color: var(--accent-2);
   font: inherit;
   font-weight: 600;
   cursor: pointer;

@@ -40,9 +40,26 @@ export interface ListView {
 }
 
 const listViews = new Map<string, ListView>()
+const VIEW_KEY = 'ktru-list-view:' // + job id; the tab keeps it over a reload of the page
 
-export const savedListView = (jobId: string) => listViews.get(jobId)
-export const saveListView = (jobId: string, view: ListView) => void listViews.set(jobId, view)
+export function savedListView(jobId: string): ListView | undefined {
+  if (listViews.has(jobId)) return listViews.get(jobId)
+  try {
+    const stored = sessionStorage.getItem(VIEW_KEY + jobId)
+    return stored ? (JSON.parse(stored) as ListView) : undefined
+  } catch {
+    return undefined // no storage: the list opens at its first page
+  }
+}
+
+export function saveListView(jobId: string, view: ListView) {
+  listViews.set(jobId, view)
+  try {
+    sessionStorage.setItem(VIEW_KEY + jobId, JSON.stringify(view))
+  } catch {
+    // the view is still kept in memory for this visit
+  }
+}
 
 /** The position the person looked at last: the list of its job takes the focus back to it. */
 let lastItem: { jobId: string; itemId: number } | null = null
