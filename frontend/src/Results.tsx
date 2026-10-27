@@ -85,6 +85,7 @@ function ResultCard({ item, jobId, open, onToggle, pick }: {
           </span>
         )}
         <div className="res-title">
+          <div className="muted" title={item.raw_text}>{item.attributes.name || item.raw_text}</div>
           <Link className={`res-code ${item.ktru_code ? '' : 'none'}`} to={to} data-item={item.id}>
             {item.ktru_code ?? T.results.noCode}
           </Link>
@@ -379,6 +380,7 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
                 type="button"
                 className="btn primary"
                 disabled={threshold === null}
+                aria-describedby="accept-scope"
                 onClick={() => void acceptAll()}
               >
                 <CheckCheck size={16} aria-hidden="true" /> {T.results.acceptButton}
@@ -390,6 +392,7 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
               )}
             </div>
           </div>
+          <p className="muted" id="accept-scope">{T.results.acceptScope}</p>
           <div className="filter-chips" role="group" aria-label={T.results.statusFilter}>
             <span className="filter-label">{T.results.statusFilter}</span>
             {FILTERS.map((key) => {

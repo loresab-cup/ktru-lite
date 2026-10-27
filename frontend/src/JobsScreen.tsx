@@ -7,7 +7,7 @@ import { Link } from './Link'
 import { paths } from './router'
 import { T } from './texts'
 import { confirmLook } from './confirm'
-import { EmptyState } from './ui'
+import { EmptyState, Notice } from './ui'
 import { isBusy, useJobs } from './useJobs'
 
 const MAX = 1000
@@ -43,7 +43,7 @@ export function JobsScreen() {
   const [query, setQuery] = useState(() => savedView().q) // what is typed
   const [q, setQ] = useState(query) // what is asked for: a pause after the last key
   const [sort, setSort] = useState<JobSort>(() => savedView().sort)
-  const { jobs, total, percents, reload } = useJobs(limit, q, sort)
+  const { jobs, total, percents, reload, error } = useJobs(limit, q, sort)
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -97,8 +97,8 @@ export function JobsScreen() {
     })
 
   const searching = q.trim() !== ''
-  const empty = jobs !== null && jobs.length === 0 && !searching
-  const notFound = jobs !== null && jobs.length === 0 && searching
+  const empty = !error && jobs !== null && jobs.length === 0 && !searching
+  const notFound = !error && jobs !== null && jobs.length === 0 && searching
   return (
     <>
       <section className="page-head">
@@ -118,6 +118,9 @@ export function JobsScreen() {
         </div>
       </section>
       <section className="wrap section">
+        {error && <Notice kind="error" title={T.historyFailed}>
+          <button type="button" className="btn" onClick={reload}>{T.retry}</button>
+        </Notice>}
         {empty && (
           <EmptyState icon={FolderOpen} title={T.jobs.empty} hint={T.jobs.emptyHint}>
             <Link className="btn primary" to={paths.home}>
@@ -177,7 +180,9 @@ export function JobsScreen() {
             </button>
           </div>
         )}
-        {!empty && !notFound && <JobCards jobs={jobs} percents={percents} selected={selected} onToggle={toggle} />}
+        {!empty && !notFound && (!error || (jobs?.length ?? 0) > 0) && (
+          <JobCards jobs={jobs} percents={percents} selected={selected} onToggle={toggle} />
+        )}
         {jobs !== null && jobs.length < total && limit < MAX && (
           <div className="more-row">
             <button type="button" className="btn" onClick={() => setLimit(limit + PAGE)}>

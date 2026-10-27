@@ -100,7 +100,7 @@ export function JobCards({ jobs, percents, selected, onToggle }: {
             <Link
               className={`tile ${checked ? 'selected' : ''} ${busy ? 'busy' : ''}`}
               to={paths.job(job.id)}
-              title={T.jobs.open}
+              title={`${T.jobs.open}: ${job.filename}`}
             >
               <span className="tile-head">
                 <FileTile name={job.filename} />
