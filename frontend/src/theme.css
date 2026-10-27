@@ -1106,6 +1106,7 @@ a {
   justify-content: space-between;
   align-items: center;
   gap: var(--s2) var(--s4);
+  margin-bottom: var(--s4); /* air between the head and the line over the first code */
 }
 
 .found-count {
