@@ -1,7 +1,7 @@
 """Check the configured neural networks with one short request each; keys are never printed.
 
 docker compose exec backend python check_llm.py            # every provider in LLM_PROVIDERS
-docker compose exec backend python check_llm.py gemini2    # one of them
+docker compose exec backend python check_llm.py yandex2    # one of them
 """
 
 import sys
@@ -13,10 +13,12 @@ import extractor
 import providers
 
 HINTS = {
+    400: "запрос отклонён: см. текст ошибки (модель, max_tokens или регион)",
     401: "неверный ключ",
     402: "закончились деньги на балансе — пополните счёт у провайдера",
-    403: "нет прав у ключа (для Gemini: ключ из другого проекта или API не включён)",
-    404: "неверный адрес, folder_id или имя модели",
+    403: "нет прав у ключа (Яндекс: сервисному аккаунту нужна роль ai.languageModels.user "
+    "в этом каталоге, а ключ — из того же облака, что и FOLDER_ID)",
+    404: "неверный адрес, FOLDER_ID или имя модели",
     429: "превышена квота одновременных запросов",
 }
 ROW = "Бумага офисная А4 80 г/м2"
@@ -34,6 +36,7 @@ def check(p: providers.Provider) -> bool:
     except httpx.HTTPStatusError as exc:
         code = exc.response.status_code
         print(f"{p.name}: ошибка HTTP {code} — {HINTS.get(code, 'см. ответ сервиса')}")
+        print(f"    ответ сервиса: {exc.response.text[:300]}")  # the error text, never the key
         return False
     except Exception as exc:  # noqa: BLE001 - every failure is reported, not raised
         print(f"{p.name}: ошибка {type(exc).__name__}: {str(exc)[:200]}")

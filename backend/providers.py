@@ -1,11 +1,14 @@
 """Neural networks for extractor.py: settings from .env and one chat request with retries.
 
-LLM_PROVIDERS=gemini,gemini2,gemini3,gemini4,gemini5,gigachat lists them; the order is the priority when
-several are free. GigaChat is used only when none of the others can take the batch.
+LLM_PROVIDERS=yandex,yandex2,yandex3,yandex4,yandex5,gigachat lists them; the order is the priority
+when several are free. GigaChat is used only when none of the others can take the batch.
+- yandex, yandex2...yandex5: YandexGPT in Yandex AI Studio, one API key of a service account each:
+  X_API_KEY, X_FOLDER_ID, X_MODEL (yandexgpt-5.1 or a full gpt://... URI), X_PARALLEL, X_RPM,
+  X_BASE_URL; yandex2...yandex5 take what they lack from YANDEX_*
 - gigachat: GIGACHAT_* (OAuth key -> token for 30 minutes)
-- any other name X (gemini, gemini2, gemini3: one Google key each):
-  X_BASE_URL, X_API_KEY, X_MODEL, X_PARALLEL (an OpenAI-compatible API), X_RPM
-Optional X_REASONING_EFFORT (none, low, ...) for models that think before answering.
+- any other name X: an OpenAI-compatible API with X_BASE_URL, X_API_KEY, X_MODEL, X_PARALLEL, X_RPM
+Optional X_REASONING_EFFORT (none, low, ...) for models that think before answering and
+X_MAX_TOKENS for the answer limit.
 Every provider has its own limit of requests at the same moment (X_PARALLEL -> a semaphore)
 and, if X_RPM is set, of requests per minute.
 """
@@ -22,7 +25,15 @@ import httpx
 logger = logging.getLogger(__name__)
 
 # A provider without a key is skipped
-DEFAULT_PROVIDERS = "gemini,gemini2,gemini3,gemini4,gemini5,gigachat"
+DEFAULT_PROVIDERS = "yandex,yandex2,yandex3,yandex4,yandex5,gigachat"
+YANDEX_URL = "https://ai.api.cloud.yandex.net/v1"  # the OpenAI-compatible API of AI Studio
+YANDEX_MODEL = "yandexgpt-5.1"  # YandexGPT Pro 5.1; Lite 5 is withdrawn on 15.11.2026
+# Without a subscription AI Studio runs 2 generations of one cloud at the same moment
+YANDEX_PARALLEL = "2"
+# YandexGPT has a 32K context for the question and the answer together: 8K answer tokens are
+# still twice what 20 rows need, and the prompt with the rows keeps the rest
+YANDEX_MAX_TOKENS = "8000"
+MAX_TOKENS = 16384  # a batch of 20 rows answers in 2-4 thousand tokens: room for long rows
 TEMPERATURE = 0.0001  # below 0.001 GigaChat answers the same way every time
 REQUEST_TIMEOUT = 40.0  # a batch of 10 rows takes 5-23 s; a hung request goes to a retry sooner
 RETRIES = 2
@@ -53,7 +64,7 @@ class Cancelled(Exception):
 @dataclass
 class Provider:
     name: str
-    kind: str  # gigachat | openai
+    kind: str  # gigachat | yandex | openai
     base_url: str
     key: str
     model: str
@@ -62,6 +73,8 @@ class Provider:
         ""  # reasoning_effort for models that think before answering: "none" is fastest
     )
     rpm: int = 0  # requests per minute the plan allows (free tiers: ~30); 0 - no limit
+    folder: str = ""  # Yandex Cloud folder of the key: sent as OpenAI-Project
+    max_tokens: int = MAX_TOKENS
     down_until: float = 0.0  # did not answer a moment ago: skipped until then
     busy_until: float = 0.0  # overloaded (429, 502-504): the batches wait for others meanwhile
     slots: threading.BoundedSemaphore = field(init=False, repr=False)
@@ -115,6 +128,8 @@ def load(env=os.environ) -> list[Provider]:
                     int(env.get("GIGACHAT_PARALLEL", "1")),
                 )
             )
+        elif name.startswith("yandex"):
+            result.append(yandex(env, name))
         else:
             result.append(
                 Provider(
@@ -127,16 +142,37 @@ def load(env=os.environ) -> list[Provider]:
                 )
             )
         result[-1].reasoning = env.get(f"{p}_REASONING_EFFORT", "").strip()
+        limit = YANDEX_MAX_TOKENS if result[-1].kind == "yandex" else str(MAX_TOKENS)
+        result[-1].max_tokens = int(setting(env, name, "MAX_TOKENS", limit))
         result[-1].rpm = int(setting(env, name, "RPM", "0", shared=name != "gigachat") or 0)
     return result
 
 
+def yandex(env, name: str) -> Provider:
+    """YandexGPT: the model is addressed as gpt://<folder>/<model>, the folder also goes in the
+    OpenAI-Project header. A key without its folder is not configured."""
+    folder = setting(env, name, "FOLDER_ID").strip()
+    model = setting(env, name, "MODEL", YANDEX_MODEL).strip()
+    if folder and not model.startswith("gpt://"):
+        model = f"gpt://{folder}/{model}"
+    return Provider(
+        name,
+        "yandex",
+        setting(env, name, "BASE_URL", YANDEX_URL),
+        setting(env, name, "API_KEY", shared=False).strip(),
+        model if folder else "",
+        int(setting(env, name, "PARALLEL", YANDEX_PARALLEL)),
+        folder=folder,
+    )
+
+
 def setting(env, name: str, key: str, default: str = "", shared: bool = True) -> str:
-    """X_KEY; for another Google key (gemini2...gemini5) a missing one is GEMINI_KEY, so a new
-    key needs only its own X_API_KEY line."""
+    """X_KEY; a numbered key (yandex2...yandex5) takes a missing one from YANDEX_KEY, so another
+    key needs only its own X_API_KEY line (and X_FOLDER_ID when it is from another cloud)."""
     value = env.get(f"{name.upper()}_{key}") or ""
-    if not value and shared and name.startswith("gemini"):
-        value = env.get(f"GEMINI_{key}") or ""
+    base = name.rstrip("0123456789")
+    if not value and shared and base != name:
+        value = env.get(f"{base.upper()}_{key}") or ""
     return value or default
 
 
@@ -190,7 +226,7 @@ def body(p: Provider, system: str, user: str) -> dict:
     model = p.model
     result = {
         "model": model,
-        "max_tokens": 16384,
+        "max_tokens": p.max_tokens,
         "temperature": TEMPERATURE,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
     }
@@ -204,6 +240,9 @@ def post(p: Provider, payload: dict, deadline: float) -> httpx.Response:
     if p.kind == "gigachat":
         headers = {"Authorization": f"Bearer {access_token(p.key, deadline=deadline)}"}
         client = _gigachat_client
+    elif p.kind == "yandex":
+        headers = {"Authorization": f"Api-Key {p.key}", "OpenAI-Project": p.folder}
+        client = _client
     else:
         headers = {"Authorization": f"Bearer {p.key}"}
         client = _client

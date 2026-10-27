@@ -162,7 +162,7 @@ def test_nothing_is_sent_after_cancel(monkeypatch):
     assert not sent
 
 
-def test_gemini_request_and_cut_answer(monkeypatch):
+def test_openai_request_and_cut_answer(monkeypatch):
     seen = []
 
     def handler(request):
@@ -170,51 +170,71 @@ def test_gemini_request_and_cut_answer(monkeypatch):
         return httpx.Response(200, json=chat_answer(finish="stop" if len(seen) == 1 else "length"))
 
     mock(monkeypatch, handler)
-    p = Provider("gemini", "openai", "https://ai/v1", "secret", "gemini-3.5-flash-lite", 2)
+    p = Provider("other", "openai", "https://ai/v1", "secret", "chat-model", 2)
     assert providers.chat(p, "s", "u", time.monotonic() + 30) == ANSWER
     body = json.loads(seen[0].content)
     assert str(seen[0].url) == "https://ai/v1/chat/completions"
     assert seen[0].headers["Authorization"] == "Bearer secret"
-    assert body["model"] == "gemini-3.5-flash-lite" and "reasoning_effort" not in body
+    assert body["model"] == "chat-model" and "reasoning_effort" not in body
     with pytest.raises(ValueError):
         providers.chat(p, "s", "u", time.monotonic() + 30)
 
 
+def test_yandex_request(monkeypatch):
+    seen = []
+    mock(
+        monkeypatch, lambda request: seen.append(request) or httpx.Response(200, json=chat_answer())
+    )
+    [p] = providers.load(
+        {"LLM_PROVIDERS": "yandex", "YANDEX_API_KEY": " secret ", "YANDEX_FOLDER_ID": "b1g"}
+    )
+    assert providers.chat(p, "s", "u", time.monotonic() + 30) == ANSWER
+    body = json.loads(seen[0].content)
+    assert str(seen[0].url) == "https://ai.api.cloud.yandex.net/v1/chat/completions"
+    assert seen[0].headers["Authorization"] == "Api-Key secret"
+    assert seen[0].headers["OpenAI-Project"] == "b1g"
+    assert body["model"] == "gpt://b1g/yandexgpt-5.1" and body["max_tokens"] == 8000
+    assert p.parallel == 2
+
+
 def test_load_from_env():
     env = {
-        "LLM_PROVIDERS": "gigachat, gemini, gemini2, gigachat",
+        "LLM_PROVIDERS": "gigachat, yandex, other, gigachat",
         "GIGACHAT_CREDENTIALS": "key",
-        "GEMINI_BASE_URL": "https://g/v1",
-        "GEMINI_API_KEY": "k",
-        "GEMINI_MODEL": "gemini-3.5-flash-lite",
-        "GEMINI_PARALLEL": "4",
-        "GEMINI2_BASE_URL": "https://api.example/v1",
-        "GEMINI2_API_KEY": "d",
-        "GEMINI2_MODEL": "chat",
+        "YANDEX_API_KEY": "k",
+        "YANDEX_FOLDER_ID": "b1g",
+        "YANDEX_PARALLEL": "4",
+        "OTHER_BASE_URL": "https://api.example/v1",
+        "OTHER_API_KEY": "d",
+        "OTHER_MODEL": "chat",
     }
     giga, first, other = providers.load(env)
     assert (giga.kind, giga.parallel, giga.configured) == ("gigachat", 1, True)
-    assert (first.kind, first.parallel, first.model) == ("openai", 4, "gemini-3.5-flash-lite")
-    assert (other.kind, other.configured) == ("openai", True)
-    reasoning = providers.load({"LLM_PROVIDERS": "gemini", "GEMINI_REASONING_EFFORT": "low"})[0]
+    assert (first.kind, first.parallel, first.model) == ("yandex", 4, "gpt://b1g/yandexgpt-5.1")
+    assert (other.kind, other.configured, other.max_tokens) == ("openai", True, 16384)
+    reasoning = providers.load({"LLM_PROVIDERS": "other", "OTHER_REASONING_EFFORT": "low"})[0]
     assert providers.body(reasoning, "s", "u")["reasoning_effort"] == "low"
     assert "reasoning_effort" not in providers.body(other, "s", "u")
-    assert not providers.load({"LLM_PROVIDERS": "gemini3"})[0].configured  # no key
+    assert not providers.load({"LLM_PROVIDERS": "yandex3"})[0].configured  # no key
+    # a key without its folder cannot address a model
+    assert not providers.load({"LLM_PROVIDERS": "yandex", "YANDEX_API_KEY": "k"})[0].configured
     names = [p.name for p in providers.load({})]
-    assert names == ["gemini", "gemini2", "gemini3", "gemini4", "gemini5", "gigachat"]
-    # A new Google key needs only its own line: address, model and limits come from GEMINI_*
+    assert names == ["yandex", "yandex2", "yandex3", "yandex4", "yandex5", "gigachat"]
+    # Another key needs only its own line: folder, model and limits come from YANDEX_*;
+    # a key of another cloud brings its own folder, a full gpt:// URI is kept as it is
     shared = env | {
-        "LLM_PROVIDERS": "gemini,gemini4",
-        "GEMINI4_API_KEY": " k4 ",
-        "GEMINI_RPM": "14",
+        "LLM_PROVIDERS": "yandex,yandex4,yandex5",
+        "YANDEX4_API_KEY": " k4 ",
+        "YANDEX5_API_KEY": "k5",
+        "YANDEX5_FOLDER_ID": "b1other",
+        "YANDEX5_MODEL": "gpt://b1other/aliceai-llm-flash",
+        "YANDEX_RPM": "30",
+        "YANDEX_MAX_TOKENS": "6000",
     }
-    _, fourth = providers.load(shared)
-    assert (fourth.key, fourth.model, fourth.base_url) == (
-        "k4",
-        "gemini-3.5-flash-lite",
-        "https://g/v1",
-    )
-    assert (fourth.parallel, fourth.rpm) == (4, 14)
+    _, fourth, fifth = providers.load(shared)
+    assert (fourth.key, fourth.model, fourth.folder) == ("k4", "gpt://b1g/yandexgpt-5.1", "b1g")
+    assert (fourth.parallel, fourth.rpm, fourth.max_tokens) == (4, 30, 6000)
+    assert (fifth.folder, fifth.model) == ("b1other", "gpt://b1other/aliceai-llm-flash")
 
 
 # --- several providers in extract_chunk ----------------------------------------------------
@@ -266,21 +286,21 @@ def test_failed_batch_moves_to_the_next_provider(monkeypatch):
     assert first.slots.acquire(blocking=False) and second.slots.acquire(blocking=False)
 
 
-def test_gigachat_is_used_only_when_gemini_cannot_answer(monkeypatch):
+def test_gigachat_is_used_only_when_yandex_cannot_answer(monkeypatch):
     refused = httpx.HTTPStatusError("500", request=None, response=httpx.Response(500))
-    gemini = openai(name="gemini")
+    yandex = openai(name="yandex")
     giga = Provider("gigachat", "gigachat", "https://giga/v1", "key", "GigaChat-3-Ultra")
-    monkeypatch.setattr(extractor, "PROVIDERS", [giga, gemini])  # even listed first
+    monkeypatch.setattr(extractor, "PROVIDERS", [giga, yandex])  # even listed first
     calls = []
     monkeypatch.setattr(providers, "chat", fake_chat(log=calls))
     [row] = extractor.extract_chunk(["Бумага"], time.monotonic() + 5)
-    assert row["provider"] == "gemini" and calls == ["gemini"]
-    gemini.slots.acquire()  # Gemini is only busy: the batch waits instead of going to GigaChat
+    assert row["provider"] == "yandex" and calls == ["yandex"]
+    yandex.slots.acquire()  # YandexGPT is only busy: the batch waits instead of going to GigaChat
     assert extractor.take_provider(set(), time.monotonic() + 0.2) is None
-    gemini.slots.release()
-    monkeypatch.setattr(providers, "chat", fake_chat({"gemini": refused}))
+    yandex.slots.release()
+    monkeypatch.setattr(providers, "chat", fake_chat({"yandex": refused}))
     [row] = extractor.extract_chunk(["Бумага"], time.monotonic() + 5)
-    assert row["provider"] == "gigachat"  # Gemini failed: GigaChat takes over
+    assert row["provider"] == "gigachat"  # YandexGPT failed: GigaChat takes over
 
 
 def test_budget_end_gives_budget_reason(monkeypatch):
@@ -383,7 +403,7 @@ def test_rpm_spaces_requests_and_env_sets_it():
     started = time.monotonic()
     free.wait_turn(time.monotonic() + 10)
     assert time.monotonic() - started < 0.05
-    loaded = providers.load({"LLM_PROVIDERS": "gemini", "GEMINI_RPM": "28"})
+    loaded = providers.load({"LLM_PROVIDERS": "yandex", "YANDEX_RPM": "28"})
     assert loaded[0].rpm == 28
 
 

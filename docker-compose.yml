@@ -15,7 +15,7 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8000:8000"  # API docs for this machine only; users go through nginx
-    # Neural network settings: LLM_PROVIDERS, GEMINI*_*; GigaChat below
+    # Neural network settings: LLM_PROVIDERS, YANDEX*_*; GigaChat below
     env_file:
       - path: .env
         required: false
@@ -24,7 +24,7 @@ services:
       # Embeddings: the ollama container (add docker-compose.gpu.yml for the GPU) or e.g.
       # http://host.docker.internal:11434 for Ollama on the host with the same bge-m3
       OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
-      LLM_PROVIDERS: ${LLM_PROVIDERS:-gemini,gemini2,gemini3,gemini4,gemini5,gigachat}
+      LLM_PROVIDERS: ${LLM_PROVIDERS:-yandex,yandex2,yandex3,yandex4,yandex5,gigachat}
       GIGACHAT_BASE_URL: ${GIGACHAT_BASE_URL:-https://api.giga.chat/v1}
       GIGACHAT_CREDENTIALS: ${GIGACHAT_CREDENTIALS:-}
       GIGACHAT_SCOPE: ${GIGACHAT_SCOPE:-GIGACHAT_API_PERS}

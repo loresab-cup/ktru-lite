@@ -1,6 +1,6 @@
 """Positions -> attributes: name, brand, model, characteristics, search_text.
 
-Neural networks from providers.py (GigaChat and Gemini keys through the OpenAI-compatible API) do the work;
+Neural networks from providers.py (YandexGPT keys and GigaChat through the OpenAI-compatible API) do the work;
 every value they return must be present in the source row (guard against invented values and
 prompt injection). No provider, the budget is over or every provider failed -> simple rules.
 A job never fails here.
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 PROVIDERS = providers.load()
 # Rows in one request. A bigger batch means fewer requests: free plans limit the requests per
-# minute (Gemini 15 per key), not the rows. 20 rows still fit the answer limit.
+# minute or the requests at the same moment, not the rows. 20 rows still fit the answer limit.
 BATCH_SIZE = int(os.getenv("LLM_BATCH", "20"))
 # Seconds for all LLM requests of one job; the rows left after it get the rules. 240 s plus the
 # search (~25 s on a GPU) stays within the 5 minutes required for 1000 rows.
@@ -40,7 +40,7 @@ DOWN_PAUSE = 120.0
 # starts on it for a few seconds (they wait for the others) instead of every batch spending ~6 s
 # of retries on it first
 GATEWAY_PAUSE = 15.0
-# A request without an answer in time (a free Gemini key is sometimes slow for a minute): the
+# A request without an answer in time (a loaded key is sometimes slow for a minute): the
 # other keys take the batches meanwhile, this one is tried again soon
 TIMEOUT_PAUSE = 30.0
 CONNECT_PAUSE = 15.0  # a refused connection fails at once: try again soon, the gateway may be back
