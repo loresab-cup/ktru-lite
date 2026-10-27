@@ -1282,6 +1282,11 @@ a {
   right: 24px;
 }
 
+/* the specifications page: the ring stands to the left of the check box */
+.tile-head.with-check {
+  padding-right: 40px;
+}
+
 .job-mark {
   color: var(--ink-3);
 }

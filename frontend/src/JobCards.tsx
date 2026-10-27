@@ -65,7 +65,7 @@ function FileTile({ name }: { name: string }) {
 }
 
 /** Tiles of the specifications: a click opens the list of the codes. With `selected` every
- *  tile gets a check box in place of the ring. */
+ *  tile also gets a check box, to the right of the ring. */
 export function JobCards({ jobs, percents, selected, onToggle }: {
   jobs: Job[] | null
   percents: Record<string, number>
@@ -88,13 +88,7 @@ export function JobCards({ jobs, percents, selected, onToggle }: {
         const percent = percents[job.id]
         const checked = selected?.has(job.id) ?? false
         const busy = isBusy(job)
-        const state = busy
-          ? job.status === 'queued'
-            ? T.jobStatus.queued
-            : T.jobs.processing(job.processed, job.total)
-          : percent !== undefined
-            ? T.app.ready(percent)
-            : (T.jobStatus[job.status] ?? job.status)
+        const state = job.status === 'queued' ? T.jobStatus.queued : T.jobs.processing(job.processed, job.total)
         return (
           <li key={job.id} className="tile-wrap">
             <Link
@@ -102,15 +96,15 @@ export function JobCards({ jobs, percents, selected, onToggle }: {
               to={paths.job(job.id)}
               title={`${T.jobs.open}: ${job.filename}`}
             >
-              <span className="tile-head">
+              <span className={`tile-head ${selected && !busy ? 'with-check' : ''}`}>
                 <FileTile name={job.filename} />
-                {!selected && !busy && <JobMark job={job} percent={percent} />}
+                {!busy && <JobMark job={job} percent={percent} />}
               </span>
               <span className="tile-name">{breakable(job.filename)}</span>
               <span className="tile-meta num">
-                {T.upload.positions(job.total)}, {selected || busy ? state : formatDate(job.created_at)}
+                {T.upload.positions(job.total)}, {busy ? state : formatDate(job.created_at)}
               </span>
-              {(selected || busy) && <span className="tile-date num">{formatDate(job.created_at)}</span>}
+              {busy && <span className="tile-date num">{formatDate(job.created_at)}</span>}
               {busy && <TileProgress job={job} />}
             </Link>
             {/* a running one cannot be deleted, so it gets no check box */}

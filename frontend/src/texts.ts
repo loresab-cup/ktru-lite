@@ -44,7 +44,6 @@ export const T = {
     menuClose: 'Закрыть меню',
     catalogLink: 'Каталог в ЕИС',
     catalogLinkTitle: 'Открыть каталог КТРУ на zakupki.gov.ru в новой вкладке',
-    ready: (percent: number) => `готово ${percent} %`,
     ringLabel: 'готово',
     ringHint: (percent: number) =>
       `${percent} % позиций готовы: код подобран уверенно или проверен вручную`,
