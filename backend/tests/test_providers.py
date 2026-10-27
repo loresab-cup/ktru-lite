@@ -349,6 +349,48 @@ def test_providers_share_the_queue_within_their_limits(monkeypatch):
     assert used.count("fast") > used.count("slow") > 0
 
 
+def test_a_freed_slot_goes_to_the_batch_that_waited_longest(monkeypatch):
+    yandex = openai(name="yandex")
+    monkeypatch.setattr(extractor, "PROVIDERS", [yandex])
+    yandex.slots.acquire()  # a request is running
+    got = {}
+    waiter = threading.Thread(
+        target=lambda: got.update(first=extractor.take_provider(set(), time.monotonic() + 3))
+    )
+    waiter.start()
+    time.sleep(0.2)  # the first batch is waiting now
+    yandex.slots.release()
+    # A worker that has just finished a batch asks at once, before the waiter wakes up
+    assert extractor.take_provider(set(), time.monotonic() + 0.3) is None
+    waiter.join()
+    assert got["first"] is yandex
+    yandex.slots.release()
+
+
+def test_the_worker_of_the_gigachat_slot_does_not_hold_a_batch_back(monkeypatch):
+    """5 YandexGPT slots and a GigaChat one: 6 workers. The sixth batch used to wait until no
+    other batch was left, and the rows after it reached the table only at the end."""
+    yandex = openai(parallel=5, name="yandex")
+    giga = Provider("gigachat", "gigachat", "https://giga/v1", "key", "GigaChat-3-Ultra")
+    finished = []
+    inner = fake_chat()
+
+    def chat(p, system, user, *args):
+        time.sleep(0.02)
+        finished.append(json.loads(user)[0]["text"])
+        return inner(p, system, user, *args)
+
+    monkeypatch.setattr(extractor, "PROVIDERS", [yandex, giga])
+    monkeypatch.setattr(extractor, "_pool", ThreadPoolExecutor(6))
+    monkeypatch.setattr(extractor, "SLOTS", 6)
+    monkeypatch.setattr(extractor, "BATCH_SIZE", 1)
+    monkeypatch.setattr(providers, "chat", chat)
+    texts = [f"Товар {i}" for i in range(60)]
+    job = extractor.JobExtractor(texts)
+    assert all(job.get(text)["provider"] == "yandex" for text in texts)
+    assert finished.index("Товар 5") < 15  # in the second round, not the last one
+
+
 def test_bad_objects_fall_back_per_row():
     answer = json.dumps([{"id": 0, "name": "Бумага", "characteristics": 42}, {"id": 1}])
     paper, lamp, cable = extractor.to_attributes(answer, ["Бумага 80 г", "Лампа", "Кабель"], "a")

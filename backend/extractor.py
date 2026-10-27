@@ -290,22 +290,54 @@ def llm_state() -> str:
     return "down" if all(p.is_down() for p in configured) else "on"
 
 
+def usable(tried: set[str]) -> list[providers.Provider]:
+    """Providers a batch may go to now; GigaChat only when no other one is left for it."""
+    alive = [p for p in PROVIDERS if p.configured and not p.is_down() and p.name not in tried]
+    return [p for p in alive if p.kind != "gigachat"] or alive
+
+
+class Waiter:
+    """A batch waiting for a request slot; compared by identity, not by what it wants."""
+
+    def __init__(self, wants: set[str]) -> None:
+        self.wants = wants  # names of the providers the batch may use now
+
+
+_waiting: list[Waiter] = []  # oldest first
+_waiting_lock = threading.Lock()
+
+
 def take_provider(tried: set[str], deadline: float) -> providers.Provider | None:
     """A free request slot of the first provider in the list; waits while all are busy.
 
     GigaChat is the last resort: it gets a batch only when no other provider is left for it, not
-    while the others are merely busy.
+    while the others are merely busy. A freed slot goes to the batch that has waited longest for
+    that provider: the pool has a worker for the GigaChat slot too, and without the queue the
+    worker that had just finished a batch took the slot again at once. On 1000 rows the sixth
+    batch (rows 101-120) waited until the very end and held back the progress at 100.
     None - every provider is down or has already failed this batch, or the budget is over."""
-    while time.monotonic() < deadline:
-        alive = [p for p in PROVIDERS if p.configured and not p.is_down() and p.name not in tried]
-        alive = [p for p in alive if p.kind != "gigachat"] or alive
-        if not alive:
-            return None
-        for p in alive:
-            if not p.is_busy() and p.slots.acquire(blocking=False):
-                return p
-        time.sleep(0.05)
-    return None
+    me = Waiter({p.name for p in usable(tried)})
+    with _waiting_lock:
+        _waiting.append(me)
+    try:
+        while time.monotonic() < deadline:
+            alive = usable(tried)
+            if not alive:
+                return None
+            with _waiting_lock:
+                me.wants = {p.name for p in alive}
+                earlier = _waiting[: _waiting.index(me)]
+                taken = set().union(*(other.wants for other in earlier))
+                for p in alive:
+                    if p.name in taken or p.is_busy():
+                        continue
+                    if p.slots.acquire(blocking=False):
+                        return p
+            time.sleep(0.05)
+        return None
+    finally:
+        with _waiting_lock:
+            _waiting.remove(me)
 
 
 def to_attributes(answer: str, texts: list[str], provider: str) -> list[dict]:
