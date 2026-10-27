@@ -194,7 +194,7 @@ def test_yandex_request(monkeypatch):
     assert seen[0].headers["Authorization"] == "Api-Key secret"
     assert seen[0].headers["OpenAI-Project"] == "b1g"
     assert body["model"] == "gpt://b1g/yandexgpt-5.1" and body["max_tokens"] == 8000
-    assert p.parallel == 2
+    assert p.parallel == 1  # five keys of one cloud share its 5 generations
 
 
 def test_load_from_env():

@@ -28,8 +28,10 @@ logger = logging.getLogger(__name__)
 DEFAULT_PROVIDERS = "yandex,yandex2,yandex3,yandex4,yandex5,gigachat"
 YANDEX_URL = "https://ai.api.cloud.yandex.net/v1"  # the OpenAI-compatible API of AI Studio
 YANDEX_MODEL = "yandexgpt-5.1"  # YandexGPT Pro 5.1; Lite 5 is withdrawn on 15.11.2026
-# Without a subscription AI Studio runs 2 generations of one cloud at the same moment
-YANDEX_PARALLEL = "2"
+# A cloud runs 5 generations at the same moment for all its keys together (measured 27.10.2026:
+# the 6th gets 429, quota ai.textGenerationCompletionSessionsCount), so five keys of one cloud
+# take one request each; keys of other clouds bring 5 more each
+YANDEX_PARALLEL = "1"
 # YandexGPT has a 32K context for the question and the answer together: 8K answer tokens are
 # still twice what 20 rows need, and the prompt with the rows keeps the rest
 YANDEX_MAX_TOKENS = "8000"
