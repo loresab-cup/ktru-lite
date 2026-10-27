@@ -58,3 +58,20 @@ def test_specific_code_beats_a_general_code_that_also_allows_the_value():
     row = "Интерактивная доска. Количество точек касания: ≥ 2 Штука"
     [found] = c.search(np.asarray([[1.0, 0.0]], dtype=np.float32), [row])
     assert found[0]["code"].endswith("1")
+
+
+def test_decimal_comma_is_one_number():
+    """«2,5 процента» is 2.5: neither the value «2» nor «≥ 2» of another code is written."""
+    assert "2.5" in search.words("Кефир 2,5 процента")
+    assert "2" not in search.stems("Кефир 2,5 процента")
+    c = catalog(
+        [
+            [["Массовая доля жира", ["2 Процент"]]],
+            [["Массовая доля жира", ["2.5 Процент"]]],
+            [["Массовая доля жира, min", ["≥ 2"]]],
+        ]
+    )
+    row = "Кефир. Массовая доля жира: 2,5 процента"
+    [found] = c.search(np.asarray([[1.0, 0.0]], dtype=np.float32), [row])
+    assert found[0]["code"].endswith("1")
+    assert found[0]["raw_score"] > found[1]["raw_score"]

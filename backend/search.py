@@ -33,7 +33,7 @@ WORDS_ONLY_BASE = 0.6  # without vectors the score stays low: nothing goes to au
 MAX_CODE_WORDS = 400
 # Characteristics kept per code: candidates show 6 x 5 of them, a lookup of one code all
 BRIEF_CHARS, BRIEF_VALUES = 20, 40
-CACHE_VERSION = 8  # bump when the cached metadata changes
+CACHE_VERSION = 9  # bump when the cached metadata changes
 # Neighbour codes of one group often differ only by a range: "> 1.25" vs "<= 1.25".
 # A bound of the row equal to a bound of the code adds NUMERIC_BONUS, so does a plain value with
 # a unit inside a range of the code («Вес: 100 г» and «≥ 90 и < 110 Грамм»); the same number on
@@ -128,7 +128,9 @@ _UNIT_SHORT = {
 
 # Latin letters that look like Cyrillic ones: "A4" and "А4" must be the same word
 _LOOKALIKE = str.maketrans("aceopxkmhbty", "асеорхкмнвту")
-_WORD = re.compile(r"[a-zа-я0-9]+")
+# A decimal number is one word: «2,5 процента» must not match the values «2» and «≥ 2»
+_WORD = re.compile(r"\d+(?:[.,]\d+)+|[a-zа-я0-9]+")
+_DECIMAL = re.compile(r"\d+(?:\.\d+)+")
 _NUM = r"(\d+(?:[.,]\d+)?)"
 _LOWER = re.compile(
     rf"(?<!\w)(?:не\s+менее|не\s+меньше|(?<!не )более|(?<!не )больше|свыше|от|≥|>=|>)\s*{_NUM}"
@@ -194,7 +196,12 @@ _COMPOUND = ("в ", "на ", "/")
 def words(text: str) -> set[str]:
     """Words for matching: 3+ letters or with a digit, lowercase, ё=е, Latin lookalikes."""
     text = (text or "").lower().replace("ё", "е").translate(_LOOKALIKE)
-    return {w for w in _WORD.findall(text) if len(w) >= 3 or any(c.isdigit() for c in w)}
+    found = (w.replace(",", ".") for w in _WORD.findall(text))
+    return {w for w in found if len(w) >= 3 or any(c.isdigit() for c in w)}
+
+
+def is_number(word: str) -> bool:
+    return word.isdigit() or _DECIMAL.fullmatch(word) is not None
 
 
 def unit_of(text: str) -> tuple[float, str] | None:
@@ -252,8 +259,9 @@ def unit_key(text: str) -> str | None:
 
 
 def stems(text: str) -> set[str]:
-    """First 5 letters of the words: «коровье» and «коровьего» are the same."""
-    return {word[:5] for word in words(text)}
+    """First 5 letters of the words: «коровье» and «коровьего» are the same. A decimal number
+    stays whole: «12.75» is not «12.7»."""
+    return {w if _DECIMAL.fullmatch(w) else w[:5] for w in words(text)}
 
 
 # Names and values of the catalog come up for every row again: their words are kept, not
@@ -489,7 +497,7 @@ class Catalog:
         for i, cosine in nearest:
             # Bare numbers are compared as bounds below: as words «100 Грамм» matched the mass
             # range «≥ 100 и < 110» of a neighbour code and outweighed the right one
-            shared = {w for w in query_words & set(self.code_words[i].split()) if not w.isdigit()}
+            shared = {w for w in query_words & set(self.code_words[i].split()) if not is_number(w)}
             matches, clashes = self._numeric_fit(i, query)
             score = cosine + WORD_BONUS * len(shared) + NUMERIC_BONUS * matches
             score -= NUMERIC_CLASH * clashes
