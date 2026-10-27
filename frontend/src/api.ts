@@ -74,6 +74,7 @@ export interface ItemPage extends Item {
   prev_id: number | null
   next_id: number | null
   next_unreviewed_id: number | null
+  same_pending: number // other rows of the job with the same text that still wait for a look
 }
 
 /** The columns of the list that it can be sorted by. */
@@ -195,6 +196,8 @@ export const api = {
   revert: (itemId: number) => request<Item>(`/api/items/${itemId}/revert`, json('POST')),
   /** Brings back the code the position had before the last manual change. */
   undoCode: (itemId: number) => request<Item>(`/api/items/${itemId}/undo-code`, json('POST')),
+  applySame: (itemId: number) =>
+    request<{ applied: number }>(`/api/items/${itemId}/apply-same`, json('POST')),
   /** Returns accepted positions to review: the chosen ones, or all accepted of the job. */
   revertMany: (jobId: string, which: { ids: number[] } | { all_accepted: true }) =>
     request<{ reverted: number }>(

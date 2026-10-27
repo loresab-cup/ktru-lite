@@ -8,6 +8,7 @@ import {
   CheckCheck,
   ChevronDown,
   ChevronRight,
+  CopyCheck,
   ExternalLink,
   Pencil,
   Plus,
@@ -623,7 +624,7 @@ export function ItemScreen({ jobId, itemId }: { jobId: string; itemId: number })
   }, [])
 
   /** Runs a change of the item; false when it failed (the error is shown as a message). */
-  const run = async (action: () => Promise<Item>, done?: string) => {
+  const run = async (action: () => Promise<unknown>, done?: string) => {
     setBusy(true)
     try {
       await action()
@@ -817,6 +818,19 @@ export function ItemScreen({ jobId, itemId }: { jobId: string; itemId: number })
                   onClick={() => void run(() => api.undoCode(itemId), T.item.codeBack)}
                 >
                   <Undo2 size={16} aria-hidden="true" /> {T.item.undoCode}
+                </button>
+              )}
+              {reviewed && item.same_pending > 0 && (
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={busy}
+                  title={T.item.applySameHint}
+                  onClick={() =>
+                    void run(() => api.applySame(itemId), T.item.appliedSame(item.same_pending))
+                  }
+                >
+                  <CopyCheck size={16} aria-hidden="true" /> {T.item.applySame(item.same_pending)}
                 </button>
               )}
               {reviewed && (
