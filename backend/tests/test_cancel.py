@@ -100,6 +100,22 @@ def test_delete_job_removes_rows_and_file_but_not_a_running_job(api, tmp_path):
     assert not (tmp_path / f"{done}.txt").exists()
 
 
+def test_a_job_stopped_a_moment_ago_says_it_is_stopping(api):
+    stopping = uuid.uuid4()
+    with api.SessionLocal() as session:
+        session.add(api.Job(id=stopping, filename="c.txt", status="cancelled"))
+        session.commit()
+    api.state.cancels[stopping] = threading.Event()  # the worker has not finished its batch
+    try:
+        with TestClient(api.app) as client:
+            answer = client.delete(f"/api/jobs/{stopping}")
+            assert answer.status_code == 409 and "останавливается" in answer.json()["detail"]
+    finally:
+        api.state.cancels.pop(stopping, None)
+    with TestClient(api.app) as client:
+        assert client.delete(f"/api/jobs/{stopping}").status_code == 204
+
+
 def test_revert_returns_the_proposed_code_and_status(api, monkeypatch):
     monkeypatch.setattr(api.state, "catalog", tiny_catalog())
     job_id = uuid.uuid4()

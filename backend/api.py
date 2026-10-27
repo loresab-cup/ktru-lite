@@ -530,6 +530,9 @@ def delete_job(job_id: str):
     """Removes the job with its rows and the uploaded file; a running job must be stopped first."""
     with SessionLocal() as session:
         job = get_or_404(session, Job, job_id, "Задание")
+        if job.status == "cancelled" and job.id in state.cancels:
+            # stopped by the user a moment ago: the worker finishes its batch first
+            raise HTTPException(409, "Задание останавливается: удалите его через несколько секунд")
         if job.status == "processing" or job.id in state.cancels:
             raise HTTPException(409, "Задание ещё обрабатывается: сначала остановите его")
         session.execute(delete(Item).where(Item.job_id == job.id))
