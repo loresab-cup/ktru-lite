@@ -344,14 +344,19 @@ class Catalog:
                     self._bm25[stem] = (idx, (idf * (BM25_K1 + 1) / (1 + norm[idx])))
             return self._bm25
 
-    def _lexical(self, query_stems: set[str], include_inactive: bool) -> list[int]:
-        """Indices of the top codes by BM25 of the name."""
+    def _bm25_scores(self, query_stems: set[str]) -> np.ndarray:
+        """BM25 of every code name for the stems; stems that no name has add nothing."""
         postings = self._bm25_postings()
         scores = np.zeros(len(self.codes), dtype=np.float32)
         for stem in query_stems:
             if stem in postings:
                 idx, weight = postings[stem]
                 scores[idx] += weight
+        return scores
+
+    def _lexical(self, query_stems: set[str], include_inactive: bool) -> list[int]:
+        """Indices of the top codes by BM25 of the name."""
+        scores = self._bm25_scores(query_stems)
         if not include_inactive:
             scores[~self.active] = 0
         limit = min(LEX_LIMIT, len(self.codes))
@@ -509,17 +514,30 @@ class Catalog:
         return None if i is None else self.brief(i)
 
     def lookup(self, query: str, limit: int = 20) -> list[dict]:
-        """Manual correction: by code prefix or by words of the name; ACTIVE codes first."""
+        """Manual correction: by code prefix or by words of the name; ACTIVE codes first.
+
+        Names that have every word of the query come first; when there are none, the query is
+        matched by word stems (case endings, a stray «А4» or «2,5%» do not empty the answer)."""
         query = query.strip().lower().replace("ё", "е")
         if not query:
             return []
-        if re.fullmatch(r"[\d.\-]+", query):
+        is_code = re.fullmatch(r"[\d.\-]+", query) is not None
+        if is_code:
             found = [i for i, code in enumerate(self.codes) if code.startswith(query)]
         else:
             parts = query.split()
             found = [i for i, n in enumerate(self._names_lower) if all(p in n for p in parts)]
+        if not found and not is_code:
+            return [self.brief(i) for i in self._by_stems(query, limit)]
         found.sort(key=lambda i: (not self.active[i], len(self.names[i]), self.codes[i]))
         return [self.brief(i, full=self.codes[i] == query) for i in found[:limit]]
+
+    def _by_stems(self, query: str, limit: int) -> list[int]:
+        """Codes whose name shares word stems with the query: ACTIVE first, then best BM25."""
+        scores = self._bm25_scores(stems(query))
+        hits = np.flatnonzero(scores > 0)
+        order = np.lexsort((-scores[hits], ~self.active[hits]))
+        return [int(i) for i in hits[order][:limit]]
 
 
 # --- loading -------------------------------------------------------------------------------

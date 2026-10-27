@@ -249,6 +249,17 @@ def test_search_words_only_and_lookup(catalog):
     assert catalog.lookup("бумага офисной")[0]["status"] == "ACTIVE"
 
 
+def test_lookup_falls_back_to_word_stems(catalog):
+    # «офисная» is not a substring of «офисной», and «а4 бумага» has the stray word for every name
+    assert catalog.lookup("бумага офисная")[0]["name"] == "Бумага для офисной техники"
+    found = catalog.lookup("кефир ноутбук 2,5%")  # «кефир» and «2,5%» are in no name
+    assert [c["name"] for c in found] == ["Ноутбук"]
+    assert catalog.lookup("кефир") == []
+    assert catalog.lookup("26.99") == []  # a code prefix is never matched by words
+    active_first = [c["status"] for c in catalog.lookup("бумага офисная")]
+    assert active_first == ["ACTIVE", "ACTIVE", "TERMINATED"]
+
+
 # --- confidence ----------------------------------------------------------------------------
 
 
