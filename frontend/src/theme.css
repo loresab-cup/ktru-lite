@@ -1333,6 +1333,22 @@ a {
   animation: shine 1.4s linear infinite, pulse 1.4s ease-in-out infinite;
 }
 
+/* search by file name and the order of the specifications, over the bar of the selection */
+.jobs-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
+}
+
+.jobs-tools .grow {
+  flex: 1 1 280px;
+}
+
+.jobs-sort {
+  flex: 0 0 220px;
+}
+
 .bulk-bar {
   display: flex;
   align-items: center;
@@ -2813,6 +2829,10 @@ a {
 
   .char-head {
     display: none;
+  }
+
+  .jobs-sort {
+    flex-basis: 100%;
   }
 
   .cand,

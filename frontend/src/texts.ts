@@ -122,6 +122,17 @@ export const T = {
     showMore: (n: number) => `Показать ещё ${n}`,
     processing: (done: number, total: number) => `Обработка: ${done} из ${total}`,
     processingLabel: 'Ход обработки',
+    search: 'Название файла',
+    searchLabel: 'Найти спецификацию по названию файла',
+    sortLabel: 'Порядок спецификаций',
+    sort: {
+      new: 'Сначала новые',
+      old: 'Сначала старые',
+      name: 'По названию: А–Я',
+      name_desc: 'По названию: Я–А',
+    },
+    nothingFound: 'Ничего не найдено',
+    nothingFoundHint: 'Проверьте название или очистите поиск.',
   },
   jobStatus: {
     queued: 'В очереди',

@@ -110,6 +110,9 @@ export function zoneOf(confidence: number): Zone {
   return confidence >= 60 ? 'medium' : 'low'
 }
 
+/** Order of the list of specifications: by upload date or by file name, both ways. */
+export type JobSort = 'new' | 'old' | 'name' | 'name_desc'
+
 /** Share of positions whose code needs no more work: auto, corrected and accepted. */
 export function readyPercent(job: Job): number {
   const c = job.counts
@@ -177,8 +180,10 @@ const json = (method: string, body?: unknown): RequestInit => ({
 export const api = {
   health: () => request<Health>('/api/health'),
   /** The newest jobs and how many there are in all. */
-  jobs: async (limit = 8) => {
-    const response = await send(`/api/jobs?limit=${limit}`)
+  jobs: async (limit = 8, q = '', sort: JobSort = 'new') => {
+    const query = new URLSearchParams({ limit: String(limit), sort })
+    if (q.trim()) query.set('q', q.trim())
+    const response = await send(`/api/jobs?${query}`)
     const jobs = await readJson<Job[]>(response)
     return { jobs, total: Number(response.headers.get('X-Total-Count') ?? jobs.length) }
   },

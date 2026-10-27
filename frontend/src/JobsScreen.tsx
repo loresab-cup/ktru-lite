@@ -1,7 +1,7 @@
-import { App as AntApp, Checkbox } from 'antd'
-import { FolderOpen, Trash2, Upload } from 'lucide-react'
-import { useState } from 'react'
-import { api } from './api'
+import { App as AntApp, Checkbox, Input, Select } from 'antd'
+import { FolderOpen, Search, SearchX, Trash2, Upload } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { api, type JobSort } from './api'
 import { JobCards } from './JobCards'
 import { Link } from './Link'
 import { paths } from './router'
@@ -12,12 +12,47 @@ import { isBusy, useJobs } from './useJobs'
 
 const MAX = 1000
 const PAGE = 100 // specifications per "show more"; the service gives up to 1000 at once
+const VIEW_KEY = 'ktru-jobs-view' // the search and the order survive a visit to a specification
+const SORTS: JobSort[] = ['new', 'old', 'name', 'name_desc']
 
-/** All specifications, newest first; a tile opens the list of their codes. */
+type JobsView = { q: string; sort: JobSort }
+
+function savedView(): JobsView {
+  try {
+    const view = JSON.parse(sessionStorage.getItem(VIEW_KEY) ?? 'null')
+    if (view && typeof view.q === 'string' && SORTS.includes(view.sort)) return view
+  } catch {
+    // no storage or a broken value: start from the default view
+  }
+  return { q: '', sort: 'new' }
+}
+
+function saveView(view: JobsView) {
+  try {
+    sessionStorage.setItem(VIEW_KEY, JSON.stringify(view))
+  } catch {
+    // the view is only a convenience
+  }
+}
+
+/** All specifications, newest first or as chosen, found by file name; a tile opens the list of
+ *  their codes. */
 export function JobsScreen() {
   const { message, modal } = AntApp.useApp()
   const [limit, setLimit] = useState(PAGE)
-  const { jobs, total, percents, reload } = useJobs(limit)
+  const [query, setQuery] = useState(() => savedView().q) // what is typed
+  const [q, setQ] = useState(query) // what is asked for: a pause after the last key
+  const [sort, setSort] = useState<JobSort>(() => savedView().sort)
+  const { jobs, total, percents, reload } = useJobs(limit, q, sort)
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setQ(query)
+      setLimit(PAGE)
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [query])
+  useEffect(() => saveView({ q, sort }), [q, sort])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
 
@@ -61,7 +96,9 @@ export function JobsScreen() {
       onOk: remove,
     })
 
-  const empty = jobs !== null && jobs.length === 0
+  const searching = q.trim() !== ''
+  const empty = jobs !== null && jobs.length === 0 && !searching
+  const notFound = jobs !== null && jobs.length === 0 && searching
   return (
     <>
       <section className="page-head">
@@ -88,6 +125,34 @@ export function JobsScreen() {
             </Link>
           </EmptyState>
         )}
+        {!empty && (
+          <div className="jobs-tools">
+            <Input
+              className="grow"
+              size="large"
+              allowClear
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              prefix={<Search size={18} aria-hidden="true" />}
+              placeholder={T.jobs.search}
+              aria-label={T.jobs.searchLabel}
+            />
+            <Select
+              className="jobs-sort"
+              size="large"
+              value={sort}
+              onChange={(value) => {
+                setSort(value)
+                setLimit(PAGE)
+              }}
+              options={SORTS.map((value) => ({ value, label: T.jobs.sort[value] }))}
+              aria-label={T.jobs.sortLabel}
+            />
+          </div>
+        )}
+        {notFound && (
+          <EmptyState icon={SearchX} title={T.jobs.nothingFound} hint={T.jobs.nothingFoundHint} />
+        )}
         {jobs !== null && jobs.length > 0 && (
           <div className="bulk-bar">
             <Checkbox
@@ -112,7 +177,7 @@ export function JobsScreen() {
             </button>
           </div>
         )}
-        {!empty && <JobCards jobs={jobs} percents={percents} selected={selected} onToggle={toggle} />}
+        {!empty && !notFound && <JobCards jobs={jobs} percents={percents} selected={selected} onToggle={toggle} />}
         {jobs !== null && jobs.length < total && limit < MAX && (
           <div className="more-row">
             <button type="button" className="btn" onClick={() => setLimit(limit + PAGE)}>
