@@ -13,6 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import embedder
+import extractor
 import parser
 
 
@@ -22,6 +23,13 @@ def test_single_column_name_header_is_not_a_product(tmp_path):
     rows = parser.parse_file(path)
     assert [(row.row_number, row.text) for row in rows] == [(2, "Клавиатура"), (3, "Мышь")]
     assert parser.parse_rows([["Мыло"], ["Бумага"]])[0].text == "Мыло"
+
+
+def test_prompt_keeps_a_name_for_services_and_works():
+    """YandexGPT and GigaChat gave «Услуги частной охраны» an empty name, so a right code at
+    99 % never went to auto; an empty name is only for headings, totals and notes."""
+    assert "Услуги и работы — тоже позиции КТРУ" in extractor.SYSTEM_PROMPT
+    assert "не товар, не работа и не услуга" in extractor.SYSTEM_PROMPT
 
 
 @pytest.fixture
