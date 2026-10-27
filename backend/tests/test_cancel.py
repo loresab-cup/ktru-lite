@@ -6,6 +6,7 @@ import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import pytest
@@ -201,6 +202,36 @@ def test_job_list_has_the_counts_of_each_job(api):
         "failed": 0,
     }
     assert sum(jobs[str(second)]["counts"].values()) == 0
+
+
+def test_job_list_finds_by_name_and_sorts(api):
+    start = datetime(2026, 10, 1, tzinfo=UTC)
+    names = ["spec_1000.xlsx", "Spec_2000.xlsx", "beta.csv", "Alpha.txt"]  # uploaded in this order
+    with api.SessionLocal() as session:
+        session.add_all(
+            api.Job(id=uuid.uuid4(), filename=name, created_at=start + timedelta(minutes=i))
+            for i, name in enumerate(names)
+        )
+        session.commit()
+    with TestClient(api.app) as client:
+
+        def listed(**params) -> list[str]:
+            return [job["filename"] for job in client.get("/api/jobs", params=params).json()]
+
+        assert listed() == names[::-1]  # newest first
+        assert listed(sort="old") == names
+        assert listed(sort="name") == ["Alpha.txt", "beta.csv", "spec_1000.xlsx", "Spec_2000.xlsx"]
+        assert listed(sort="name_desc") == [
+            "Spec_2000.xlsx",
+            "spec_1000.xlsx",
+            "beta.csv",
+            "Alpha.txt",
+        ]
+        assert listed(q="SPEC") == ["Spec_2000.xlsx", "spec_1000.xlsx"]  # case does not matter
+        found = client.get("/api/jobs", params={"q": "c_1"})  # «_» is a letter, not a wildcard
+        assert [j["filename"] for j in found.json()] == ["spec_1000.xlsx"]
+        assert found.headers["X-Total-Count"] == "1"
+        assert client.get("/api/jobs", params={"sort": "size"}).status_code == 422
 
 
 def test_run_job_stops_between_batches_and_keeps_finished_rows(api, monkeypatch, tmp_path):

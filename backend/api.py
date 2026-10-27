@@ -16,7 +16,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import quote
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
@@ -453,14 +453,31 @@ def create_job(
     return {"job_id": str(job.id)}
 
 
+JOB_ORDER = {
+    "new": (Job.created_at.desc(),),
+    "old": (Job.created_at.asc(),),
+    "name": (func.lower(Job.filename).asc(), Job.created_at.desc()),
+    "name_desc": (func.lower(Job.filename).desc(), Job.created_at.desc()),
+}
+
+
 @app.get("/api/jobs")
-def list_jobs(response: Response, limit: int = Query(20, ge=1, le=1000)):
+def list_jobs(
+    response: Response,
+    limit: int = Query(20, ge=1, le=1000),
+    q: str = Query("", max_length=200),
+    sort: Literal["new", "old", "name", "name_desc"] = "new",
+):
+    """Jobs by file name (case does not matter), newest first or as asked."""
+    found = select(Job)
+    if q.strip():
+        found = found.where(Job.filename.ilike(like_pattern(q.strip()), escape="\\"))
     with SessionLocal() as session:
-        # The page shows "N in the list", so the real number of jobs goes in a header
+        # The page shows "N in the list", so the real number of matching jobs goes in a header
         response.headers["X-Total-Count"] = str(
-            session.scalar(select(func.count()).select_from(Job))
+            session.scalar(select(func.count()).select_from(found.subquery()))
         )
-        jobs = session.scalars(select(Job).order_by(Job.created_at.desc()).limit(limit)).all()
+        jobs = session.scalars(found.order_by(*JOB_ORDER[sort]).limit(limit)).all()
         # One query for all the jobs: the page of the jobs shows how much of each is ready
         rows = session.execute(
             select(Item.job_id, Item.status, func.count())
