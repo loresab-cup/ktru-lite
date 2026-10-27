@@ -155,12 +155,13 @@ def set_job(job_id: uuid.UUID, **values) -> None:
 
 def finish(job_id: uuid.UUID, status: str, error: str | None, stages: dict) -> None:
     """Final status; a job the user cancelled meanwhile stays cancelled."""
-    values = {"error": error, "finished_at": now(), "stage_seconds": dict(stages)}
+    values = {"finished_at": now(), "stage_seconds": dict(stages)}
     with SessionLocal() as session:
         query = update(Job).where(Job.id == job_id)
         if status != "cancelled":
             query = query.where(Job.status == "processing")
-        session.execute(query.values(status=status, **values))
+        # The error goes only with its status: a job cancelled meanwhile shows no failure text
+        session.execute(query.values(status=status, error=error, **values))
         session.execute(update(Job).where(Job.id == job_id).values(**values))
         session.commit()
 
@@ -762,7 +763,9 @@ def accept_job(job_id: str, min_confidence: float = Query(85.0, ge=0, le=100)):
         accepted = 0
         for item in items:
             code = catalog.get(item.ktru_code or "")
-            if code and code["status"] == "ACTIVE":
+            # A row that does not look like a product never goes to auto: not in bulk either
+            is_product = bool((item.attributes or {}).get("name"))
+            if code and code["status"] == "ACTIVE" and is_product:
                 remember_original(item)
                 item.status, accepted = "accepted", accepted + 1
         session.commit()

@@ -135,7 +135,10 @@ def read_csv(path: Path) -> list[Item]:
         delimiter = csv.Sniffer().sniff(text[:4096], delimiters=";,\t").delimiter
     except csv.Error:
         delimiter = ";"
-    rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
+    try:
+        rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
+    except csv.Error as exc:  # a NUL byte, a cell over 128 KB: not a table to read
+        raise ParseError("Файл csv повреждён: сохраните его заново как CSV (UTF-8)") from exc
     if sum(len(row) for row in rows) > MAX_CELLS:
         raise ParseError("В файле слишком много ячеек")
     return parse_rows(rows)

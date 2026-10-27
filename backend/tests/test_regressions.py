@@ -339,3 +339,45 @@ def test_hung_ollama_is_not_waited_for_again(monkeypatch):
     assert embedder.embed(["Лампа"]) is None
     assert embedder.embed(["Стол"]) is None  # paused: no second request
     assert len(calls) == 1 and embedder.state() == "down"
+
+
+def test_broken_csv_is_a_clear_parse_error(tmp_path):
+    path = tmp_path / "spec.csv"
+    path.write_text("Наименование;Кол-во\n" + "Бумага " * 30_000 + ";1\n", encoding="utf-8")
+    with pytest.raises(parser.ParseError, match="csv"):
+        parser.parse_file(path)
+
+
+class ActiveCodes:
+    def get(self, code: str) -> dict:
+        return {"code": code, "name": "Бумага", "status": "ACTIVE"}
+
+
+def test_bulk_accept_skips_rows_that_are_not_products(isolated_api, monkeypatch):
+    api = isolated_api
+    monkeypatch.setattr(api.state, "catalog", ActiveCodes())
+    job = api.Job(filename="spec.csv", status="done")
+    with api.SessionLocal() as session:
+        session.add(job)
+        session.flush()
+        for number, name in ((1, "Бумага"), (2, "")):  # row 2: «Итого по разделу» and the like
+            item = api.Item(job_id=job.id, row_number=number, raw_text=name or "Раздел 1")
+            item.attributes = {"name": name}
+            item.ktru_code, item.confidence, item.status = "17.12.14.129-00000002", 99.0, "auto"
+            session.add(item)
+        session.commit()
+    with TestClient(api.app) as client:
+        assert client.post(f"/api/jobs/{job.id}/accept").json() == {"accepted": 1}
+
+
+def test_cancelled_job_gets_no_failure_text(isolated_api):
+    api = isolated_api
+    job = api.Job(filename="spec.csv", status="cancelled")
+    with api.SessionLocal() as session:
+        session.add(job)
+        session.commit()
+    api.finish(job.id, "failed", "Файл задания не найден: загрузите его заново", {"read": 0.1})
+    with api.SessionLocal() as session:
+        stored = session.get(api.Job, job.id)
+        assert stored.status == "cancelled" and stored.error is None
+        assert stored.finished_at is not None
