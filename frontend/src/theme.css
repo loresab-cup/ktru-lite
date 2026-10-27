@@ -850,6 +850,8 @@ a {
 }
 
 .title-count {
+  display: inline-block; /* «12 позиций» moves to the next line as a whole on a phone */
+  white-space: nowrap;
   margin-left: var(--s4);
   font-size: var(--text-lg);
   font-weight: 600;
@@ -2567,6 +2569,12 @@ a {
     order: 3;
   }
 
+  /* the search and the bulk accept do not share a line: the search got 130 px at 768 */
+  .filters-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .progress {
     gap: var(--s6);
     padding: var(--s6);
@@ -2662,6 +2670,11 @@ a {
   .title-row {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .title-count {
+    display: block;
+    margin-left: 0;
   }
 
   .tiles {
@@ -2841,8 +2854,11 @@ a {
     align-items: stretch;
     gap: var(--s3);
   }
+}
 
-  /* the round buttons become a bar of their own: nothing under them is covered */
+/* Below 1280 px the page has no free margin for the round buttons (zoom 0.9 makes it
+   1080 px wide), so they become a bar of their own at the bottom */
+@media (max-width: 1279px) {
   .has-dock {
     padding-bottom: 140px;
   }
@@ -2877,5 +2893,12 @@ a {
 
   .dock .round {
     margin-top: -14px;
+  }
+}
+
+/* a phone or a tablet without a keyboard: the hint about arrows, Enter and Esc says nothing */
+@media (hover: none) and (pointer: coarse) {
+  .keys-hint {
+    display: none;
   }
 }
