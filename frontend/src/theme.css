@@ -1169,11 +1169,6 @@ a {
   gap: var(--s6);
 }
 
-.found-differs {
-  align-self: center;
-  font-size: var(--text-sm);
-}
-
 .found-rest {
   padding: var(--s1) var(--s3) var(--s5);
 }

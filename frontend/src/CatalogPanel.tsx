@@ -75,8 +75,7 @@ function CodeRow({ code, differs, open, onToggle }: {
           </div>
           {main.length > 0 && (
             <div className="chips">
-              {differ.length > 0 && <span className="muted found-differs">{T.drawer.differs}</span>}
-              <ChipList chars={main} />
+                <ChipList chars={main} />
             </div>
           )}
         </div>
