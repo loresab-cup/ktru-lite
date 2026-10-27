@@ -395,6 +395,31 @@ a {
   font-size: var(--text-sm);
 }
 
+/* the toggle after the first chips: shows the rest of the characteristics of a code */
+.chip-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 3px 10px 3px 12px;
+  border: 1px solid var(--accent-line);
+  border-radius: 15px;
+  background: var(--accent-softer);
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chip-more:hover {
+  background: var(--accent-soft);
+}
+
+.chip-more .flip {
+  transform: rotate(180deg);
+}
+
 .chip.good {
   background: var(--green-soft);
   color: var(--green);
@@ -977,38 +1002,6 @@ a {
   margin-top: var(--s2);
 }
 
-.seg {
-  display: inline-flex;
-  align-self: flex-start;
-  gap: var(--s1);
-  padding: var(--s1);
-  border-radius: 14px;
-  background: var(--field);
-}
-
-.seg a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--s2);
-  height: 40px;
-  padding: 0 18px;
-  border-radius: 10px;
-  color: var(--ink-2);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.seg a[aria-current='page'] {
-  background: var(--paper-raised);
-  color: var(--ink);
-  box-shadow: var(--shadow-card);
-}
-
-.seg a[aria-current='page'] .icon {
-  color: var(--accent);
-}
-
 .drop {
   display: flex;
   align-items: center;
@@ -1237,9 +1230,13 @@ a {
 }
 
 .tile-name {
+  display: -webkit-box;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2; /* long file names get a second line, then an ellipsis */
+  line-clamp: 2;
+  min-height: 2lh; /* the dates of a row of tiles stay on one line */
+  overflow-wrap: break-word;
   font-weight: 600;
 }
 
@@ -1265,6 +1262,22 @@ a {
 }
 
 .job-mark.low {
+  color: var(--red);
+}
+
+/* the mark of a finished tile with a word under it, so the number or the sign is not a riddle */
+.job-state {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink-3);
+}
+
+.job-state.failed {
   color: var(--red);
 }
 

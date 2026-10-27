@@ -1,5 +1,5 @@
 import { App as AntApp, Checkbox, Input } from 'antd'
-import { ExternalLink, Search } from 'lucide-react'
+import { ChevronDown, ExternalLink, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api, ApiError, ktruUrl, type CatalogCode } from './api'
 import { capital, T } from './texts'
@@ -7,11 +7,14 @@ import { Skeleton } from './ui'
 
 const MIN_LETTERS = 2 // the service finds nothing useful by one letter
 const STEP = 8 // rows shown at first and added by "Show more"
+const CHIPS = 3 // characteristics shown before "Show all"
 
 /** One found code: the code, its state, the name and a link to the same code in the EIS. */
 function CodeRow({ code }: { code: CatalogCode }) {
   const active = code.status === 'ACTIVE'
   const url = ktruUrl(code.code)
+  const [open, setOpen] = useState(false)
+  const extra = code.characteristics.length - CHIPS
   return (
     <li className="found-row">
       <div className="found-main">
@@ -32,11 +35,22 @@ function CodeRow({ code }: { code: CatalogCode }) {
         </div>
         {code.characteristics.length > 0 && (
           <div className="chips">
-            {code.characteristics.slice(0, 3).map(([name, values]) => (
+            {code.characteristics.slice(0, open ? undefined : CHIPS).map(([name, values]) => (
               <span key={name} className="chip">
                 {name}: {values.join('; ')}
               </span>
             ))}
+            {extra > 0 && (
+              <button
+                type="button"
+                className="chip-more"
+                aria-expanded={open}
+                onClick={() => setOpen(!open)}
+              >
+                {open ? T.catalogSearch.fewerChars : T.catalogSearch.moreChars(extra)}
+                <ChevronDown size={16} aria-hidden="true" className={open ? 'flip' : ''} />
+              </button>
+            )}
           </div>
         )}
       </div>

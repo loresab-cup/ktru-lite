@@ -1,4 +1,4 @@
-import { Checkbox } from 'antd'
+import { Checkbox, Tooltip } from 'antd'
 import {
   ArrowRight,
   Download,
@@ -8,9 +8,7 @@ import {
   FileUp,
   Play,
   Plus,
-  Search,
   TriangleAlert,
-  Upload,
   UploadCloud,
   X,
 } from 'lucide-react'
@@ -181,11 +179,6 @@ export function UploadScreen({ mode }: { mode: 'upload' | 'search' }) {
     add(e.dataTransfer.files)
   }
 
-  const tabs = [
-    { to: paths.home, label: T.upload.tabs.upload, icon: Upload, on: !searching },
-    { to: paths.catalog, label: T.upload.tabs.search, icon: Search, on: searching },
-  ]
-
   return (
     <>
       <section className="band" aria-labelledby="hero-title">
@@ -197,14 +190,6 @@ export function UploadScreen({ mode }: { mode: 'upload' | 'search' }) {
           {!searching && <Tutorial onTry={() => void addExample()} />}
           {!searching && <ServiceNotices />}
           <div className="card home-card">
-            <nav className="seg" aria-label={T.upload.tabsLabel}>
-              {tabs.map(({ to, label, icon: Icon, on }) => (
-                <Link key={to} to={to} aria-current={on ? 'page' : undefined}>
-                  <Icon size={18} aria-hidden="true" /> {label}
-                </Link>
-              ))}
-            </nav>
-
             {searching ? (
               <CatalogPanel />
             ) : (
@@ -260,9 +245,13 @@ export function UploadScreen({ mode }: { mode: 'upload' | 'search' }) {
                   />
                 </div>
                 <div className="drop-options">
-                  <Checkbox checked={inactive} onChange={(e) => setInactive(e.target.checked)}>
-                    {T.upload.inactive}
-                  </Checkbox>
+                  <Tooltip title={T.upload.inactiveHint}>
+                    <span>
+                      <Checkbox checked={inactive} onChange={(e) => setInactive(e.target.checked)}>
+                        {T.upload.inactive}
+                      </Checkbox>
+                    </span>
+                  </Tooltip>
                   <span className="grow" />
                   <button
                     type="button"

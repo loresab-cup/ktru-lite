@@ -1,5 +1,5 @@
 import { Modal } from 'antd'
-import { ArrowLeft, ArrowRight, GraduationCap, Play } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CircleHelp, Play } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { T } from './texts'
 
@@ -59,7 +59,7 @@ export function Tutorial({ onTry }: { onTry: () => void }) {
   return (
     <>
       <button ref={button} type="button" className="btn tour-start" onClick={start}>
-        <GraduationCap size={18} aria-hidden="true" /> {T.tour.start}
+        <CircleHelp size={18} aria-hidden="true" /> {T.tour.start}
       </button>
       <Modal
         open={open}

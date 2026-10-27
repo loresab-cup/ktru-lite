@@ -13,9 +13,24 @@ const doneShare = (job: Job) => (job.total ? Math.floor((100 * job.processed) / 
 /** The ring with the ready share, or a mark when there is none. A running one has no ring:
  *  its progress is the bar at the foot of the tile. */
 function JobMark({ job, percent }: { job: Job; percent?: number }) {
-  if (job.status === 'failed') return <TriangleAlert size={28} className="job-mark low" aria-hidden="true" />
+  if (job.status === 'failed') {
+    return (
+      <span className="job-state failed">
+        <TriangleAlert size={28} aria-hidden="true" />
+        {T.jobStatus.failed}
+      </span>
+    )
+  }
   if (percent === undefined) return <Clock size={28} className="job-mark" aria-hidden="true" />
-  return <PercentRing percent={percent} />
+  return (
+    <span className="job-state" title={T.app.ringHint(percent)}>
+      <PercentRing percent={percent} size={44} />
+      <span>
+        <span className="sr-only">{percent} % </span>
+        {T.app.ringLabel}
+      </span>
+    </span>
+  )
 }
 
 /** A thin bar at the foot of a running tile: it fills with the rows done and shimmers, so the
@@ -35,6 +50,9 @@ function TileProgress({ job }: { job: Job }) {
     </span>
   )
 }
+
+/** A file name that may wrap after "_" and before the extension, not in the middle of a word. */
+const breakable = (name: string) => name.replace(/_/g, '_\u200b').replace(/\.(\w+)$/, '\u200b.$1')
 
 /** The file type tile: a table for xlsx, a sheet of text for the rest. */
 function FileTile({ name }: { name: string }) {
@@ -88,7 +106,7 @@ export function JobCards({ jobs, percents, selected, onToggle }: {
                 <FileTile name={job.filename} />
                 {!selected && !busy && <JobMark job={job} percent={percent} />}
               </span>
-              <span className="tile-name">{job.filename}</span>
+              <span className="tile-name">{breakable(job.filename)}</span>
               <span className="tile-meta num">
                 {T.upload.positions(job.total)}, {selected || busy ? state : formatDate(job.created_at)}
               </span>
