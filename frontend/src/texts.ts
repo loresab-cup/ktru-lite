@@ -347,7 +347,7 @@ export const T = {
     okpd2: 'Код по ОКПД2',
     codeState: 'Состояние кода в каталоге',
     why: 'Почему этот код',
-    catalogChars: (n: number) => `Что допускает код в каталоге: ${n} ${plural(n, 'характеристика', 'характеристики', 'характеристик')}`,
+    catalogChars: (n: number) => `Характеристики кода в каталоге (${n})`,
     noCatalog: 'Сведения о коде не найдены в каталоге',
     position: (index: number, total: number) => `${index} из ${total}`,
     placeLabel: 'Место в списке',
