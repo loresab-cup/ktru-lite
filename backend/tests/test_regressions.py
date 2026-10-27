@@ -187,7 +187,13 @@ def test_job_fallback_count_handles_mixed_attribute_sources(isolated_api):
         session.add(api.Job(id=job_id, filename="synthetic.csv"))
         session.flush()
         for number, attributes in enumerate(
-            [{"source": "rules"}, {"source": "llm"}, {}, {"source": "manual"}]
+            [
+                {"source": "rules", "fallback": "no_key"},
+                {"source": "llm"},
+                {},
+                {"source": "manual"},
+                {"source": "manual", "fallback": "no_key"},  # rules, then fixed by a person
+            ]
         ):
             session.add(
                 api.Item(
@@ -201,5 +207,5 @@ def test_job_fallback_count_handles_mixed_attribute_sources(isolated_api):
         session.commit()
     with TestClient(api.app) as client:
         body = client.get(f"/api/jobs/{job_id}").json()
-    assert body["fallback"] == 1
-    assert body["counts"]["needs_review"] == 4
+    assert body["fallback"] == 2
+    assert body["counts"]["needs_review"] == 5

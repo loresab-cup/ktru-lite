@@ -481,7 +481,7 @@ def get_job(job_id: str):
         fallback = session.scalar(
             select(func.count())
             .select_from(Item)
-            .where(Item.job_id == job.id, Item.attributes["source"].as_string() == "rules")
+            .where(Item.job_id == job.id, Item.attributes["fallback"].as_string().is_not(None))
         )
         return to_dict(job) | {"counts": counts, "fallback": fallback}
 
@@ -639,10 +639,14 @@ def edit_attributes(item_id: int, body: AttributesIn):
         item = get_or_404(session, Item, item_id, "Позиция")
         include_inactive = session.get(Job, item.job_id).include_inactive
         [found] = catalog.search(embedder.embed([query]), [query], include_inactive)
-        columns = (item.attributes or {}).get("columns", {})
+        remember_original(item)  # "revert" brings back what the system proposed
+        old = item.attributes or {}
+        # "fallback" stays: the row still counts as one the network did not answer
+        kept = {key: old[key] for key in ("columns", "original", "fallback") if key in old}
         attributes = body.model_dump() | {"search_text": query, "source": "manual"}
-        item.attributes = attributes | {"columns": columns}
+        item.attributes = attributes | kept
         apply_candidates(item, found)
+        item.status = "corrected"  # a person has looked at the row, whatever the new confidence
         item.summary = f"Атрибуты исправлены вручную. {item.summary}"
         session.commit()
         return to_dict(item)

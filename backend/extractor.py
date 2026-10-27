@@ -178,9 +178,69 @@ _CHARACTERISTIC = re.compile(
 )
 
 
+_CONVERSION = re.compile(r"\(\s*\d+(?:[.,]\d+)?\s*[^\W\d]+\s*\)")  # «(25,4 мм)» after «15.6 Дюйм»
+_NUMBER = re.compile(r"[≥≤<>]?\d+(?:[.,]\d+)?%?")
+_CAPITAL = re.compile(r"[А-ЯЁ]")
+_COLON = re.compile(r"(?<!\d):|:(?!\d)")  # not the colon of «4:3»
+_MEASURE_NAME = "единица измерения"  # «Единица измерения товара: Штука» is the unit, not a trait
+MAX_CHARACTERISTICS = 15
+
+
+def split_value(rest: str) -> tuple[list[str], str]:
+    """«≥ 15.6 Дюйм (25,4 мм) Общий объем памяти» -> the words of the value and the name that
+    follows. The name starts at a capital Russian word; one right after a number is the unit
+    of that number when another capital word comes next («4 Штука Единица измерения»), and a
+    name otherwise («768 Количество ядер»)."""
+    words = _CONVERSION.sub("", rest).split() + [""]  # the empty word closes the last name
+    for i in range(1, len(words) - 1):
+        if not _CAPITAL.match(words[i]):
+            continue
+        unit = _NUMBER.fullmatch(words[i - 1]) and _CAPITAL.match(words[i + 1])
+        if not unit:
+            return words[:i], " ".join(words[i:-1])
+    return words[:-1], ""
+
+
+def named_pairs(text: str) -> list[tuple[str, list[str]]] | None:
+    """The rows of the EIS «Name: value Name: value»: pairs cut at the colons; None when some
+    colon has no name or value around it (then it is not that form)."""
+    parts = _COLON.split(text)
+    if len(parts) < 2:
+        return None
+    name, pairs = parts[0].rsplit(". ", 1)[-1].strip(), []
+    for rest in parts[1:-1]:
+        value, following = split_value(rest)
+        pairs.append((name, value))
+        name = following
+    pairs.append((name, _CONVERSION.sub("", parts[-1]).split()))
+    return pairs if all(n and v for n, v in pairs) else None
+
+
+def pair_characteristic(name: str, words: list[str]) -> dict:
+    """«15.6», «Дюйм» -> value 15.6 and unit Дюйм: a word after the number is its unit."""
+    unit = ""
+    after_number = len(words) >= 2 and _NUMBER.fullmatch(words[-2])
+    if after_number and (words[-1].isalpha() or re.fullmatch(_UNITS, words[-1], re.IGNORECASE)):
+        unit, words = words[-1], words[:-1]
+    return {"name": name, "value": " ".join(words), "unit": unit}
+
+
+def pair_attributes(pairs: list[tuple[str, list[str]]]) -> tuple[list[dict], str]:
+    """Characteristics of the pairs and the unit the row is bought in."""
+    characteristics, measure = [], ""
+    for name, words in pairs:
+        found = pair_characteristic(name, words)
+        if name.lower().startswith(_MEASURE_NAME):
+            measure = found["value"]
+        else:
+            characteristics.append(found)
+    return characteristics[:MAX_CHARACTERISTICS], measure
+
+
 def rules(text: str, reason: str = ERROR) -> dict:
     """Attributes without a network: brand = Latin word with a capital, model = token with
-    digits after it, characteristics = «name value unit», search_text = the row itself."""
+    digits after it, characteristics = «name: value unit» pairs or else «name value unit»
+    found by the numbers, search_text = the row itself."""
     brand_match = _BRAND.search(text)
     brand = brand_match.group(0) if brand_match else ""
     model = ""
@@ -189,19 +249,25 @@ def rules(text: str, reason: str = ERROR) -> dict:
         if found and found.start() - brand_match.end() < 30:
             model = found.group(0)
     name = re.split(r"[,;(]|\.\s|\s\d|\s[A-Za-z]", text, maxsplit=1)[0].strip(" .:-")
-    characteristics = [
-        {
-            "name": (m.group("name") or "").strip(),
-            "value": m.group("value"),
-            "unit": m.group("unit") or "",
-        }
-        for m in _CHARACTERISTIC.finditer(text)
-        if m.group("value") != model and (m.group("name") or m.group("unit"))
-    ][:10]
+    pairs = named_pairs(text)
+    if pairs:
+        characteristics, measure = pair_attributes(pairs)
+    else:
+        measure = ""
+        characteristics = [
+            {
+                "name": (m.group("name") or "").strip(),
+                "value": m.group("value"),
+                "unit": m.group("unit") or "",
+            }
+            for m in _CHARACTERISTIC.finditer(_CONVERSION.sub("", text))
+            if m.group("value") != model and (m.group("name") or m.group("unit"))
+        ][:10]
     return {
         "name": name or text[:100],
         "brand": brand,
         "model": model,
+        "measure": measure,
         "characteristics": characteristics,
         "search_text": text,
         "source": "rules",

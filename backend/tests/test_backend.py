@@ -177,6 +177,30 @@ def test_rules_fallback():
     assert attributes["source"] == "rules"
 
 
+def test_rules_read_name_value_pairs():
+    row = (
+        "Ноутбук. Диагональ экрана: ≥ 15.6 Дюйм (25,4 мм) Общий объем оперативной памяти: "
+        "16 Гигабайт Тип накопителя: SSD Разрешение экрана: ≥1024 х 768 Количество ядер "
+        "процессора: 4 Штука Формат изображения: 4:3 Единица измерения товара: Штука"
+    )
+    attributes = extractor.rules(row)
+    assert attributes["characteristics"] == [
+        {"name": "Диагональ экрана", "value": "≥ 15.6", "unit": "Дюйм"},
+        {"name": "Общий объем оперативной памяти", "value": "16", "unit": "Гигабайт"},
+        {"name": "Тип накопителя", "value": "SSD", "unit": ""},
+        {"name": "Разрешение экрана", "value": "≥1024 х 768", "unit": ""},
+        {"name": "Количество ядер процессора", "value": "4", "unit": "Штука"},
+        {"name": "Формат изображения", "value": "4:3", "unit": ""},
+    ]
+    assert attributes["measure"] == "Штука"  # the unit of the row is not a characteristic
+
+
+def test_rules_without_pairs_drop_the_conversion_note():
+    attributes = extractor.rules("Экран 40 Дюйм (25,4 мм), 8 ГБ")
+    assert {"name": "", "value": "25,4", "unit": "мм"} not in attributes["characteristics"]
+    assert attributes["measure"] == ""
+
+
 def test_job_extractor_without_key_uses_rules():
     llm = extractor.JobExtractor([ROW, ROW])
     assert llm.get(ROW)["source"] == "rules"
@@ -349,9 +373,14 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
         assert edited["attributes"]["source"] == "manual"
         assert edited["attributes"]["search_text"] == "Ноутбук. 14"
         assert edited["attributes"]["columns"]["Кол-во"] == "1"
+        assert edited["status"] == "corrected"  # as after a manual choice of the code
+        assert edited["attributes"]["fallback"] == "no_key"  # still a row without the network
+        assert client.get(f"/api/jobs/{job_id}").json()["fallback"] == 2
+        reverted = client.post(f"/api/items/{notebook['id']}/revert").json()
+        assert reverted["status"] in ("auto", "needs_review")
 
         accepted = client.post(f"/api/jobs/{job_id}/accept", params={"min_confidence": 0})
-        assert accepted.json()["accepted"] == 1
+        assert accepted.json()["accepted"] == 1  # the reverted row; the other one is corrected
 
         csv_text = client.get(f"/api/jobs/{job_id}/export", params={"format": "csv"}).text
         assert CODES[0][0] in csv_text and "'=HYPERLINK(1) ноутбук" in csv_text
