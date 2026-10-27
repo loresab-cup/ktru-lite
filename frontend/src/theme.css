@@ -427,6 +427,17 @@ a {
   color: var(--accent);
 }
 
+/* why a row waits for a person: under the code in the list and in the card */
+.review-reason {
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--radius-sm);
+  background: var(--amber-soft);
+  color: var(--amber);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
 .status-needs_review {
   background: var(--amber-soft);
   color: var(--amber);

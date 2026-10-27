@@ -780,6 +780,11 @@ export function ItemScreen({ jobId, itemId }: { jobId: string; itemId: number })
               <StatusChip status={item.status} />
             </div>
             {item.ktru_name && <div className="item-name sentence">{item.ktru_name}</div>}
+            {item.status === 'needs_review' && item.attributes.review && (
+              <p className="review-reason">
+                <b>{T.item.reviewWhy}</b> {item.attributes.review}
+              </p>
+            )}
             <RawText text={item.raw_text} />
             <div className="actions">
               {accepted ? (

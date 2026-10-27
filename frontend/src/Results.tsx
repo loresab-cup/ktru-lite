@@ -94,6 +94,9 @@ function ResultCard({ item, jobId, open, onToggle, pick }: {
               {item.ktru_name}
             </Link>
           )}
+          {item.status === 'needs_review' && item.attributes.review && (
+            <p className="review-reason">{item.attributes.review}</p>
+          )}
         </div>
         <div className="res-conf">
           <span className="cap-small">{T.results.confidence}</span>

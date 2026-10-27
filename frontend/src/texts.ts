@@ -366,6 +366,7 @@ export const T = {
     okpd2: 'Код по ОКПД2',
     codeState: 'Состояние кода в каталоге',
     why: 'Почему этот код',
+    reviewWhy: 'Почему на проверке:',
     catalogChars: (n: number) => `Характеристики кода в каталоге (${n})`,
     noCatalog: 'Сведения о коде не найдены в каталоге',
     position: (index: number, total: number) => `${index} из ${total}`,

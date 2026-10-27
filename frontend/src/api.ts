@@ -54,6 +54,7 @@ export interface Item {
     source?: string
     fallback?: string // why the rules were used
     provider?: string // which neural network extracted the row
+    review?: string // why a person has to look at the row, for needs_review ones
     history?: { ktru_code: string | null }[] // codes the position had before the manual changes
   }
   candidates: Candidate[]
