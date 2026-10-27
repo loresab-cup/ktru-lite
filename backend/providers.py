@@ -1,8 +1,11 @@
 """Neural networks for extractor.py: settings from .env and one chat request with retries.
 
-LLM_PROVIDERS=gemini,gemini2,gemini3,gemini4,gemini5,gigachat lists them; the order is the priority when
+LLM_PROVIDERS=deepseek uses one key; an explicit comma-separated list enables alternatives.
+The order is the priority when
 several are free. GigaChat is used only when none of the others can take the batch.
+- deepseek: DEEPSEEK_* (OpenAI-compatible API; thinking disabled)
 - gigachat: GIGACHAT_* (OAuth key -> token for 30 minutes)
+- yandex..yandex5: YANDEXn_API_KEY and YANDEXn_FOLDER_ID, shared model and cloud concurrency cap
 - any other name X (gemini, gemini2, gemini3: one Google key each):
   X_BASE_URL, X_API_KEY, X_MODEL, X_PARALLEL (an OpenAI-compatible API), X_RPM
 Optional X_REASONING_EFFORT (none, low, ...) for models that think before answering.
@@ -22,10 +25,10 @@ import httpx
 logger = logging.getLogger(__name__)
 
 # A provider without a key is skipped
-DEFAULT_PROVIDERS = "gemini,gemini2,gemini3,gemini4,gemini5,gigachat"
+DEFAULT_PROVIDERS = "deepseek"
 TEMPERATURE = 0.0001  # below 0.001 GigaChat answers the same way every time
-REQUEST_TIMEOUT = 40.0  # a batch of 10 rows takes 5-23 s; a hung request goes to a retry sooner
-RETRIES = 2
+REQUEST_TIMEOUT = float(os.getenv("LLM_REQUEST_TIMEOUT", "40"))
+RETRIES = max(0, int(os.getenv("LLM_RETRIES", "2")))
 # A 5xx that came this late is the gateway's own timeout (a gateway: 502 after 37 s): a retry would
 # cost the same again, so the batch goes to the next provider at once
 SLOW_ERROR = 15.0
@@ -62,6 +65,8 @@ class Provider:
         ""  # reasoning_effort for models that think before answering: "none" is fastest
     )
     rpm: int = 0  # requests per minute the plan allows (free tiers: ~30); 0 - no limit
+    project: str = ""
+    shared_slots: threading.BoundedSemaphore | None = field(default=None, repr=False)
     down_until: float = 0.0  # did not answer a moment ago: skipped until then
     busy_until: float = 0.0  # overloaded (429, 502-504): the batches wait for others meanwhile
     slots: threading.BoundedSemaphore = field(init=False, repr=False)
@@ -94,10 +99,25 @@ class Provider:
     def is_busy(self) -> bool:
         return time.monotonic() < self.busy_until
 
+    def try_acquire(self) -> bool:
+        """Reserve a key and its shared cloud quota without holding a half reservation."""
+        if not self.slots.acquire(blocking=False):
+            return False
+        if self.shared_slots is not None and not self.shared_slots.acquire(blocking=False):
+            self.slots.release()
+            return False
+        return True
+
+    def release(self) -> None:
+        self.slots.release()
+        if self.shared_slots is not None:
+            self.shared_slots.release()
+
 
 def load(env=os.environ) -> list[Provider]:
     """Providers from LLM_PROVIDERS, in that order."""
     result = []
+    yandex_slots = threading.BoundedSemaphore(max(1, int(env.get("YANDEX_TOTAL_PARALLEL", "2"))))
     for name in dict.fromkeys(
         n.strip().lower() for n in env.get("LLM_PROVIDERS", DEFAULT_PROVIDERS).split(",")
     ):
@@ -113,6 +133,36 @@ def load(env=os.environ) -> list[Provider]:
                     env.get("GIGACHAT_CREDENTIALS", ""),
                     env.get("GIGACHAT_MODEL", "GigaChat-3-Ultra"),
                     int(env.get("GIGACHAT_PARALLEL", "1")),
+                )
+            )
+        elif name == "deepseek":
+            result.append(
+                Provider(
+                    name,
+                    "openai",
+                    setting(env, name, "BASE_URL", "https://api.deepseek.com"),
+                    setting(env, name, "API_KEY", shared=False).strip(),
+                    setting(env, name, "MODEL", "deepseek-flash").strip(),
+                    int(setting(env, name, "PARALLEL", "4")),
+                )
+            )
+        elif name.startswith("yandex"):
+            folder = setting(env, name, "FOLDER_ID").strip()
+            model = setting(env, name, "MODEL", "aliceai-llm-flash").strip()
+            if model.startswith("gpt://"):
+                folder = folder or model.removeprefix("gpt://").split("/", 1)[0]
+            else:
+                model = f"gpt://{folder}/{model}" if folder else ""
+            result.append(
+                Provider(
+                    name,
+                    "openai",
+                    setting(env, name, "BASE_URL", "https://ai.api.cloud.yandex.net/v1"),
+                    setting(env, name, "API_KEY", shared=False).strip(),
+                    model,
+                    int(setting(env, name, "PARALLEL", "1")),
+                    project=folder,
+                    shared_slots=yandex_slots,
                 )
             )
         else:
@@ -132,12 +182,26 @@ def load(env=os.environ) -> list[Provider]:
 
 
 def setting(env, name: str, key: str, default: str = "", shared: bool = True) -> str:
-    """X_KEY; for another Google key (gemini2...gemini5) a missing one is GEMINI_KEY, so a new
-    key needs only its own X_API_KEY line."""
+    """Non-secret settings inherit from GEMINI_* or YANDEX_*; API keys never inherit."""
     value = env.get(f"{name.upper()}_{key}") or ""
-    if not value and shared and name.startswith("gemini"):
-        value = env.get(f"GEMINI_{key}") or ""
+    family = next((prefix for prefix in ("gemini", "yandex") if name.startswith(prefix)), None)
+    if not value and shared and family:
+        value = env.get(f"{family.upper()}_{key}") or ""
     return value or default
+
+
+def failed_precondition(exc: Exception) -> bool:
+    """A provider rejected its operating conditions; retrying every row cannot fix it."""
+    response = getattr(exc, "response", None)
+    if response is None or response.status_code != 400:
+        return False
+    try:
+        body = response.json()
+        body = body[0] if isinstance(body, list) and body else body
+        error = body.get("error", {}) if isinstance(body, dict) else {}
+        return isinstance(error, dict) and error.get("status") == "FAILED_PRECONDITION"
+    except ValueError:
+        return False
 
 
 # --- GigaChat token ------------------------------------------------------------------------
@@ -194,7 +258,11 @@ def body(p: Provider, system: str, user: str) -> dict:
         "temperature": TEMPERATURE,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
     }
-    if p.reasoning:
+    if p.name == "deepseek":
+        # DeepSeek defaults to thinking, which adds latency and billed output tokens.
+        # Attribute extraction and candidate selection use the existing JSON-array contract.
+        result["thinking"] = {"type": "disabled"}
+    elif p.reasoning:
         result["reasoning_effort"] = p.reasoning
     return result
 
@@ -207,6 +275,8 @@ def post(p: Provider, payload: dict, deadline: float) -> httpx.Response:
     else:
         headers = {"Authorization": f"Bearer {p.key}"}
         client = _client
+    if p.project:
+        headers["x-project"] = p.project
     p.wait_turn(deadline)
     timeout = min(REQUEST_TIMEOUT, max(1.0, deadline - time.monotonic()))
     started = time.monotonic()

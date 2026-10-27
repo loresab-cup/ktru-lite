@@ -16,6 +16,26 @@ import embedder
 import parser
 
 
+def test_single_column_name_header_is_not_a_product(tmp_path):
+    path = tmp_path / "single.csv"
+    path.write_text("Наименование\nКлавиатура\nМышь\n", encoding="utf-8-sig")
+    rows = parser.parse_file(path)
+    assert [(row.row_number, row.text) for row in rows] == [(2, "Клавиатура"), (3, "Мышь")]
+    assert parser.parse_rows([["Мыло"], ["Бумага"]])[0].text == "Мыло"
+
+
+def test_generic_product_is_reviewed_despite_a_high_similarity(isolated_api):
+    api = isolated_api
+    found = [
+        {"code": "one", "name": "Бумага", "status": "ACTIVE", "score": 0.99},
+        {"code": "two", "name": "Бумага", "status": "ACTIVE", "score": 0.5},
+    ]
+    row = parser.Item(1, "Бумага", {})
+    item = api.build_item(None, row, {"name": "Бумага", "characteristics": []}, found)
+    assert item.confidence >= 85
+    assert item.status == "needs_review" and "Недостаточно характеристик" in item.summary
+
+
 @pytest.fixture
 def isolated_api(monkeypatch, tmp_path):
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'initial.db'}")
@@ -194,6 +214,7 @@ def test_job_fallback_count_handles_mixed_attribute_sources(isolated_api):
                 {},
                 {"source": "manual"},
                 {"source": "manual", "fallback": "no_key"},  # rules, then fixed by a person
+                {"source": "structured"},  # explicit fields need no LLM request
             ]
         ):
             session.add(
@@ -209,7 +230,7 @@ def test_job_fallback_count_handles_mixed_attribute_sources(isolated_api):
     with TestClient(api.app) as client:
         body = client.get(f"/api/jobs/{job_id}").json()
     assert body["fallback"] == 2
-    assert body["counts"]["needs_review"] == 5
+    assert body["counts"]["needs_review"] == 6
 
 
 class FakeCatalog:

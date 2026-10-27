@@ -21,17 +21,18 @@ from concurrent.futures import TimeoutError as FutureTimeout
 
 import httpx
 
+import attribute_format
 import providers
 from providers import Cancelled
 
 logger = logging.getLogger(__name__)
 
 PROVIDERS = providers.load()
-# Rows in one request. A bigger batch means fewer requests: free plans limit the requests per
-# minute (Gemini 15 per key), not the rows. 20 rows still fit the answer limit.
+# Rows in one request. Small batches reduce output latency; tune against the request timeout.
 BATCH_SIZE = int(os.getenv("LLM_BATCH", "20"))
-# Seconds for all LLM requests of one job; the rows left after it get the rules. 240 s plus the
-# search (~25 s on a GPU) stays within the 5 minutes required for 1000 rows.
+COMPACT = os.getenv("LLM_COMPACT", "0").lower() in ("1", "true", "yes")
+LOCAL_STRUCTURED = os.getenv("LLM_LOCAL_STRUCTURED", "0").lower() in ("1", "true", "yes")
+# Seconds for LLM extraction; remaining rows get rules. Embeddings and search take extra time.
 JOB_BUDGET = float(os.getenv("LLM_BUDGET", "240"))
 # After the network of a provider did not answer, it is skipped for a while instead of
 # waiting the whole budget again
@@ -119,6 +120,11 @@ def accept(proposed: dict, source: str) -> dict:
     if any(norm(model) == norm(c["value"]) for c in characteristics):
         model = ""  # "A4" is a paper format, not a model
     search_text = " ".join(str(proposed.get("search_text") or "").split())[:MAX_SEARCH_TEXT]
+    if "_category" in proposed:
+        category = " ".join(str(proposed["_category"] or "").split())[:100]
+        search_text = attribute_format.search_text(
+            category, checked("name") or fallback["name"], characteristics
+        )[:MAX_SEARCH_TEXT]
     # An explicit "" means "not a product"; a name that is not in the row comes from rules
     proposed_name = str(proposed.get("name") or "").strip()
     return {
@@ -128,7 +134,13 @@ def accept(proposed: dict, source: str) -> dict:
         "characteristics": characteristics,
         "search_text": search_text or source,
         # The usual unit is a guess for the search only, like search_text: not checked by the row
-        "measure": " ".join(str(proposed.get("measure") or "").split())[:20],
+        "measure": " ".join(
+            str(
+                (fallback["measure"] if "_category" in proposed else "")
+                or proposed.get("measure")
+                or ""
+            ).split()
+        )[:20],
         "source": "llm",
     }
 
@@ -280,6 +292,43 @@ def rules(text: str, reason: str = ERROR) -> dict:
 # --- requests ------------------------------------------------------------------------------
 
 
+def structured(text: str, known_names: set[str] | None = None) -> dict | None:
+    """Read explicit specification fields locally; ambiguous/free-form rows still need the LLM."""
+    head, separator, _ = text.partition(". ")
+    if not separator or not head.strip() or ":" in head or re.search(r"[a-zA-Z]", head):
+        return None
+    if known_names is not None and norm(head) not in known_names:
+        return None
+    pairs = named_pairs(text)
+    if not pairs or len(pairs) > MAX_CHARACTERISTICS + 1:
+        return None
+    if any(len(re.findall(r"[а-яё]", name.lower())) < 3 for name, _ in pairs):
+        return None  # A leftover unit or fragment is not a reliable characteristic name.
+    # Brand/model recognition needs context; do not mistake Latin values such as SSD for brands.
+    if any(
+        name.lower().startswith(
+            (
+                "бренд",
+                "марка",
+                "модель",
+                "производитель",
+                "товарный знак",
+                "торговая марка",
+                "изготовитель",
+            )
+        )
+        for name, _ in pairs
+    ):
+        return None
+    attributes = rules(text)
+    attributes.update(name=head.strip(), brand="", model="", source="structured")
+    attributes.pop("fallback", None)
+    # api.process_batch appends the complete source, which already contains every field.
+    # Repeating the characteristics here doubles embedding work without adding information.
+    attributes["search_text"] = head.strip()[:MAX_SEARCH_TEXT]
+    return attributes
+
+
 def llm_state() -> str:
     """off - no provider configured, down - none answered a moment ago, on - in use."""
     configured = [p for p in PROVIDERS if p.configured]
@@ -300,7 +349,7 @@ def take_provider(tried: set[str], deadline: float) -> providers.Provider | None
         if not alive:
             return None
         for p in alive:
-            if not p.is_busy() and p.slots.acquire(blocking=False):
+            if not p.is_busy() and p.try_acquire():
                 return p
         time.sleep(0.05)
     return None
@@ -319,7 +368,11 @@ def to_attributes(answer: str, texts: list[str], provider: str) -> list[dict]:
     result = []
     for i, text in enumerate(texts):
         try:
-            row = accept(by_id[i], text) if i in by_id else rules(text, MISSING)
+            row = (
+                accept(attribute_format.expand(by_id[i]), text)
+                if i in by_id
+                else rules(text, MISSING)
+            )
         except (TypeError, ValueError):
             row = rules(text, ERROR)
         if row["source"] == "llm":
@@ -364,13 +417,14 @@ def ask(system: str, user: str, deadline: float, cancelled, parse) -> tuple:
         except Exception as exc:  # noqa: BLE001 - HTTP error or a broken answer: next provider
             status = getattr(getattr(exc, "response", None), "status_code", "")
             logger.warning("LLM %s failed: %s %s", provider.name, type(exc).__name__, status)
-            if status in (401, 402, 403):  # wrong key, no money or no rights: not fixed in seconds
+            if status in (401, 402, 403) or providers.failed_precondition(exc):
+                # Credentials, access or region restrictions are not fixed by the next row.
                 provider.down_until = time.monotonic() + DOWN_PAUSE
             elif status in (429, 502, 503, 504):
                 provider.busy_until = time.monotonic() + GATEWAY_PAUSE
             reason = ERROR
         finally:
-            provider.slots.release()
+            provider.release()
         tried.add(provider.name)
 
 
@@ -396,9 +450,13 @@ def extract_chunk(
 
 
 def ask_batch(texts: list[str], deadline: float, cancelled) -> tuple:
-    user = json.dumps([{"id": i, "text": t} for i, t in enumerate(texts)], ensure_ascii=False)
+    user = json.dumps(
+        [{"id": i, "text": t} for i, t in enumerate(texts)],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
     return ask(
-        SYSTEM_PROMPT,
+        attribute_format.PROMPT if COMPACT else SYSTEM_PROMPT,
         user,
         deadline,
         cancelled,
@@ -419,10 +477,18 @@ class JobExtractor:
         texts: list[str],
         budget: float = JOB_BUDGET,
         cancelled: threading.Event | None = None,
+        known_names: list[str] | None = None,
     ) -> None:
         self.deadline = time.monotonic() + budget
         self.cancelled = cancelled or threading.Event()
         unique = list(dict.fromkeys(texts))
+        self._local = {}
+        if LOCAL_STRUCTURED:
+            names = {norm(name) for name in known_names} if known_names is not None else None
+            self._local = {
+                text: attrs for text in unique if (attrs := structured(text, names)) is not None
+            }
+            unique = [text for text in unique if text not in self._local]
         self._chunks = [unique[i : i + BATCH_SIZE] for i in range(0, len(unique), BATCH_SIZE)]
         self._where = {
             text: (n, i) for n, chunk in enumerate(self._chunks) for i, text in enumerate(chunk)
@@ -447,6 +513,10 @@ class JobExtractor:
 
     def get(self, text: str) -> dict:
         """Waits for the row; raises Cancelled as soon as the job is stopped."""
+        if self.cancelled.is_set():
+            raise Cancelled
+        if text in self._local:
+            return self._local[text]
         n, index = self._where[text]
         while not self.cancelled.is_set():
             self._top_up()  # while this batch waits, finished ones are replaced by new ones

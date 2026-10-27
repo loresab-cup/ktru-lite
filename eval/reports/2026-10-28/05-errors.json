@@ -1,0 +1,11 @@
+[
+  {
+    "row_number": 6,
+    "text": "Йогурт. Йогурт питьевой",
+    "expected": "10.51.52.110-00000007",
+    "actual": "10.51.52.110-00000003",
+    "status": "needs_review",
+    "confidence": 51.2,
+    "expected_in_top5": true
+  }
+]

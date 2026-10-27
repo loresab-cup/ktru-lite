@@ -1,0 +1,50 @@
+[
+  {
+    "name": "Спецификация_1000_без_КТРУ.xlsx",
+    "labels": 1000,
+    "missing": [],
+    "inactive": []
+  },
+  {
+    "name": "Спецификация_292_без_КТРУ.xlsx",
+    "labels": 292,
+    "missing": [],
+    "inactive": []
+  },
+  {
+    "name": "Товары_765_без_КТРУ.xlsx",
+    "labels": 0,
+    "missing": [],
+    "inactive": []
+  },
+  {
+    "name": "demo_spec.csv",
+    "labels": 0,
+    "missing": [],
+    "inactive": []
+  },
+  {
+    "name": "produkty_1.xlsx",
+    "labels": 12,
+    "missing": [],
+    "inactive": []
+  },
+  {
+    "name": "spec_1000.xlsx",
+    "labels": 0,
+    "missing": [],
+    "inactive": []
+  },
+  {
+    "name": "Датасет_298_без_КТРУ_исправленный.xlsx",
+    "labels": 298,
+    "missing": [],
+    "inactive": []
+  },
+  {
+    "name": "human_1000.xlsx",
+    "labels": 970,
+    "missing": [],
+    "inactive": []
+  }
+]

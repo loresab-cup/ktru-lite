@@ -117,7 +117,7 @@ export function UploadScreen({ mode }: { mode: 'upload' | 'search' }) {
   const [files, setFiles] = useState<File[]>([])
   const [errors, setErrors] = useState<string[]>([])
   const [sent, setSent] = useState(0)
-  const { jobs, percents } = useJobs(8)
+  const { jobs, percents, error, reload } = useJobs(8)
   const searching = mode === 'search'
 
   /** Files go to the list first; nothing is sent until "Process" is pressed. */
@@ -307,7 +307,10 @@ export function UploadScreen({ mode }: { mode: 'upload' | 'search' }) {
               </Link>
             )}
           </div>
-          <JobCards jobs={jobs} percents={percents} />
+          {error && <Notice kind="error" title={T.historyFailed}>
+            <button type="button" className="btn" onClick={reload}>{T.retry}</button>
+          </Notice>}
+          {(!error || (jobs?.length ?? 0) > 0) && <JobCards jobs={jobs} percents={percents} />}
         </section>
       )}
     </>

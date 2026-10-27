@@ -194,6 +194,15 @@ def build_item(job_id: uuid.UUID, row: parser.Item, attributes: dict, found: lis
     )
     try:
         apply_candidates(item, found, is_product=bool(attributes.get("name")))
+        if (
+            item.status == "auto"
+            and len(found) > 1
+            and not attributes.get("characteristics")
+            and not attributes.get("model")
+        ):
+            # A similarity gap cannot supply missing evidence for choosing among several codes.
+            item.status = "needs_review"
+            item.summary = "Недостаточно характеристик для автоматического выбора. " + item.summary
     except Exception as exc:  # one broken row must not stop the job
         logger.exception("item failed")
         item.status, item.summary = "failed", f"Ошибка обработки позиции: {type(exc).__name__}"
@@ -214,7 +223,11 @@ def unit_hints(row: parser.Item, attributes: dict) -> tuple[str | None, str | No
 def process_items(
     job_id: uuid.UUID, rows: list[parser.Item], include_inactive: bool, stages: dict
 ) -> None:
-    llm = extractor.JobExtractor([row.text for row in rows], cancelled=state.cancels.get(job_id))
+    llm = extractor.JobExtractor(
+        [row.text for row in rows],
+        cancelled=state.cancels.get(job_id),
+        known_names=getattr(state.catalog, "names", []),
+    )
     try:
         for start in range(0, len(rows), BATCH):
             if cancelled(job_id):
@@ -489,7 +502,8 @@ def get_job(job_id: str):
                 .where(Item.job_id == job.id, Item.attributes[key].as_string().is_not(None))
             )
 
-        # fallback: the network did not give the attributes; words_only: Ollama was down
+        # fallback: failed/missing LLM extraction, not deliberate structured parsing.
+        # words_only: Ollama was down.
         return to_dict(job) | {
             "counts": counts,
             "fallback": flagged("fallback"),
@@ -639,7 +653,10 @@ def get_item(item_id: int):
         def edge(pick, *conditions) -> int | None:
             return session.scalar(select(pick(Item.id)).where(in_job, *conditions))
 
-        not_reviewed = Item.status.not_in(("accepted", "corrected"))
+        not_reviewed = Item.status.in_(("needs_review", "failed"))
+        next_review = edge(func.min, Item.id > item.id, not_reviewed)
+        if next_review is None:
+            next_review = edge(func.min, Item.id < item.id, not_reviewed)
         shown = to_dict(item)
         shown["candidates"] = with_differences(confidence.with_confidences(item.candidates or []))
         return shown | {
@@ -647,7 +664,7 @@ def get_item(item_id: int):
             "total": count(),
             "prev_id": edge(func.max, Item.id < item.id),
             "next_id": edge(func.min, Item.id > item.id),
-            "next_unreviewed_id": edge(func.min, Item.id > item.id, not_reviewed),
+            "next_unreviewed_id": next_review,
         }
 
 
@@ -666,7 +683,8 @@ def correct_item(item_id: int, body: Correction):
         remember_original(item)
         push_history(item)
         item.ktru_code, item.ktru_name, item.status = code["code"], code["name"], "corrected"
-        item.confidence, item.zone, item.summary = 100.0, "high", "Код выбран вручную"
+        item.confidence, item.zone = None, "low"
+        item.summary = "Код выбран вручную. Алгоритмическая уверенность не оценивалась"
         session.commit()
         return to_dict(item)
 
@@ -836,8 +854,9 @@ MAX_LOOKUP = 500  # the catalog page lists many codes; a broad query is then wor
 def catalog_search(
     q: str = Query(..., min_length=1, max_length=100),
     limit: int = Query(20, ge=1, le=MAX_LOOKUP),
+    include_inactive: bool = True,
 ):
-    return require_catalog().lookup(q, limit)
+    return require_catalog().lookup(q, limit, include_inactive=include_inactive)
 
 
 @app.get("/api/health")

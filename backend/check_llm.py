@@ -13,7 +13,7 @@ import extractor
 import providers
 
 HINTS = {
-    401: "неверный ключ",
+    401: "сервис отклонил авторизацию; проверьте учётные данные и доступ",
     402: "закончились деньги на балансе — пополните счёт у провайдера",
     403: "нет прав у ключа (для Gemini: ключ из другого проекта или API не включён)",
     404: "неверный адрес, folder_id или имя модели",
@@ -24,7 +24,8 @@ ROW = "Бумага офисная А4 80 г/м2"
 
 def check(p: providers.Provider) -> bool:
     if not p.configured:
-        print(f"{p.name}: не настроен — заполните ключ в .env")
+        missing = "ключ и YANDEX_FOLDER_ID" if p.name.startswith("yandex") else "ключ"
+        print(f"{p.name}: не настроен — заполните {missing} в .env")
         return False
     started = time.monotonic()
     try:
@@ -33,7 +34,8 @@ def check(p: providers.Provider) -> bool:
         [row] = extractor.to_attributes(answer, [ROW], p.name)
     except httpx.HTTPStatusError as exc:
         code = exc.response.status_code
-        print(f"{p.name}: ошибка HTTP {code} — {HINTS.get(code, 'см. ответ сервиса')}")
+        stage = "OAuth" if "oauth" in exc.request.url.path.lower() else "chat"
+        print(f"{p.name}: ошибка HTTP {code} ({stage}) — {HINTS.get(code, 'см. ответ сервиса')}")
         return False
     except Exception as exc:  # noqa: BLE001 - every failure is reported, not raised
         print(f"{p.name}: ошибка {type(exc).__name__}: {str(exc)[:200]}")

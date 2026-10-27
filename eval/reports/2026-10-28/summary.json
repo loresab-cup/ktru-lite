@@ -1,0 +1,414 @@
+{
+  "health": {
+    "status": "ok",
+    "catalog": "ready",
+    "codes": 81509,
+    "llm": "on",
+    "embeddings": "on",
+    "providers": [
+      {
+        "name": "yandex2",
+        "model": "gpt://<folder_id>/deepseek-v4.1-flash/latest",
+        "parallel": 4,
+        "down": false
+      }
+    ]
+  },
+  "datasets": [
+    {
+      "name": "Спецификация_1000_без_КТРУ.xlsx",
+      "job_id": "e46bf4b9-4664-45a6-9a75-72a775fc0c64",
+      "status": "done",
+      "seconds": 182.35,
+      "rows": 1000,
+      "expected_rows": 1000,
+      "sources": {
+        "structured": 856,
+        "llm": 144
+      },
+      "fallback": 0,
+      "words_only": 0,
+      "stages": {
+        "read": 0.73,
+        "extract": 0,
+        "search": 163.11,
+        "confidence": 0,
+        "choose": 16.14,
+        "total": 181.47
+      },
+      "counts": {
+        "auto": 842,
+        "needs_review": 158,
+        "corrected": 0,
+        "accepted": 0,
+        "failed": 0
+      },
+      "labeled": 1000,
+      "exact": 970,
+      "top5": 1000,
+      "splits": {},
+      "usage": {
+        "responses": 61,
+        "input": 132718,
+        "output": 16035,
+        "http_errors": {},
+        "estimated_rub": 47.8329
+      },
+      "exports": {
+        "csv": 1000,
+        "xlsx": 1000
+      },
+      "auto_labeled": 842,
+      "auto_exact": 833,
+      "errors_file": "01-errors.json"
+    },
+    {
+      "name": "Спецификация_292_без_КТРУ.xlsx",
+      "job_id": "ed2c59cb-c2aa-471f-975a-879a230556b5",
+      "status": "done",
+      "seconds": 18.84,
+      "rows": 292,
+      "expected_rows": 292,
+      "sources": {
+        "structured": 260,
+        "llm": 32
+      },
+      "fallback": 0,
+      "words_only": 0,
+      "stages": {
+        "read": 0.03,
+        "extract": 11.39,
+        "search": 2.47,
+        "confidence": 0,
+        "choose": 3.91,
+        "total": 18.41
+      },
+      "counts": {
+        "auto": 266,
+        "needs_review": 26,
+        "corrected": 0,
+        "accepted": 0,
+        "failed": 0
+      },
+      "labeled": 292,
+      "exact": 291,
+      "top5": 292,
+      "splits": {},
+      "usage": {
+        "responses": 13,
+        "input": 32573,
+        "output": 4019,
+        "http_errors": {},
+        "estimated_rub": 11.7814
+      },
+      "exports": {
+        "csv": 292,
+        "xlsx": 292
+      },
+      "auto_labeled": 266,
+      "auto_exact": 266,
+      "errors_file": "02-errors.json"
+    },
+    {
+      "name": "Товары_765_без_КТРУ.xlsx",
+      "job_id": "4de5c675-8c79-4dbc-b36d-7e1366e633ab",
+      "status": "done",
+      "seconds": 115.09,
+      "rows": 765,
+      "expected_rows": 765,
+      "sources": {
+        "llm": 765
+      },
+      "fallback": 0,
+      "words_only": 0,
+      "stages": {
+        "read": 0.03,
+        "extract": 17.89,
+        "search": 25.96,
+        "confidence": 0,
+        "choose": 69.87,
+        "total": 114.9
+      },
+      "counts": {
+        "auto": 5,
+        "needs_review": 760,
+        "corrected": 0,
+        "accepted": 0,
+        "failed": 0
+      },
+      "labeled": 0,
+      "exact": 0,
+      "top5": 0,
+      "splits": {},
+      "usage": {
+        "responses": 218,
+        "input": 451283,
+        "output": 28032,
+        "http_errors": {},
+        "estimated_rub": 149.4009
+      },
+      "exports": {
+        "csv": 765,
+        "xlsx": 765
+      },
+      "auto_labeled": 0,
+      "auto_exact": 0,
+      "errors_file": "03-errors.json"
+    },
+    {
+      "name": "demo_spec.csv",
+      "job_id": "ea358190-5b39-47a2-bb20-d9488a799d25",
+      "status": "done",
+      "seconds": 6.14,
+      "rows": 6,
+      "expected_rows": 6,
+      "sources": {
+        "llm": 6
+      },
+      "fallback": 0,
+      "words_only": 0,
+      "stages": {
+        "read": 0,
+        "extract": 3.34,
+        "search": 0.51,
+        "confidence": 0,
+        "choose": 1.79,
+        "total": 5.96
+      },
+      "counts": {
+        "auto": 0,
+        "needs_review": 6,
+        "corrected": 0,
+        "accepted": 0,
+        "failed": 0
+      },
+      "labeled": 0,
+      "exact": 0,
+      "top5": 0,
+      "splits": {},
+      "usage": {
+        "responses": 4,
+        "input": 4356,
+        "output": 427,
+        "http_errors": {},
+        "estimated_rub": 1.5203
+      },
+      "exports": {
+        "csv": 6,
+        "xlsx": 6
+      },
+      "auto_labeled": 0,
+      "auto_exact": 0,
+      "errors_file": "04-errors.json"
+    },
+    {
+      "name": "produkty_1.xlsx",
+      "job_id": "050a0a6a-1c64-4948-be01-b14485f717dc",
+      "status": "done",
+      "seconds": 12.18,
+      "rows": 12,
+      "expected_rows": 12,
+      "sources": {
+        "llm": 10,
+        "structured": 2
+      },
+      "fallback": 0,
+      "words_only": 0,
+      "stages": {
+        "read": 0,
+        "extract": 8.24,
+        "search": 1.72,
+        "confidence": 0,
+        "choose": 1.89,
+        "total": 12.16
+      },
+      "counts": {
+        "auto": 7,
+        "needs_review": 5,
+        "corrected": 0,
+        "accepted": 0,
+        "failed": 0
+      },
+      "labeled": 12,
+      "exact": 11,
+      "top5": 12,
+      "splits": {},
+      "usage": {
+        "responses": 3,
+        "input": 4652,
+        "output": 876,
+        "http_errors": {},
+        "estimated_rub": 1.8336
+      },
+      "exports": {
+        "csv": 12,
+        "xlsx": 12
+      },
+      "auto_labeled": 7,
+      "auto_exact": 7,
+      "errors_file": "05-errors.json"
+    },
+    {
+      "name": "spec_1000.xlsx",
+      "job_id": "8802c62a-6007-4851-90b2-fc50c5d46031",
+      "status": "done",
+      "seconds": 269.97,
+      "rows": 1000,
+      "expected_rows": 1000,
+      "sources": {
+        "llm": 1000
+      },
+      "fallback": 0,
+      "words_only": 0,
+      "stages": {
+        "read": 0.08,
+        "extract": 106.46,
+        "search": 94.34,
+        "confidence": 0,
+        "choose": 67.67,
+        "total": 269.94
+      },
+      "counts": {
+        "auto": 133,
+        "needs_review": 867,
+        "corrected": 0,
+        "accepted": 0,
+        "failed": 0
+      },
+      "labeled": 0,
+      "exact": 0,
+      "top5": 0,
+      "splits": {},
+      "usage": {
+        "responses": 347,
+        "input": 513140,
+        "output": 67224,
+        "http_errors": {},
+        "estimated_rub": 187.554
+      },
+      "exports": {
+        "csv": 1000,
+        "xlsx": 1000
+      },
+      "auto_labeled": 0,
+      "auto_exact": 0,
+      "errors_file": "06-errors.json"
+    },
+    {
+      "name": "Датасет_298_без_КТРУ_исправленный.xlsx",
+      "job_id": "091e395d-5db5-494b-949f-be84449f4f22",
+      "status": "done",
+      "seconds": 91.32,
+      "rows": 298,
+      "expected_rows": 298,
+      "sources": {
+        "llm": 294,
+        "structured": 4
+      },
+      "fallback": 0,
+      "words_only": 0,
+      "stages": {
+        "read": 0.03,
+        "extract": 37.41,
+        "search": 46.13,
+        "confidence": 0,
+        "choose": 7.16,
+        "total": 91.28
+      },
+      "counts": {
+        "auto": 232,
+        "needs_review": 66,
+        "corrected": 0,
+        "accepted": 0,
+        "failed": 0
+      },
+      "labeled": 298,
+      "exact": 273,
+      "top5": 285,
+      "splits": {
+        "Контрольная": {
+          "labeled": 120,
+          "exact": 109,
+          "top5": 115
+        },
+        "Рабочая": {
+          "labeled": 178,
+          "exact": 164,
+          "top5": 170
+        }
+      },
+      "usage": {
+        "responses": 72,
+        "input": 74281,
+        "output": 22682,
+        "http_errors": {},
+        "estimated_rub": 33.6253
+      },
+      "exports": {
+        "csv": 298,
+        "xlsx": 298
+      },
+      "auto_labeled": 232,
+      "auto_exact": 228,
+      "errors_file": "07-errors.json"
+    },
+    {
+      "name": "human_1000.xlsx",
+      "job_id": "3d1b7a1d-9687-489c-8373-c4849e30b5a8",
+      "status": "done",
+      "seconds": 234.01,
+      "rows": 1000,
+      "expected_rows": 1000,
+      "sources": {
+        "structured": 307,
+        "llm": 693
+      },
+      "fallback": 0,
+      "words_only": 0,
+      "stages": {
+        "read": 0.08,
+        "extract": 46.59,
+        "search": 161.4,
+        "confidence": 0,
+        "choose": 24.15,
+        "total": 233.62
+      },
+      "counts": {
+        "auto": 752,
+        "needs_review": 248,
+        "corrected": 0,
+        "accepted": 0,
+        "failed": 0
+      },
+      "labeled": 770,
+      "exact": 744,
+      "top5": 767,
+      "splits": {},
+      "ambiguous": {
+        "rows": 200,
+        "auto": 64,
+        "review_or_failed": 136
+      },
+      "negative": {
+        "rows": 30,
+        "auto": 0,
+        "review_or_failed": 30
+      },
+      "usage": {
+        "responses": 184,
+        "input": 241412,
+        "output": 58337,
+        "http_errors": {},
+        "estimated_rub": 101.5921
+      },
+      "exports": {
+        "csv": 1000,
+        "xlsx": 1000
+      },
+      "auto_labeled": 688,
+      "auto_exact": 682,
+      "errors_file": "08-errors.json"
+    }
+  ],
+  "estimated_total_rub": 535.1405
+}

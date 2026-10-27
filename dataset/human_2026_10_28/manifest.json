@@ -1,0 +1,21 @@
+{
+  "seed": 20261028,
+  "rows": 1000,
+  "profiles": {
+    "full": 700,
+    "incomplete": 200,
+    "negative": 30,
+    "typo": 70
+  },
+  "actual_typos": 61,
+  "source": "dataset/organizers/Спецификация_1000_reference.jsonl",
+  "rows_sha256": "668682485f407296271c6deefa18a14ae8777b260031d33d2d16c16decef48ef",
+  "reference_sha256": "b889e6844f1c8c1b417dc27b2a4052013ed4f88d0299965bea8ea75e282f2100",
+  "note": "Синтетическая имитация человеческих записей, не реальные закупки и не независимый экспертный эталон. Эталон зафиксирован до прогона; 200 неполных и 30 нетоварных строк оцениваются отдельно.",
+  "xlsx_sha256": "e7cc0166c0549244782c3112b438ba0109a2d1657ad57a407c4d10dfecb46f9c",
+  "parsed_rows": 1000,
+  "unique_parsed_texts": 975,
+  "exact_score_rows": 770,
+  "ambiguous_rows": 200,
+  "negative_rows": 30
+}

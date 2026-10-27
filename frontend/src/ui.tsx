@@ -13,7 +13,8 @@ import { T } from './texts'
 
 /** The percent in the color of its zone; the zone is also said in words for screen readers. */
 export function Confidence({ value, zone }: { value: number | null; zone: Zone }) {
-  const percent = value ?? 0
+  if (value === null) return <span className="muted" title={T.confidenceUnknown}>—</span>
+  const percent = value
   return (
     <span className={`conf num zone-${zone}`} title={T.zone[zone]}>
       {/* floor: 84.6 % is a "needs review" row and must not read as 85 */}

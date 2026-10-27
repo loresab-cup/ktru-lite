@@ -158,7 +158,12 @@ def test_item_page_knows_its_neighbours(api):
         assert (middle["prev_id"], middle["next_id"]) == (ids[1], ids[3])
         assert middle["next_unreviewed_id"] == ids[4]  # the corrected row is skipped
         last = client.get(f"/api/items/{ids[4]}").json()
-        assert (last["next_id"], last["next_unreviewed_id"]) == (None, None)
+        assert (last["next_id"], last["next_unreviewed_id"]) == (None, ids[2])
+        with api.SessionLocal() as session:
+            for item in session.query(api.Item).filter_by(job_id=job_id):
+                item.status = "accepted"
+            session.commit()
+        assert client.get(f"/api/items/{ids[4]}").json()["next_unreviewed_id"] is None
         assert client.get("/api/items/99999").status_code == 404
 
 

@@ -1,9 +1,9 @@
-import { App as AntApp, Checkbox, Input, Switch } from 'antd'
+import { Checkbox, Input, Switch } from 'antd'
 import { ChevronDown, ExternalLink, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api, ApiError, ktruUrl, type CatalogCode } from './api'
 import { capital, T } from './texts'
-import { Skeleton } from './ui'
+import { Notice, Skeleton } from './ui'
 
 const MIN_LETTERS = 2 // the service finds nothing useful by one letter
 const STEP = 20 // rows shown at first and added by "Show more"
@@ -60,11 +60,13 @@ function CodeRow({ code, open, onToggle }: { code: CatalogCode; open: boolean; o
 
 /** Search of the whole catalog by code or by words of the name, without any file. */
 export function CatalogPanel() {
-  const { message } = AntApp.useApp()
   const [query, setQuery] = useState('')
   const [inactive, setInactive] = useState(false)
   const [found, setFound] = useState<CatalogCode[] | null>(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [completed, setCompleted] = useState('')
+  const [version, setVersion] = useState(0)
   const [shown, setShown] = useState(STEP)
   // The switch opens or closes every row; a row can still be flipped on its own after that
   const [showAll, setShowAll] = useState(false)
@@ -78,23 +80,27 @@ export function CatalogPanel() {
     })
 
   const q = query.trim()
+  const requestKey = JSON.stringify([q, inactive, version])
   useEffect(() => {
     if (q.length < MIN_LETTERS) return
     let alive = true
     const timer = window.setTimeout(() => {
       setLoading(true)
       api
-        .catalog(q, LIMIT)
+        .catalog(q, LIMIT, inactive)
         .then((codes) => {
           if (!alive) return
           setFound(codes)
+          setError(null)
+          setCompleted(requestKey)
           setShown(STEP)
           setFlipped(new Set())
         })
         .catch((e) => {
           if (!alive) return
-          setFound([])
-          message.error(e instanceof ApiError ? e.message : T.catalogSearch.failed)
+          setFound(null)
+          setError(e instanceof ApiError ? e.message : T.catalogSearch.failed)
+          setCompleted(requestKey)
         })
         .finally(() => alive && setLoading(false))
     }, 300)
@@ -102,13 +108,13 @@ export function CatalogPanel() {
       alive = false
       window.clearTimeout(timer)
     }
-  }, [q, message])
+  }, [q, inactive, requestKey])
 
-  const ready = q.length >= MIN_LETTERS ? found : null
-  const list = (ready ?? []).filter((code) => inactive || code.status === 'ACTIVE')
-  const hiddenInactive = (ready?.length ?? 0) > 0 && list.length === 0
-  // Active codes come first, so a cut answer misses only inactive ones unless all are shown
-  const cut = (ready?.length ?? 0) >= LIMIT && list.length === ready?.length
+  const current = q.length >= MIN_LETTERS && completed === requestKey
+  const ready = current ? found : null
+  const failure = current ? error : null
+  const list = ready ?? []
+  const cut = list.length >= LIMIT
 
   return (
     <div className="catalog-panel">
@@ -130,7 +136,10 @@ export function CatalogPanel() {
       </div>
       <div aria-live="polite">
         {q.length < MIN_LETTERS && <p className="muted">{T.catalogSearch.prompt}</p>}
-        {(loading || (q.length >= MIN_LETTERS && ready === null)) && <Skeleton height={96} />}
+        {q.length >= MIN_LETTERS && (loading || !current) && <Skeleton height={96} />}
+        {failure && <Notice kind="error" title={failure}>
+          <button type="button" className="btn" onClick={() => setVersion((v) => v + 1)}>{T.retry}</button>
+        </Notice>}
         {!loading && ready !== null && list.length > 0 && (
           <>
             <div className="found-head">
@@ -172,8 +181,8 @@ export function CatalogPanel() {
         )}
         {!loading && ready !== null && list.length === 0 && (
           <div className="found-empty">
-            <b>{hiddenInactive ? T.catalogSearch.onlyInactive : T.catalogSearch.empty}</b>
-            {!hiddenInactive && <span className="muted">{T.catalogSearch.emptyHint}</span>}
+            <b>{T.catalogSearch.empty}</b>
+            <span className="muted">{T.catalogSearch.emptyHint}</span>
           </div>
         )}
       </div>

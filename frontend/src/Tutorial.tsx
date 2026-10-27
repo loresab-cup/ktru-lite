@@ -3,33 +3,15 @@ import { ArrowLeft, ArrowRight, CircleHelp, Play } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { T } from './texts'
 
-const SEEN_KEY = 'ktru-tour-seen'
-
 /** One picture per step (public/tour): the app on the example file, the place to press marked. */
 const PICTURES = ['upload', 'process', 'colors', 'review', 'accept', 'replace', 'export', 'catalog']
 const PICTURE_WIDTH = 960
 const PICTURE_HEIGHT = 540
 
-function firstVisit(): boolean {
-  try {
-    return localStorage.getItem(SEEN_KEY) === null
-  } catch {
-    return false // no storage: never push the tour on the person at every visit
-  }
-}
-
-function remember() {
-  try {
-    localStorage.setItem(SEEN_KEY, '1')
-  } catch {
-    // the tour will show again next time, nothing else is lost
-  }
-}
-
 /** The "Start the tour" button and the tour: short steps with a picture each. It opens on its
- *  own only at the first visit; the last step can put the example file into the list. */
+ *  button; the last step can put the example file into the list. */
 export function Tutorial({ onTry }: { onTry: () => void }) {
-  const [open, setOpen] = useState(firstVisit)
+  const [open, setOpen] = useState(false)
   const [step, setStep] = useState(0)
   const button = useRef<HTMLButtonElement>(null)
   const steps = T.tour.steps
@@ -38,7 +20,6 @@ export function Tutorial({ onTry }: { onTry: () => void }) {
 
   const close = () => {
     setOpen(false)
-    remember()
   }
   const start = () => {
     setStep(0)

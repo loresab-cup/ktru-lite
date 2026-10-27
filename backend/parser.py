@@ -204,7 +204,14 @@ def is_name_cell(cell: str) -> bool:
 
 def find_header(rows: list[list[str]]) -> int | None:
     for index, row in enumerate(rows[:30]):
-        if sum(1 for cell in row if cell) >= 2 and any(is_header_cell(c) for c in row):
+        filled = [cell for cell in row if cell]
+        single_name = len(filled) == 1 and filled[0].lower() in {
+            "наименование",
+            "наименование товара",
+            "наименование позиции",
+            "название товара",
+        }
+        if single_name or (len(filled) >= 2 and any(is_header_cell(c) for c in row)):
             return index
     return None
 

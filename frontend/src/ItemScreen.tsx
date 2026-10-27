@@ -32,7 +32,7 @@ import {
 import { Link } from './Link'
 import { navigate, paths, rememberItem } from './router'
 import { capital, T } from './texts'
-import { Confidence, EmptyState, KtruCode, RawText, Skeleton, StatusChip } from './ui'
+import { Confidence, EmptyState, KtruCode, Notice, RawText, Skeleton, StatusChip } from './ui'
 
 /** A code of the catalog or a candidate of the search: code, name, what matched, the button. */
 function CodeCard({ code, current, confidence, matched, differs, onChoose }: {
@@ -100,6 +100,8 @@ function CatalogSearch({ item, onChoose }: { item: Item; onChoose: (code: string
   const [query, setQuery] = useState('')
   const [found, setFound] = useState<CatalogCode[] | null>(null)
   const [loading, setLoading] = useState(false)
+  const [completed, setCompleted] = useState('')
+  const [error, setError] = useState(false)
 
   useEffect(() => {
     const q = query.trim()
@@ -109,8 +111,18 @@ function CatalogSearch({ item, onChoose }: { item: Item; onChoose: (code: string
       setLoading(true)
       api
         .catalog(q)
-        .then((codes) => alive && setFound(codes))
-        .catch(() => alive && setFound([]))
+        .then((codes) => {
+          if (!alive) return
+          setFound(codes)
+          setError(false)
+          setCompleted(q)
+        })
+        .catch(() => {
+          if (!alive) return
+          setFound(null)
+          setError(true)
+          setCompleted(q)
+        })
         .finally(() => alive && setLoading(false))
     }, 300)
     return () => {
@@ -119,7 +131,8 @@ function CatalogSearch({ item, onChoose }: { item: Item; onChoose: (code: string
     }
   }, [query])
 
-  const visible = query.trim().length >= 2 ? found : null
+  const current = query.trim().length >= 2 && completed === query.trim()
+  const visible = current ? found : null
   return (
     <section className="card tab-card">
       <h2 className="tab-h">{T.drawer.search}</h2>
@@ -134,7 +147,8 @@ function CatalogSearch({ item, onChoose }: { item: Item; onChoose: (code: string
         aria-label={T.drawer.search}
       />
       <div aria-live="polite">
-        {loading && <Skeleton height={72} />}
+        {query.trim().length >= 2 && (loading || !current) && <Skeleton height={72} />}
+        {current && error && <Notice kind="error" title={T.catalogSearch.failed} />}
         {!loading && visible?.length === 0 && <p className="muted">{T.drawer.searchEmpty}</p>}
         {!loading && visible && visible.length > 0 && (
           <div className="cand-list">
@@ -312,7 +326,7 @@ function AttributesForm({ item, busy, onSave, onCancel }: {
   )
 }
 
-type Known = { name: string; status: string } | 'unknown' | 'checking' | null
+type Known = { name: string; status: string } | 'unknown' | 'checking' | 'error' | null
 
 /** Manual input of a code in a window: the code is checked against the catalog as it is typed. */
 function CodeDialog({ open, busy, onClose, onSave }: {
@@ -323,6 +337,7 @@ function CodeDialog({ open, busy, onClose, onSave }: {
 }) {
   const [value, setValue] = useState('')
   const [known, setKnown] = useState<Known>(null)
+  const [completed, setCompleted] = useState('')
   const code = value.replace(/\s+/g, '') // "10.12.10.000- 00000005" from a spreadsheet
   const valid = ktruUrl(code) !== null
 
@@ -335,9 +350,17 @@ function CodeDialog({ open, busy, onClose, onSave }: {
         .catalog(code)
         .then((list) => {
           const hit = list.find((c) => c.code === code)
-          if (alive) setKnown(hit ? { name: hit.name, status: hit.status } : 'unknown')
+          if (alive) {
+            setKnown(hit ? { name: hit.name, status: hit.status } : 'unknown')
+            setCompleted(code)
+          }
         })
-        .catch(() => alive && setKnown('unknown'))
+        .catch(() => {
+          if (alive) {
+            setKnown('error')
+            setCompleted(code)
+          }
+        })
     }, 300)
     return () => {
       alive = false
@@ -345,7 +368,7 @@ function CodeDialog({ open, busy, onClose, onSave }: {
     }
   }, [code, valid])
 
-  const state = valid ? known : null
+  const state = valid ? (completed === code ? known : 'checking') : null
   const found = typeof state === 'object' && state !== null
   const submit = async () => {
     if (!found || busy) return
@@ -359,6 +382,7 @@ function CodeDialog({ open, busy, onClose, onSave }: {
   if (value && !valid) helper = <span className="field-error">{T.drawer.codeFormat}</span>
   else if (state === 'checking') helper = <span className="muted">{T.drawer.codeChecking}</span>
   else if (state === 'unknown') helper = <span className="field-error">{T.drawer.codeUnknown}</span>
+  else if (state === 'error') helper = <span className="field-error">{T.catalogSearch.failed}</span>
   else if (found) {
     helper = (
       <span className="field-ok">
@@ -622,8 +646,8 @@ export function ItemScreen({ jobId, itemId }: { jobId: string; itemId: number })
 
   const revert = (done = T.item.reverted) => run(() => api.revert(itemId), done)
 
-  /** The next position to look at: the next one that still needs a look, else the next in order. */
-  const nextTarget = item ? (item.next_unreviewed_id ?? item.next_id) : null
+  /** Review follows doubtful rows, wrapping to the beginning when needed. */
+  const nextTarget = item?.next_unreviewed_id ?? null
 
   /** Accept, then walk on to the next position that still needs a look. */
   const accept = async (goNext: boolean) => {

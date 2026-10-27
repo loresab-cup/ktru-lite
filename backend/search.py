@@ -315,6 +315,9 @@ class Catalog:
         self.index = {code: i for i, code in enumerate(self.codes)}
         self.active = np.array([s == "ACTIVE" for s in self.statuses], dtype=bool)
         self._names_lower = [name.lower().replace("ё", "е") for name in self.names]
+        self._name_groups: dict[str, list[int]] = {}
+        for i, name in enumerate(self._names_lower):
+            self._name_groups.setdefault(name, []).append(i)
         self._postings: dict[str, np.ndarray] | None = None
         self._bm25: dict[str, tuple[np.ndarray, np.ndarray]] | None = None
         self._lock = threading.Lock()
@@ -340,7 +343,7 @@ class Catalog:
                 self._merge(near, self._lexical(stems(text), include_inactive), vector)
                 for near, text, vector in zip(nearest, texts, vectors, strict=True)
             ]
-        return [
+        ranked = [
             self._rank(qw, query_bounds(text), stems(text), near, unit, text, column_unit)
             for qw, text, near, unit, column_unit in zip(
                 query_words,
@@ -351,6 +354,83 @@ class Catalog:
                 strict=True,
             )
         ]
+        if vectors is None:
+            return [
+                self._anchor_words(text, found, include_inactive, unit, column_unit)
+                for text, found, unit, column_unit in zip(
+                    texts,
+                    ranked,
+                    units or [None] * len(texts),
+                    column_units or [None] * len(texts),
+                    strict=True,
+                )
+            ]
+        if LEX_LIMIT > 0:
+            return [
+                self._anchor_vectors(text, found, vector, include_inactive, unit, column_unit)
+                for text, found, vector, unit, column_unit in zip(
+                    texts,
+                    ranked,
+                    vectors,
+                    units or [None] * len(texts),
+                    column_units or [None] * len(texts),
+                    strict=True,
+                )
+            ]
+        return ranked
+
+    def _anchor_vectors(self, text, found, vector, include_inactive, unit, column_unit):
+        """Rescue an explicitly written catalog name when ranking lost its product category.
+
+        More specific catalog names containing every named product word are kept. Candidates
+        of the rescued name use real cosine and the existing ranking and quantity rules.
+        """
+        head = re.split(r"\.\s|[,;:]", text, maxsplit=1)[0].lower().replace("ё", "е").split()
+        for end in range(len(head), 0, -1):
+            name = " ".join(head[:end])
+            pool = self._name_groups.get(name, [])
+            pool = [i for i in pool if include_inactive or self.active[i]]
+            if not pool:
+                continue
+            if found and words(name) <= words(found[0]["name"]):
+                return found
+            cosines = self.vectors[pool] @ vector
+            nearest = [(i, float(c)) for i, c in zip(pool, cosines, strict=True)]
+            return self._rank(
+                words(text), query_bounds(text), stems(text), nearest, unit, text, column_unit
+            )
+        # A synonymous noun can still retain the qualifier: «стул офисный» / «кресло офисное».
+        qualifiers = {w[:5] for w in words(" ".join(head[1:])) if re.search(r"[а-я]", w)}
+        if found and qualifiers & stems(found[0]["name"]):
+            return found
+        return self._anchor_words(text, found, include_inactive, unit, column_unit, vector)
+
+    def _anchor_words(self, text, found, include_inactive, unit, column_unit, vector=None):
+        """Rescue a lost leading product word in words-only mode; keep existing name matches.
+
+        Characteristics and bare numbers can fill the shortlist with another category.
+        If the best name lost the leading word, rank its whole name group with the same
+        scores. No vector result or ranking weight changes. Measurements: docs/audit-2026-10-27.md.
+        """
+        first = re.search(r"[а-яА-ЯёЁa-zA-Z]{3,}", text)
+        anchor = words(first.group()) if first else set()
+        if not anchor or (found and anchor & words(found[0]["name"])):
+            return found
+        postings = self._name_postings()
+        pool = {int(i) for word in anchor for i in postings.get(word, [])}
+        pool = sorted(i for i in pool if include_inactive or self.active[i])
+        if not pool:
+            return found
+        qw = words(text)
+        if vector is None:
+            nearest = [
+                (i, WORDS_ONLY_BASE * len(qw & words(self.names[i])) / max(1, len(qw)))
+                for i in pool
+            ]
+        else:
+            cosines = self.vectors[pool] @ vector
+            nearest = [(i, float(c)) for i, c in zip(pool, cosines, strict=True)]
+        return self._rank(qw, query_bounds(text), stems(text), nearest, unit, text, column_unit)
 
     def _bm25_postings(self) -> dict[str, tuple[np.ndarray, np.ndarray]]:
         """stem -> (code indices, BM25 weight of the stem in that code name)."""
@@ -545,7 +625,7 @@ class Catalog:
         i = self.index.get(code.strip())
         return None if i is None else self.brief(i)
 
-    def lookup(self, query: str, limit: int = 20) -> list[dict]:
+    def lookup(self, query: str, limit: int = 20, include_inactive: bool = True) -> list[dict]:
         """Manual correction: by code prefix or by words of the name; ACTIVE codes first.
 
         Names that have every word of the query come first; when there are none, the query is
@@ -558,15 +638,22 @@ class Catalog:
             found = [i for i, code in enumerate(self.codes) if code.startswith(query)]
         else:
             parts = query.split()
-            found = [i for i, n in enumerate(self._names_lower) if all(p in n for p in parts)]
+            patterns = [re.compile(r"\b" + re.escape(part)) for part in parts]
+            found = [
+                i for i, n in enumerate(self._names_lower) if all(p.search(n) for p in patterns)
+            ]
         if not found and not is_code:
-            return [self.brief(i) for i in self._by_stems(query, limit)]
+            return [self.brief(i) for i in self._by_stems(query, limit, include_inactive)]
+        if not include_inactive:
+            found = [i for i in found if self.active[i]]
         found.sort(key=lambda i: (not self.active[i], len(self.names[i]), self.codes[i]))
         return [self.brief(i, full=self.codes[i] == query) for i in found[:limit]]
 
-    def _by_stems(self, query: str, limit: int) -> list[int]:
+    def _by_stems(self, query: str, limit: int, include_inactive: bool = True) -> list[int]:
         """Codes whose name shares word stems with the query: ACTIVE first, then best BM25."""
         scores = self._bm25_scores(stems(query))
+        if not include_inactive:
+            scores[~self.active] = 0
         hits = np.flatnonzero(scores > 0)
         order = np.lexsort((-scores[hits], ~self.active[hits]))
         return [int(i) for i in hits[order][:limit]]

@@ -15,6 +15,16 @@ from providers import Provider
 ANSWER = '[{"id": 0, "name": "Бумага", "search_text": "Бумага для офисной техники"}]'
 
 
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_failed_precondition_pauses_the_provider(monkeypatch, wrapped):
+    p = openai()
+    monkeypatch.setattr(extractor, "PROVIDERS", [p])
+    body = {"error": {"status": "FAILED_PRECONDITION", "message": "unsupported region"}}
+    mock(monkeypatch, lambda _: httpx.Response(400, json=[body] if wrapped else body))
+    extractor.extract_chunk(["Бумага"], time.monotonic() + 3)
+    assert p.is_down()
+
+
 def chat_answer(content: str = ANSWER, finish: str = "stop") -> dict:
     return {"choices": [{"message": {"content": content}, "finish_reason": finish}]}
 
@@ -201,7 +211,7 @@ def test_load_from_env():
     assert "reasoning_effort" not in providers.body(other, "s", "u")
     assert not providers.load({"LLM_PROVIDERS": "gemini3"})[0].configured  # no key
     names = [p.name for p in providers.load({})]
-    assert names == ["gemini", "gemini2", "gemini3", "gemini4", "gemini5", "gigachat"]
+    assert names == ["deepseek"]
     # A new Google key needs only its own line: address, model and limits come from GEMINI_*
     shared = env | {
         "LLM_PROVIDERS": "gemini,gemini4",

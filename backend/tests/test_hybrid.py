@@ -34,7 +34,42 @@ def test_name_match_outside_the_vector_shortlist_is_ranked(monkeypatch):
     [found] = c.search(query, ["Кефир 2,5% 1 л"])
     kefir = next(x for x in found if x["name"] == "Кефир")
     assert kefir["cosine"] == 0.6  # its real similarity, not an invented one
-    assert kefir["score"] < found[0]["score"]  # it only joins: no lexical bonus in the score
+    assert found[0]["code"] == kefir["code"]  # the explicit product name rescues its category
+
+
+def test_words_only_keeps_product_name_when_characteristics_dominate(monkeypatch):
+    monkeypatch.setattr(search, "VECTOR_LIMIT", 1)
+    c = catalog(["Клавиатура", "Чай черный USB"], [[1.0, 0.0], [0.0, 1.0]])
+    assert c.search(None, ["Клавиатура проводная USB цвет черный"])[0][0]["name"] == "Клавиатура"
+    c.active[0] = False
+    assert c.search(None, ["Клавиатура USB черный"])[0][0]["name"] == "Чай черный USB"
+    assert c.search(None, ["Клавиатура USB черный"], True)[0][0]["name"] == "Клавиатура"
+
+
+def test_catalog_query_starts_at_a_word_boundary():
+    c = catalog(["Зонд фистульный", "Стул ученический"], [[1.0, 0.0], [0.0, 1.0]])
+    assert [code["name"] for code in c.lookup("стул")] == ["Стул ученический"]
+
+
+def test_vector_search_keeps_generic_product_word():
+    c = catalog(["Мыло туалетное", "Шампунь"], [[0.6, 0.8], [1.0, 0.0]])
+    vector = np.asarray([[1.0, 0.0]], dtype=np.float32)
+    found = c.search(vector, ["Мыло"])[0]
+    assert found[0]["name"] == "Мыло туалетное"
+    assert found[0]["cosine"] == 0.6
+
+
+def test_vector_search_keeps_more_specific_product_name():
+    names = ["Анализатор биохимический", "Анализатор биохимический метаболического профиля"]
+    c = catalog(names, [[0.6, 0.8], [1.0, 0.0]])
+    vector = np.asarray([[1.0, 0.0]], dtype=np.float32)
+    assert c.search(vector, ["Анализатор биохимический"])[0][0]["name"] == names[1]
+
+
+def test_vector_search_keeps_synonymous_qualified_name():
+    c = catalog(["Стул операционный", "Кресло офисное"], [[0.6, 0.8], [1.0, 0.0]])
+    vector = np.asarray([[1.0, 0.0]], dtype=np.float32)
+    assert c.search(vector, ["Стул офисный"])[0][0]["name"] == "Кресло офисное"
 
 
 def test_lexical_part_skips_inactive_codes(monkeypatch):

@@ -1,0 +1,17 @@
+{
+  "compact": true,
+  "structured": true,
+  "batch": 5,
+  "budget": 240,
+  "timeout": 60,
+  "retries": 1,
+  "choose": true,
+  "providers": [
+    {
+      "name": "yandex2",
+      "model": "gpt://<folder_id>/deepseek-v4.1-flash/latest",
+      "parallel": 4,
+      "reasoning": "none"
+    }
+  ]
+}

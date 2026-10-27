@@ -7,7 +7,7 @@ import { Link } from './Link'
 import { paths } from './router'
 import { T } from './texts'
 import { confirmLook } from './confirm'
-import { EmptyState } from './ui'
+import { EmptyState, Notice } from './ui'
 import { isBusy, useJobs } from './useJobs'
 
 const MAX = 1000
@@ -17,7 +17,7 @@ const PAGE = 100 // specifications per "show more"; the service gives up to 1000
 export function JobsScreen() {
   const { message, modal } = AntApp.useApp()
   const [limit, setLimit] = useState(PAGE)
-  const { jobs, total, percents, reload } = useJobs(limit)
+  const { jobs, total, percents, reload, error } = useJobs(limit)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
 
@@ -61,7 +61,7 @@ export function JobsScreen() {
       onOk: remove,
     })
 
-  const empty = jobs !== null && jobs.length === 0
+  const empty = !error && jobs !== null && jobs.length === 0
   return (
     <>
       <section className="page-head">
@@ -81,6 +81,9 @@ export function JobsScreen() {
         </div>
       </section>
       <section className="wrap section">
+        {error && <Notice kind="error" title={T.historyFailed}>
+          <button type="button" className="btn" onClick={reload}>{T.retry}</button>
+        </Notice>}
         {empty && (
           <EmptyState icon={FolderOpen} title={T.jobs.empty} hint={T.jobs.emptyHint}>
             <Link className="btn primary" to={paths.home}>
@@ -112,7 +115,7 @@ export function JobsScreen() {
             </button>
           </div>
         )}
-        {!empty && <JobCards jobs={jobs} percents={percents} selected={selected} onToggle={toggle} />}
+        {!empty && (!error || (jobs?.length ?? 0) > 0) && <JobCards jobs={jobs} percents={percents} selected={selected} onToggle={toggle} />}
         {jobs !== null && jobs.length < total && limit < MAX && (
           <div className="more-row">
             <button type="button" className="btn" onClick={() => setLimit(limit + PAGE)}>
