@@ -28,6 +28,7 @@ export interface CatalogCode {
 
 export interface Candidate extends CatalogCode {
   score: number
+  confidence: number // what the confidence of the item would be if this code were the pick
   cosine: number
   shared_words: string[]
   matched_characteristics: string[]
@@ -51,6 +52,7 @@ export interface Item {
     source?: string
     fallback?: string // why the rules were used
     provider?: string // which neural network extracted the row
+    history?: { ktru_code: string | null }[] // codes the position had before the manual changes
   }
   candidates: Candidate[]
   ktru_code: string | null
@@ -70,6 +72,9 @@ export interface ItemPage extends Item {
   next_id: number | null
   next_unreviewed_id: number | null
 }
+
+/** The columns of the list that it can be sorted by. */
+export type Sort = 'code' | 'confidence' | 'status'
 
 /** A row of the list of the cards: the candidates are left out to keep the answer small. */
 export type ItemRow = Omit<Item, 'candidates'>
@@ -173,10 +178,30 @@ export const api = {
     request<void>(`/api/jobs/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   item: (id: number) => request<ItemPage>(`/api/items/${id}`),
   revert: (itemId: number) => request<Item>(`/api/items/${itemId}/revert`, json('POST')),
-  items: (id: string, params: { status?: string; q?: string; limit: number; offset: number }) => {
+  /** Brings back the code the position had before the last manual change. */
+  undoCode: (itemId: number) => request<Item>(`/api/items/${itemId}/undo-code`, json('POST')),
+  /** Returns accepted positions to review: the chosen ones, or all accepted of the job. */
+  revertMany: (jobId: string, which: { ids: number[] } | { all_accepted: true }) =>
+    request<{ reverted: number }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/revert`,
+      json('POST', which),
+    ),
+  items: (
+    id: string,
+    params: {
+      status?: string
+      q?: string
+      sort?: Sort | ''
+      order?: 'asc' | 'desc'
+      limit: number
+      offset: number
+    },
+  ) => {
     const query = new URLSearchParams({
       status: params.status ?? '',
       q: params.q ?? '',
+      sort: params.sort ?? '',
+      order: params.order ?? 'asc',
       limit: String(params.limit),
       offset: String(params.offset),
       candidates: 'false',

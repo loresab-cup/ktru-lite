@@ -1,21 +1,16 @@
 import { Checkbox } from 'antd'
 import {
   ArrowRight,
-  FileSearch,
   FileSpreadsheet,
   FileText,
   FileUp,
-  ListChecks,
   Play,
   Plus,
-  ScanSearch,
   Search,
-  Sparkles,
   TriangleAlert,
   Upload,
   UploadCloud,
   X,
-  type LucideIcon,
 } from 'lucide-react'
 import { useRef, useState, type DragEvent } from 'react'
 import { api, ApiError } from './api'
@@ -25,37 +20,12 @@ import { JobCards } from './JobCards'
 import { Link } from './Link'
 import { navigate, paths } from './router'
 import { T } from './texts'
+import { Tutorial } from './Tutorial'
 import { Notice } from './ui'
 import { useJobs } from './useJobs'
 
 const EXTENSIONS = ['.xlsx', '.csv', '.docx', '.pdf', '.txt']
 const MAX_BYTES = 10 * 1024 * 1024
-const FEATURE_ICONS: LucideIcon[] = [FileSearch, Sparkles, ScanSearch, ListChecks]
-
-/** How the service works: four steps. */
-function HowItWorks() {
-  return (
-    <section className="wrap section" aria-labelledby="how-title">
-      <h2 id="how-title" className="section-h">
-        {T.upload.how}
-      </h2>
-      <ol className="how-list">
-        {T.upload.features.map(([title, text], i) => {
-          const Icon = FEATURE_ICONS[i]
-          return (
-            <li key={title}>
-              <span className="how-icon" aria-hidden="true">
-                <Icon size={20} />
-              </span>
-              <b>{title}</b>
-              <span className="muted">{text}</span>
-            </li>
-          )
-        })}
-      </ol>
-    </section>
-  )
-}
 
 function FileList({ files, busy, onRemove, onClear, onProcess }: {
   files: File[]
@@ -203,6 +173,7 @@ export function UploadScreen({ mode }: { mode: 'upload' | 'search' }) {
             {searching ? T.catalogSearch.title : T.upload.title}
           </h1>
           <p className="lead">{searching ? T.catalogSearch.lead : T.upload.lead}</p>
+          {!searching && <Tutorial />}
           {!searching && <ServiceNotices />}
           <div className="card home-card">
             <nav className="seg" aria-label={T.upload.tabsLabel}>
@@ -297,22 +268,19 @@ export function UploadScreen({ mode }: { mode: 'upload' | 'search' }) {
       </section>
 
       {!searching && (
-        <>
-          <section className="wrap section" aria-labelledby="recent-title">
-            <div className="section-head">
-              <h2 id="recent-title" className="section-h">
-                {T.upload.recent}
-              </h2>
-              {jobs !== null && jobs.length > 0 && (
-                <Link className="more" to={paths.jobs}>
-                  {T.upload.allJobs} <ArrowRight size={16} aria-hidden="true" />
-                </Link>
-              )}
-            </div>
-            <JobCards jobs={jobs} percents={percents} />
-          </section>
-          <HowItWorks />
-        </>
+        <section className="wrap section" aria-labelledby="recent-title">
+          <div className="section-head">
+            <h2 id="recent-title" className="section-h">
+              {T.upload.recent}
+            </h2>
+            {jobs !== null && jobs.length > 0 && (
+              <Link className="more" to={paths.jobs}>
+                {T.upload.allJobs} <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+            )}
+          </div>
+          <JobCards jobs={jobs} percents={percents} />
+        </section>
       )}
     </>
   )

@@ -6,6 +6,7 @@ import {
   ArrowUp,
   Check,
   CheckCheck,
+  ChevronDown,
   ChevronRight,
   ExternalLink,
   Info,
@@ -34,10 +35,10 @@ import { capital, T } from './texts'
 import { Confidence, EmptyState, KtruCode, RawText, Skeleton, StatusChip } from './ui'
 
 /** A code of the catalog or a candidate of the search: code, name, what matched, the button. */
-function CodeCard({ code, current, score, matched, onChoose }: {
+function CodeCard({ code, current, confidence, matched, onChoose }: {
   code: CatalogCode
   current: boolean
-  score?: number
+  confidence?: number
   matched?: string[]
   onChoose: () => void
 }) {
@@ -54,7 +55,7 @@ function CodeCard({ code, current, score, matched, onChoose }: {
             </span>
           )}
         </div>
-        {((matched && matched.length > 0) || score !== undefined) && (
+        {((matched && matched.length > 0) || confidence !== undefined) && (
           <div className="cand-meta">
             {matched?.map((m) => (
               <span key={m} className="chip good">
@@ -62,8 +63,8 @@ function CodeCard({ code, current, score, matched, onChoose }: {
                 {m}
               </span>
             ))}
-            {score !== undefined && (
-              <span className="muted num">{T.drawer.similarity(Math.round(score * 100))}</span>
+            {confidence !== undefined && (
+              <span className="muted num">{T.drawer.candidateConfidence(Math.round(confidence))}</span>
             )}
           </div>
         )}
@@ -170,16 +171,6 @@ function AttributesView({ item }: { item: Item }) {
       {attrs.source === 'rules' && (
         <p className="muted source-note">
           <Info size={14} aria-hidden="true" /> {T.drawer.fallback[attrs.fallback ?? ''] ?? T.drawer.byRules}
-        </p>
-      )}
-      {attrs.source === 'llm' && attrs.provider && (
-        <p className="muted source-note">
-          <Info size={14} aria-hidden="true" /> {T.drawer.byProvider(attrs.provider)}
-        </p>
-      )}
-      {attrs.source === 'manual' && (
-        <p className="muted source-note">
-          <Pencil size={14} aria-hidden="true" /> {T.drawer.byHand}
         </p>
       )}
     </>
@@ -446,6 +437,7 @@ function GeneralTab({ item, busy, onChoose }: {
 }) {
   const info = useCatalogInfo(item)
   const [dialog, setDialog] = useState(false)
+  const [chars, setChars] = useState(false) // what the code allows is a long list: closed at first
   const active = info?.status === 'ACTIVE'
   return (
     <>
@@ -484,15 +476,25 @@ function GeneralTab({ item, busy, onChoose }: {
         {info === null && item.ktru_code && <p className="muted">{T.item.noCatalog}</p>}
       </section>
       {info && info.characteristics.length > 0 && (
-        <section className="card tab-card">
-          <h2 className="tab-h">{T.item.catalogChars}</h2>
-          <dl className="facts-grid thirds">
-            {info.characteristics.map(([name, values]) => (
-              <Fact key={name} label={name}>
-                {values.join('; ')}
-              </Fact>
-            ))}
-          </dl>
+        <section className="card tab-card fold">
+          <button
+            type="button"
+            className="fold-head"
+            aria-expanded={chars}
+            onClick={() => setChars(!chars)}
+          >
+            {T.item.catalogChars(info.characteristics.length)}
+            <ChevronDown size={18} aria-hidden="true" className={chars ? 'flip' : ''} />
+          </button>
+          {chars && (
+            <dl className="facts-grid thirds">
+              {info.characteristics.map(([name, values]) => (
+                <Fact key={name} label={name}>
+                  {values.join('; ')}
+                </Fact>
+              ))}
+            </dl>
+          )}
         </section>
       )}
       <CodeDialog open={dialog} busy={busy} onClose={() => setDialog(false)} onSave={onChoose} />
@@ -543,7 +545,7 @@ function CandidatesTab({ item, onChoose }: { item: ItemPage; onChoose: (code: st
             <CodeCard
               key={c.code}
               code={c}
-              score={c.score}
+              confidence={c.confidence}
               matched={c.matched_characteristics}
               current={c.code === item.ktru_code}
               onChoose={() => onChoose(c.code)}
@@ -729,6 +731,7 @@ export function ItemScreen({ jobId, itemId }: { jobId: string; itemId: number })
 
   const accepted = item.status === 'accepted'
   const reviewed = accepted || item.status === 'corrected'
+  const previous = item.attributes.history?.at(-1) // the code before the last manual change
   const url = item.ktru_code ? ktruUrl(item.ktru_code) : null
   return (
     <>
@@ -762,6 +765,17 @@ export function ItemScreen({ jobId, itemId }: { jobId: string; itemId: number })
                 >
                   <CheckCheck size={16} aria-hidden="true" />{' '}
                   {item.next_unreviewed_id ? T.item.acceptNext : T.item.accept}
+                </button>
+              )}
+              {previous !== undefined && (
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={busy}
+                  title={previous.ktru_code ?? undefined}
+                  onClick={() => void run(() => api.undoCode(itemId), T.item.codeBack)}
+                >
+                  <Undo2 size={16} aria-hidden="true" /> {T.item.undoCode}
                 </button>
               )}
               {reviewed && (

@@ -18,6 +18,7 @@ import { Link } from './Link'
 import { Results } from './Results'
 import { navigate, paths } from './router'
 import { T } from './texts'
+import { confirmLook } from './confirm'
 import { EmptyState, Notice, Ring, Skeleton } from './ui'
 
 /** Step states from the job counters: read -> extract -> search -> confidence. */
@@ -44,8 +45,7 @@ function StopButton({ job, onStopped }: { job: Job; onStopped: (job: Job) => voi
     modal.confirm({
       title: T.progress.stopTitle,
       content: T.progress.stopBody,
-      icon: null,
-      centered: true,
+      ...confirmLook(Square),
       okText: T.progress.stop,
       cancelText: T.progress.stopKeep,
       okButtonProps: { danger: true },
@@ -155,8 +155,7 @@ function Dock({ job, exportable }: { job: Job; exportable: boolean }) {
     modal.confirm({
       title: T.job.deleteTitle,
       content: T.job.deleteBody(job.filename, job.total),
-      icon: null,
-      centered: true,
+      ...confirmLook(Trash2),
       okText: T.job.deleteYes,
       cancelText: T.job.deleteNo,
       okButtonProps: { danger: true },

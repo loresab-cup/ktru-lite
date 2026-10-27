@@ -1,4 +1,12 @@
-import { CircleCheck, ExternalLink, Info, TriangleAlert, type LucideIcon } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  CircleCheck,
+  ExternalLink,
+  Info,
+  TriangleAlert,
+  type LucideIcon,
+} from 'lucide-react'
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { ktruUrl, type ItemStatus, type Zone } from './api'
 import { T } from './texts'
@@ -29,6 +37,72 @@ export function Skeleton({ height = 16, width = '100%', style }: {
   style?: CSSProperties
 }) {
   return <div className="skeleton" style={{ height, width, ...style }} aria-hidden="true" />
+}
+
+/** The numbers to show: the first, the last and a window around the current page; a gap of one
+ *  page shows that page, a longer one shows dots (null). */
+function pageNumbers(current: number, pages: number): (number | null)[] {
+  const shown = new Set([1, pages])
+  for (let p = current - 3; p <= current + 3; p++) if (p >= 1 && p <= pages) shown.add(p)
+  const sorted = [...shown].sort((a, b) => a - b)
+  const result: (number | null)[] = []
+  sorted.forEach((page, i) => {
+    const gap = i > 0 ? page - sorted[i - 1] : 1
+    if (gap === 2) result.push(page - 1)
+    else if (gap > 2) result.push(null)
+    result.push(page)
+  })
+  return result
+}
+
+/** Page buttons with a wide window of numbers; on a phone only the near ones stay. */
+export function Pager({ current, total, pageSize, onChange }: {
+  current: number
+  total: number
+  pageSize: number
+  onChange: (page: number) => void
+}) {
+  const pages = Math.ceil(total / pageSize)
+  return (
+    <nav className="pager" aria-label={T.results.pager.label}>
+      <button
+        type="button"
+        className="pg arrow"
+        disabled={current <= 1}
+        aria-label={T.results.pager.prev}
+        onClick={() => onChange(current - 1)}
+      >
+        <ChevronLeft size={18} aria-hidden="true" />
+      </button>
+      {pageNumbers(current, pages).map((page, i) =>
+        page === null ? (
+          <span key={`gap-${i}`} className="pg-gap" aria-hidden="true">
+            …
+          </span>
+        ) : (
+          <button
+            key={page}
+            type="button"
+            className={`pg ${page === current ? 'on' : ''} ${Math.abs(page - current) > 1 && page !== 1 && page !== pages ? 'far' : ''}`}
+            aria-label={T.results.pager.page(page)}
+            aria-current={page === current ? 'page' : undefined}
+            onClick={() => onChange(page)}
+          >
+            {page}
+          </button>
+        ),
+      )}
+      <button
+        type="button"
+        className="pg arrow"
+        disabled={current >= pages}
+        aria-label={T.results.pager.next}
+        onClick={() => onChange(current + 1)}
+      >
+        <ChevronRight size={18} aria-hidden="true" />
+      </button>
+    </nav>
+  )
 }
 
 /** A round icon, a title, a hint and buttons: lists with nothing in them, failures, lost pages. */

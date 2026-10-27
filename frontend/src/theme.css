@@ -125,6 +125,12 @@ a {
   html {
     zoom: var(--zoom);
   }
+
+  /* the tour draws its cut-out from measured positions: it must not be zoomed a second time */
+  .ant-tour,
+  .ant-tour-mask {
+    zoom: calc(1 / var(--zoom));
+  }
 }
 
 .site {
@@ -665,14 +671,9 @@ a {
   text-decoration: none;
 }
 
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-sm);
-  background: var(--primary-bg);
-  color: #fff;
+.eis-mark {
+  flex: none;
+  color: var(--accent);
 }
 
 .brand-title {
@@ -807,19 +808,31 @@ a {
   font-size: var(--text);
 }
 
+/* the end of every page: whom to write to */
 .site-foot {
   background: var(--paper-raised);
   border-top: 1px solid var(--line);
-  color: var(--ink-3);
-  font-size: var(--text-sm);
+  color: var(--ink-2);
 }
 
 .foot-in {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--s4);
-  min-height: 88px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2) var(--s6);
+  padding-top: var(--s6);
+  padding-bottom: var(--s6);
+}
+
+.foot-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.foot-in a {
+  color: var(--accent);
+  font-weight: 600;
 }
 
 /* --- page heads ---------------------------------------------------------------------------- */
@@ -904,6 +917,10 @@ a {
   font-size: var(--text-lg);
   line-height: 28px;
   color: var(--ink-2);
+}
+
+.tour-start {
+  margin-top: var(--s4);
 }
 
 .home-card {
@@ -1059,37 +1076,6 @@ a {
   display: flex;
   justify-content: flex-end;
   margin-top: var(--s4);
-}
-
-.how-list {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--s5);
-  margin: var(--s5) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.how-list li {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s2);
-  font-size: var(--text-sm);
-}
-
-.how-list b {
-  font-size: var(--text);
-}
-
-.how-icon {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  margin-bottom: var(--s1);
-  border-radius: var(--radius-sm);
-  background: var(--accent-soft);
-  color: var(--accent);
 }
 
 /* search of the catalog */
@@ -1494,8 +1480,18 @@ a {
 
 .accept-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--s3);
+}
+
+.field-error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--red);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-align: right;
 }
 
 .accept-row label {
@@ -1589,14 +1585,42 @@ a {
   font-weight: 600;
 }
 
+.res-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  height: 32px;
+  padding: 0 var(--s2);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.res-sort:hover {
+  background: rgba(16, 24, 40, 0.06);
+}
+
+.res-sort svg {
+  color: var(--ink-off);
+}
+
+.res-sort.on,
+.res-sort.on svg {
+  color: var(--accent);
+}
+
 .res-head-name {
   flex: 1;
-  padding-left: 64px;
+  justify-content: flex-start;
+  margin-left: 56px;
 }
 
 .res-head-conf,
 .res-head-status {
-  text-align: center;
+  justify-content: center;
 }
 
 .res-head-conf {
@@ -1605,6 +1629,30 @@ a {
 
 .res-head-status {
   width: 152px;
+}
+
+.sort-select {
+  display: none; /* a phone has no column captions: the same choice is a list */
+  min-width: 200px;
+}
+
+.list-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s4);
+}
+
+.pick-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s3) var(--s5);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
 }
 
 .res-list {
@@ -1639,6 +1687,10 @@ a {
   background: var(--field);
   color: var(--ink-3);
   font-weight: 600;
+}
+
+.row-badge.pick {
+  background: transparent;
 }
 
 .res-title {
@@ -1731,8 +1783,49 @@ a {
 }
 
 .pager {
+  display: flex;
+  flex-wrap: wrap;
   justify-content: center;
+  align-items: center;
+  gap: var(--s2);
   margin-top: var(--s2);
+}
+
+.pg {
+  display: grid;
+  place-items: center;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 var(--s2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper-raised);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.pg:hover:not(:disabled, .on) {
+  background: var(--field);
+}
+
+.pg.on {
+  border-color: var(--primary-bg);
+  background: var(--primary-bg);
+  color: #fff;
+  font-weight: 700;
+}
+
+.pg:disabled {
+  color: var(--ink-off);
+  cursor: default;
+}
+
+.pg-gap {
+  min-width: 24px;
+  color: var(--ink-off);
+  text-align: center;
 }
 
 /* --- a position ------------------------------------------------------------------------------- */
@@ -1872,6 +1965,37 @@ a {
   flex-direction: column;
   gap: 28px;
   padding: 36px;
+}
+
+/* a long list that is closed at first: one line with the count, a chevron on the right */
+.tab-card.fold {
+  gap: var(--s5);
+  padding: 0 36px;
+}
+
+.fold-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  min-height: 64px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fold-head .flip {
+  transform: rotate(180deg);
+}
+
+.tab-card.fold .facts-grid {
+  padding-bottom: 32px;
 }
 
 .tab-h {
@@ -2136,6 +2260,46 @@ a {
   color: var(--ink-2);
 }
 
+/* confirm dialogs: a round icon over centred text, two equal buttons */
+.confirm-dialog .ant-modal-confirm-body {
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s4);
+  text-align: center;
+}
+
+.confirm-dialog .ant-modal-confirm-paragraph {
+  max-width: 100%;
+}
+
+.confirm-dialog .ant-modal-confirm-btns {
+  display: flex;
+  gap: var(--s3);
+}
+
+.confirm-dialog .ant-modal-confirm-btns .ant-btn {
+  flex: 1;
+  margin: 0;
+}
+
+.dialog-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+}
+
+.dialog-icon.red {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.dialog-icon.blue {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .ant-dropdown .ant-dropdown-menu,
 .ant-popover .ant-popover-inner {
   padding: var(--s2);
@@ -2149,22 +2313,37 @@ a {
   border-radius: 10px;
 }
 
-.ant-tooltip .ant-tooltip-inner {
-  padding: var(--s2) var(--s3);
-  border-radius: 10px;
-  font-size: var(--text-sm);
-  font-weight: 500;
+/* a tooltip is a small white card with a hairline, like the other floating surfaces */
+.ant-tooltip {
+  --antd-arrow-background-color: var(--paper-raised);
 }
 
-/* messages are dark pills, as in the design */
-.ant-message .ant-message-notice-wrapper {
-  align-items: center;
+.ant-tooltip .ant-tooltip-container {
+  padding: var(--s2) var(--s4);
+  border-radius: var(--radius-sm);
+  background: var(--paper-raised);
+  color: var(--ink);
+  box-shadow: var(--shadow-lift);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* a message is a dark pill: the pill is the antd box itself, and the title has its own color */
+.ant-message .ant-message-notice {
   padding: 14px 20px;
   border-radius: var(--radius-md);
   background: var(--ink);
-  color: #fff;
   box-shadow: var(--shadow-float);
+}
+
+.ant-message .ant-message-notice-wrapper,
+.ant-message .ant-message-notice-title {
+  color: #fff;
   font-weight: 500;
+}
+
+.ant-message .ant-message-notice-icon-success {
+  color: var(--green-dot);
 }
 
 .toast-undo {
@@ -2179,31 +2358,6 @@ a {
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-}
-
-.ant-pagination .ant-pagination-item,
-.ant-pagination .ant-pagination-prev .ant-pagination-item-link,
-.ant-pagination .ant-pagination-next .ant-pagination-item-link {
-  min-width: 40px;
-  height: 40px;
-  line-height: 38px;
-  border-radius: var(--radius-sm);
-}
-
-.ant-pagination .ant-pagination-prev,
-.ant-pagination .ant-pagination-next {
-  min-width: 40px;
-  height: 40px;
-  line-height: 40px;
-}
-
-.ant-pagination .ant-pagination-item-active {
-  background: var(--primary-bg);
-  border-color: var(--primary-bg);
-}
-
-.ant-pagination .ant-pagination-item-active a {
-  color: #fff;
 }
 
 .ant-checkbox .ant-checkbox-inner {
@@ -2267,10 +2421,6 @@ a {
 @media (max-width: 1000px) {
   .tiles {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .how-list {
-    grid-template-columns: repeat(2, 1fr);
   }
 
   .item-top {
@@ -2390,8 +2540,7 @@ a {
     align-items: stretch;
   }
 
-  .tiles,
-  .how-list {
+  .tiles {
     grid-template-columns: 1fr;
   }
 
@@ -2439,6 +2588,26 @@ a {
   }
 
   .res-head {
+    display: none;
+  }
+
+  .sort-select {
+    display: inline-flex; /* what antd gives a Select */
+    width: 100%;
+  }
+
+  .list-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--s3);
+  }
+
+  .list-tools {
+    justify-content: space-between;
+  }
+
+  .pg.far,
+  .pg-gap {
     display: none;
   }
 
@@ -2543,15 +2712,6 @@ a {
     flex-direction: column;
     align-items: stretch;
     gap: var(--s3);
-  }
-
-  .foot-in {
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
-    gap: var(--s1);
-    padding-top: var(--s4);
-    padding-bottom: var(--s4);
   }
 
   /* the round buttons become a bar of their own: nothing under them is covered */

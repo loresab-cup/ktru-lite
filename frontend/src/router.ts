@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import type { Sort } from './api'
 
 // Five pages, plain history API (nginx serves index.html for every path):
 //   /                          upload and recent specifications
@@ -28,6 +29,20 @@ export function navigate(path: string) {
   window.dispatchEvent(new Event(CHANGED))
   window.scrollTo(0, 0)
 }
+
+/** How the person looked at the list of a job: back from a position it opens the same page. */
+export interface ListView {
+  page: number
+  filters: string[]
+  search: string
+  sort: Sort | ''
+  order: 'asc' | 'desc'
+}
+
+const listViews = new Map<string, ListView>()
+
+export const savedListView = (jobId: string) => listViews.get(jobId)
+export const saveListView = (jobId: string, view: ListView) => void listViews.set(jobId, view)
 
 /** The position the person looked at last: the list of its job takes the focus back to it. */
 let lastItem: { jobId: string; itemId: number } | null = null

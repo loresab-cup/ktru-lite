@@ -6,6 +6,7 @@ import { JobCards } from './JobCards'
 import { Link } from './Link'
 import { paths } from './router'
 import { T } from './texts'
+import { confirmLook } from './confirm'
 import { EmptyState } from './ui'
 import { isBusy, useJobs } from './useJobs'
 
@@ -53,8 +54,7 @@ export function JobsScreen() {
     modal.confirm({
       title: T.jobs.deleteTitle(chosen.length),
       content: T.jobs.deleteBody,
-      icon: null,
-      centered: true,
+      ...confirmLook(Trash2),
       okText: T.jobs.deleteYes,
       cancelText: T.jobs.deleteNo,
       okButtonProps: { danger: true },

@@ -4,6 +4,7 @@ import { ExternalLink, LucideProvider, Menu, ScanSearch, X } from 'lucide-react'
 import { useMemo, useEffect, useState, type ReactNode } from 'react'
 import { HealthContext, useHealth, type HealthState } from './health'
 import { api } from './api'
+import { EisMark } from './EisMark'
 import { ItemScreen } from './ItemScreen'
 import { JobScreen } from './JobScreen'
 import { JobsScreen } from './JobsScreen'
@@ -132,9 +133,7 @@ function Header({ page }: { page: ReturnType<typeof parseRoute>['page'] }) {
     <header className="site-head">
       <div className="wrap head-in">
         <Link className="brand" to={paths.home} aria-label={T.app.home}>
-          <span className="brand-mark" aria-hidden="true">
-            <ScanSearch size={22} strokeWidth={2} />
-          </span>
+          <EisMark height={38} />
           <span className="brand-title">{T.app.title}</span>
         </Link>
         <nav className="main-nav" aria-label={T.app.title}>
@@ -217,10 +216,13 @@ export function App() {
             <div className="site">
               <Header page={route.page} />
               <main>{page()}</main>
-              <footer className="site-foot">
+              <footer className="site-foot" aria-labelledby="feedback-title">
                 <div className="wrap foot-in">
-                  <span>{T.app.subtitle}</span>
-                  <span>{T.app.footerSource}</span>
+                  <h2 id="feedback-title" className="foot-title">
+                    {T.feedback.title}
+                  </h2>
+                  <span>{T.feedback.name}</span>
+                  <a href={`mailto:${T.feedback.email}`}>{T.feedback.email}</a>
                 </div>
               </footer>
             </div>
