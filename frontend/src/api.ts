@@ -16,6 +16,7 @@ export interface Job {
   stage_seconds: Record<string, number>
   counts?: Record<ItemStatus, number>
   fallback?: number // rows whose attributes came from the rules
+  words_only?: number // rows searched by words: the embeddings service was down
 }
 
 export interface CatalogCode {
@@ -83,6 +84,7 @@ export interface Health {
   catalog: 'ready' | 'loading' | 'error'
   codes: number
   llm: 'on' | 'off' | 'down'
+  embeddings: 'on' | 'down' | 'unknown'
 }
 
 export interface AttributesInput {

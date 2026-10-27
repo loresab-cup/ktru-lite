@@ -681,6 +681,8 @@ export function ItemScreen({ jobId, itemId }: { jobId: string; itemId: number })
       } else if (e.key === 'Enter') {
         e.preventDefault()
         void accept(true)
+      } else if (e.key === 'Escape') {
+        navigate(paths.job(jobId)) // back to the list: the focus returns to this row
       }
     }
     window.addEventListener('keydown', onKey)

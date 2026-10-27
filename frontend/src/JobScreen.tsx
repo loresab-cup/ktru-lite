@@ -21,6 +21,8 @@ import { T } from './texts'
 import { confirmLook } from './confirm'
 import { EmptyState, Notice, Ring, Skeleton } from './ui'
 
+const RETRY_MS = 3000
+
 /** Step states from the job counters: read -> extract -> search -> confidence. */
 function stepStates(job: Job): ('done' | 'active' | 'wait')[] {
   if (job.status === 'done') return ['done', 'done', 'done', 'done']
@@ -225,7 +227,10 @@ export function JobScreen({ jobId }: { jobId: string }) {
         }
       } catch (e) {
         if (!alive) return
-        setProblem(loadProblem(e))
+        const next = loadProblem(e)
+        setProblem(next)
+        // The server restarts or the network blinks: the page comes back by itself
+        if (next.retry) timer = window.setTimeout(poll, RETRY_MS)
       }
     }
     void poll()

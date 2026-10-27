@@ -92,6 +92,11 @@ function ServiceNotices() {
           {T.app.banner.llmOffHint}
         </Notice>
       )}
+      {health.embeddings === 'down' && (
+        <Notice kind="warn" title={T.app.banner.embeddingsDown}>
+          {T.app.banner.embeddingsDownHint}
+        </Notice>
+      )}
       {health.llm === 'down' && (
         <Notice kind="warn" title={T.app.banner.llmDown}>
           {T.app.banner.llmDownHint}

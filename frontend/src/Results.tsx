@@ -308,6 +308,12 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
         </Notice>
       )}
 
+      {Boolean(job.words_only) && (
+        <Notice kind="warn" title={T.results.wordsOnlyTitle}>
+          {T.results.wordsOnly(job.words_only ?? 0, job.total)}
+        </Notice>
+      )}
+
       <section className="panel" aria-label={T.results.params}>
         <div className="review">
           <div className="review-text">

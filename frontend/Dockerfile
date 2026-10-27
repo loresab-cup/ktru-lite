@@ -61,12 +61,15 @@ server {
         proxy_read_timeout 120s;
     }
 
+    # "expires" and not add_header here: an add_header inside a location drops every
+    # security header of the server block for that location
     location /assets/ {
-        expires 30d;
-        add_header Cache-Control "public, immutable";
+        expires 1y;
     }
 
+    # index.html names the hashed bundle: always asked again, so a new build is seen at once
     location / {
+        expires -1;
         try_files $uri /index.html;
     }
 }
