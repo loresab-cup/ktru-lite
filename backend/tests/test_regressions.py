@@ -381,3 +381,28 @@ def test_cancelled_job_gets_no_failure_text(isolated_api):
         stored = session.get(api.Job, job.id)
         assert stored.status == "cancelled" and stored.error is None
         assert stored.finished_at is not None
+
+
+def test_item_page_says_how_candidates_differ(isolated_api):
+    api = isolated_api
+
+    def soap(code: str, mass: str) -> dict:
+        return {
+            "code": code,
+            "name": "Мыло туалетное твердое",
+            "score": 0.9,
+            "characteristics": [["Вид", ["Туалетное"]], ["Масса нетто", [mass]]],
+        }
+
+    job = api.Job(filename="spec.csv", status="done")
+    with api.SessionLocal() as session:
+        session.add(job)
+        session.flush()
+        item = api.Item(job_id=job.id, row_number=2, raw_text="Мыло 100 г", status="auto")
+        item.candidates = [soap("20.41.31.110-00000002", "< 90 Грамм"), soap("-07", "≥ 90 Грамм")]
+        session.add(item)
+        session.commit()
+    with TestClient(api.app) as client:
+        shown = client.get(f"/api/items/{item.id}").json()["candidates"]
+    assert shown[0]["differs"] == [["Масса нетто", "< 90 Грамм"]]  # «Вид» is the same in both
+    assert shown[1]["differs"] == [["Масса нетто", "≥ 90 Грамм"]]

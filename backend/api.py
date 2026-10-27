@@ -611,6 +611,21 @@ def restore_original(item: Item) -> None:
     item.attributes = attributes
 
 
+DIFFERENCES_SHOWN = 4  # characteristics per candidate: enough to tell neighbour codes apart
+
+
+def with_differences(candidates: list[dict]) -> list[dict]:
+    """Each candidate with the characteristics whose values differ between the candidates:
+    five «Мыло туалетное твердое» in a row are told apart by «Масса нетто» and the like."""
+    if len(candidates) < 2:
+        return candidates
+    differing = chooser.differing(candidates)
+    return [
+        c | {"differs": list(d["characteristics"].items())[:DIFFERENCES_SHOWN]}
+        for c, d in zip(candidates, differing, strict=True)
+    ]
+
+
 @app.get("/api/items/{item_id}")
 def get_item(item_id: int):
     """One position with its place in the job: the page of a code walks to the neighbours."""
@@ -626,7 +641,7 @@ def get_item(item_id: int):
 
         not_reviewed = Item.status.not_in(("accepted", "corrected"))
         shown = to_dict(item)
-        shown["candidates"] = confidence.with_confidences(item.candidates or [])
+        shown["candidates"] = with_differences(confidence.with_confidences(item.candidates or []))
         return shown | {
             "position": count(Item.id <= item.id),
             "total": count(),
