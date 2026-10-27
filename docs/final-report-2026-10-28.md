@@ -137,11 +137,9 @@ backend (`api.py`, `search.py`, `extractor.py`, `parser.py`, тесты), fronte
 
 ## Ждёт вашего да
 
-- `git push` ветки `final/merge-2026-10-28` и `main`.
-- Правка `.env`: раскомментировать `COMPOSE_PATH_SEPARATOR=,` и
-  `COMPOSE_FILE=docker-compose.yml,docker-compose.gpu.yml`, чтобы видеокарта включалась обычным
-  `docker compose up -d --build`. Без этого Ollama идёт на процессоре и 1000 строк не
-  укладываются в 300 секунд.
+- `git push` ветки `final/merge-2026-10-28` и `main` (сделан 28.10 по вашему да).
+- Правка `.env` не нужна: `COMPOSE_PATH_SEPARATOR` и `COMPOSE_FILE` там уже раскомментированы,
+  обычный `docker compose config` подключает видеокарту к ollama, `ollama ps` показывает 100 % GPU.
 - Удаления: ничего не удалялось, кроме трёх заданий вчерашнего замера и своих заданий. Можно
   удалить ветку `codex/evening-audit-2026-10-28` после того, как Женя посмотрит этот отчёт.
 
