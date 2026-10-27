@@ -30,6 +30,7 @@ export interface CatalogCode {
 export interface Candidate extends CatalogCode {
   score: number
   confidence: number // what the confidence of the item would be if this code were the pick
+  differs?: [string, string][] // characteristics whose values differ between the candidates
   cosine: number
   shared_words: string[]
   matched_characteristics: string[]

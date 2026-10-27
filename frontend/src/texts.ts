@@ -402,6 +402,7 @@ export const T = {
     saveCode: 'Применить',
     candidates: 'Топ-5 кандидатов',
     candidateConfidence: (percent: number) => `Уверенность ${percent} %`,
+    differs: 'Отличается:',
     choose: 'Выбрать',
     chosen: 'Выбран',
     search: 'Поиск по каталогу КТРУ',

@@ -35,11 +35,12 @@ import { capital, T } from './texts'
 import { Confidence, EmptyState, KtruCode, RawText, Skeleton, StatusChip } from './ui'
 
 /** A code of the catalog or a candidate of the search: code, name, what matched, the button. */
-function CodeCard({ code, current, confidence, matched, onChoose }: {
+function CodeCard({ code, current, confidence, matched, differs, onChoose }: {
   code: CatalogCode
   current: boolean
   confidence?: number
   matched?: string[]
+  differs?: [string, string][]
   onChoose: () => void
 }) {
   return (
@@ -66,6 +67,16 @@ function CodeCard({ code, current, confidence, matched, onChoose }: {
             {confidence !== undefined && (
               <span className="muted num">{T.drawer.candidateConfidence(Math.floor(confidence))}</span>
             )}
+          </div>
+        )}
+        {differs && differs.length > 0 && (
+          <div className="cand-differs">
+            <span className="muted">{T.drawer.differs}</span>
+            {differs.map(([name, values]) => (
+              <span key={name} className="chip">
+                {name}: {values}
+              </span>
+            ))}
           </div>
         )}
       </div>
@@ -547,6 +558,7 @@ function CandidatesTab({ item, onChoose }: { item: ItemPage; onChoose: (code: st
               code={c}
               confidence={c.confidence}
               matched={c.matched_characteristics}
+              differs={c.differs}
               current={c.code === item.ktru_code}
               onChoose={() => onChoose(c.code)}
             />

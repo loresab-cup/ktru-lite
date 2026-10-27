@@ -162,7 +162,7 @@ a {
 }
 
 .faint {
-  color: var(--ink-off);
+  color: var(--ink-3); /* text: the lighter gray is under 4.5:1 */
 }
 
 .grow {
@@ -2163,16 +2163,18 @@ a {
 }
 
 .cand-title,
-.cand-meta {
+.cand-meta,
+.cand-differs {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
-}
-
-.cand-meta {
   gap: var(--s2);
   font-size: var(--text-sm);
+}
+
+/* neighbour codes with one name: what tells them apart */
+.cand-differs {
+  margin-top: var(--s2);
 }
 
 .cand-name {
@@ -2466,6 +2468,16 @@ a {
 }
 
 @media (max-width: 1000px) {
+  /* a tablet: the name, the menu and the catalog badge do not fit in one line; the home
+     page still says when the catalog is loading */
+  .head-tools {
+    display: none;
+  }
+
+  .brand-title {
+    white-space: nowrap;
+  }
+
   .tiles {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
