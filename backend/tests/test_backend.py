@@ -404,6 +404,8 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
         spaced = CODES[0][0].replace("-", "- ") + chr(10)  # as typed in a spreadsheet
         fixed = client.patch(f"/api/items/{paper['id']}", json={"ktru_code": spaced})
         assert fixed.json()["status"] == "corrected"
+        assert fixed.json()["confidence"] is None
+        assert "100" not in fixed.json()["summary"]
         filtered = client.get(f"/api/jobs/{job_id}/items", params={"status": "corrected"})
         assert filtered.json()["total"] == 1
         assert client.get(f"/api/jobs/{job_id}/items", params={"q": "%"}).json()["total"] == 0
