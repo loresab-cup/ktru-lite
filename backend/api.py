@@ -285,7 +285,11 @@ def choose_codes(job_id: uuid.UUID, stages: dict, until: float) -> None:
             code, provider = picks.get(item.id, (item.ktru_code, ""))
             if code == item.ktru_code:
                 continue
-            name = next(c["name"] for c in item.candidates if c["code"] == code)
+            # The confidence of the chosen candidate, as its card shows it: the search's
+            # percent was about another code
+            chosen = next(
+                c for c in confidence.with_confidences(item.candidates) if c["code"] == code
+            )
             summary = f"Код выбран нейросетью ({provider}) из 5 кандидатов поиска. {item.summary}"
             session.execute(
                 update(Item)
@@ -294,7 +298,13 @@ def choose_codes(job_id: uuid.UUID, stages: dict, until: float) -> None:
                     Item.ktru_code == item.ktru_code,
                     Item.status == "needs_review",
                 )
-                .values(ktru_code=code, ktru_name=name, summary=summary[:1000])
+                .values(
+                    ktru_code=code,
+                    ktru_name=chosen["name"],
+                    confidence=chosen["confidence"],
+                    zone=confidence.zone_of(chosen["confidence"]),
+                    summary=summary[:1000],
+                )
             )
         session.commit()
     tick(stages, "choose", started)

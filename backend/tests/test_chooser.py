@@ -12,8 +12,8 @@ import extractor
 import providers
 
 
-def cand(code: str, name: str = "Опора знака дорожного", chars=None) -> dict:
-    return {"code": code, "name": name, "characteristics": chars or []}
+def cand(code: str, name: str = "Опора знака дорожного", chars=None, score=0.9) -> dict:
+    return {"code": code, "name": name, "characteristics": chars or [], "score": score}
 
 
 def test_differing_keeps_only_characteristics_that_tell_codes_apart():
@@ -58,7 +58,7 @@ def add_items(api, job_id, statuses):
                     job_id=job_id,
                     row_number=number,
                     raw_text=f"Опора знака композитная {number}",
-                    candidates=[cand("1"), cand("2")],
+                    candidates=[cand("1", score=0.95), cand("2", score=0.93)],
                     ktru_code="1",
                     ktru_name="Опора знака дорожного",
                     status=status,
@@ -83,6 +83,9 @@ def test_choice_changes_only_doubtful_rows_and_never_user_edits(api, monkeypatch
         items = session.query(api.Item).order_by(api.Item.row_number).all()
     assert [i.ktru_code for i in items] == ["2", "1", "1"]
     assert items[0].status == "needs_review" and "нейросетью (x)" in items[0].summary
+    # the confidence is the chosen candidate's: below the search's first one
+    second = api.confidence.with_confidences(items[0].candidates)[1]["confidence"]
+    assert items[0].confidence == second and items[0].zone == api.confidence.zone_of(second)
     assert "choose" in stages
 
 
