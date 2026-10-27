@@ -167,7 +167,7 @@ try {
     input.dispatchEvent(new Event('input', { bubbles: true }))
   })()`)
   await sleep(2500)
-  await shot('catalog', '.seg a[href="/catalog"]')
+  await shot('catalog', '.main-nav a[href="/catalog"]')
 } finally {
   await fetch(`${SITE}/api/jobs/${jobId}`, { method: 'DELETE' })
   socket.close()
