@@ -23,7 +23,7 @@ import {
   savedListView,
   type ListView,
 } from './router'
-import { T } from './texts'
+import { formatDate, T } from './texts'
 import { Confidence, EmptyState, Notice, Pager, Skeleton, StatusChip } from './ui'
 
 const PAGE_SIZE = 20
@@ -96,6 +96,11 @@ function ResultCard({ item, jobId, open, onToggle, pick }: {
           )}
           {item.status === 'needs_review' && item.attributes.review && (
             <p className="review-reason">{item.attributes.review}</p>
+          )}
+          {item.attributes.remembered && (
+            <p className="remembered-note">
+              {T.results.remembered(formatDate(item.attributes.remembered))}
+            </p>
           )}
         </div>
         <div className="res-conf">

@@ -438,6 +438,12 @@ a {
   line-height: 1.45;
 }
 
+.remembered-note {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
 .status-needs_review {
   background: var(--amber-soft);
   color: var(--amber);
