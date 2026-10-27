@@ -64,7 +64,7 @@ function CodeCard({ code, current, confidence, matched, onChoose }: {
               </span>
             ))}
             {confidence !== undefined && (
-              <span className="muted num">{T.drawer.candidateConfidence(Math.round(confidence))}</span>
+              <span className="muted num">{T.drawer.candidateConfidence(Math.floor(confidence))}</span>
             )}
           </div>
         )}

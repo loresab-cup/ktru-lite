@@ -125,12 +125,6 @@ a {
   html {
     zoom: var(--zoom);
   }
-
-  /* the tour draws its cut-out from measured positions: it must not be zoomed a second time */
-  .ant-tour,
-  .ant-tour-mask {
-    zoom: calc(1 / var(--zoom));
-  }
 }
 
 .site {
@@ -920,7 +914,59 @@ a {
 }
 
 .tour-start {
+  align-self: flex-start; /* a button, not a bar across the page */
   margin-top: var(--s4);
+}
+
+/* The tour: a counter, a picture with the place to press marked, one line, the buttons */
+.tour .ant-modal-title {
+  font-size: var(--text-xl);
+  line-height: 32px;
+}
+
+.tour-count {
+  margin-bottom: var(--s3);
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+.tour-picture {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--field);
+}
+
+.tour-action {
+  margin-top: var(--s4);
+  font-size: var(--text-lg);
+  line-height: 26px;
+  color: var(--ink);
+}
+
+.tour-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s6);
+}
+
+@media (max-width: 600px) {
+  .tour-action {
+    font-size: var(--text);
+    line-height: 22px;
+  }
+
+  .tour-actions .grow {
+    display: none;
+  }
+
+  .tour-actions .btn {
+    flex: 1 1 40%;
+  }
 }
 
 .home-card {
@@ -1012,6 +1058,7 @@ a {
 
 .drop-options {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--s2);
 }

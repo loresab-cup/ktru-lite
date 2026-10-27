@@ -16,7 +16,8 @@ export function Confidence({ value, zone }: { value: number | null; zone: Zone }
   const percent = value ?? 0
   return (
     <span className={`conf num zone-${zone}`} title={T.zone[zone]}>
-      {percent.toFixed(0)} %<span className="sr-only">, {T.zone[zone]}</span>
+      {/* floor: 84.6 % is a "needs review" row and must not read as 85 */}
+      {Math.floor(percent)} %<span className="sr-only">, {T.zone[zone]}</span>
     </span>
   )
 }

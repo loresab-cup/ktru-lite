@@ -1,6 +1,8 @@
 import { Checkbox } from 'antd'
 import {
   ArrowRight,
+  Download,
+  FilePlus2,
   FileSpreadsheet,
   FileText,
   FileUp,
@@ -26,6 +28,9 @@ import { useJobs } from './useJobs'
 
 const EXTENSIONS = ['.xlsx', '.csv', '.docx', '.pdf', '.txt']
 const MAX_BYTES = 10 * 1024 * 1024
+/** Eight real-looking rows: the example of the tour and the template to download at once. */
+const EXAMPLE_URL = '/primer.xlsx'
+const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 function FileList({ files, busy, onRemove, onClear, onProcess }: {
   files: File[]
@@ -118,7 +123,7 @@ export function UploadScreen({ mode }: { mode: 'upload' | 'search' }) {
   const searching = mode === 'search'
 
   /** Files go to the list first; nothing is sent until "Process" is pressed. */
-  const add = (list: FileList | null | undefined) => {
+  const add = (list: FileList | File[] | null | undefined) => {
     if (!list?.length || uploading) return
     const next = [...files]
     const bad: string[] = []
@@ -135,6 +140,17 @@ export function UploadScreen({ mode }: { mode: 'upload' | 'search' }) {
     setFiles(next)
     setErrors(bad)
     setSent(0)
+  }
+
+  /** The example file of the tour, put into the list as if the person had chosen it. */
+  const addExample = async () => {
+    try {
+      const response = await fetch(EXAMPLE_URL)
+      if (!response.ok) throw new Error(String(response.status))
+      add([new File([await response.blob()], T.upload.exampleName, { type: XLSX_TYPE })])
+    } catch {
+      setErrors([T.upload.fileError(T.upload.exampleName, T.errors.network)])
+    }
   }
 
   /** One specification per file; the first one opens, the others stay in the list. */
@@ -178,7 +194,7 @@ export function UploadScreen({ mode }: { mode: 'upload' | 'search' }) {
             {searching ? T.catalogSearch.title : T.upload.title}
           </h1>
           <p className="lead">{searching ? T.catalogSearch.lead : T.upload.lead}</p>
-          {!searching && <Tutorial />}
+          {!searching && <Tutorial onTry={() => void addExample()} />}
           {!searching && <ServiceNotices />}
           <div className="card home-card">
             <nav className="seg" aria-label={T.upload.tabsLabel}>
@@ -247,6 +263,24 @@ export function UploadScreen({ mode }: { mode: 'upload' | 'search' }) {
                   <Checkbox checked={inactive} onChange={(e) => setInactive(e.target.checked)}>
                     {T.upload.inactive}
                   </Checkbox>
+                  <span className="grow" />
+                  <button
+                    type="button"
+                    className="btn ghost small"
+                    title={T.upload.exampleHint}
+                    disabled={Boolean(uploading)}
+                    onClick={() => void addExample()}
+                  >
+                    <FilePlus2 size={16} aria-hidden="true" /> {T.upload.example}
+                  </button>
+                  <a
+                    className="btn ghost small"
+                    href={EXAMPLE_URL}
+                    download={T.upload.exampleName}
+                    title={T.upload.templateHint}
+                  >
+                    <Download size={16} aria-hidden="true" /> {T.upload.template}
+                  </a>
                 </div>
                 {errors.map((error) => (
                   <div key={error} className="notice error" role="alert">
