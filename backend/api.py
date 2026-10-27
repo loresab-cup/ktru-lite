@@ -239,6 +239,8 @@ def process_batch(
     queries = [f"{a['search_text']}. {row.text}" for a, row in zip(attributes, batch, strict=True)]
     hints = [unit_hints(row, a) for a, row in zip(attributes, batch, strict=True)]
     vectors = embedder.embed(queries)
+    if vectors is None:  # Ollama is down: the page warns that these rows were found by words
+        attributes = [a | {"words_only": True} for a in attributes]
     found = state.catalog.search(
         vectors,
         queries,
@@ -478,13 +480,20 @@ def get_job(job_id: str):
             select(Item.status, func.count()).where(Item.job_id == job.id).group_by(Item.status)
         )
         counts = {status: 0 for status in ITEM_STATUSES} | dict(rows.all())
-        # Rows whose attributes came from the rules: the UI warns that the network was not used
-        fallback = session.scalar(
-            select(func.count())
-            .select_from(Item)
-            .where(Item.job_id == job.id, Item.attributes["fallback"].as_string().is_not(None))
-        )
-        return to_dict(job) | {"counts": counts, "fallback": fallback}
+
+        def flagged(key: str) -> int:
+            return session.scalar(
+                select(func.count())
+                .select_from(Item)
+                .where(Item.job_id == job.id, Item.attributes[key].as_string().is_not(None))
+            )
+
+        # fallback: the network did not give the attributes; words_only: Ollama was down
+        return to_dict(job) | {
+            "counts": counts,
+            "fallback": flagged("fallback"),
+            "words_only": flagged("words_only"),
+        }
 
 
 @app.delete("/api/jobs/{job_id}", status_code=204)
@@ -678,7 +687,8 @@ def edit_attributes(item_id: int, body: AttributesIn):
     with SessionLocal() as session:
         item = get_or_404(session, Item, item_id, "Позиция")
         include_inactive = session.get(Job, item.job_id).include_inactive
-        [found] = catalog.search(embedder.embed([query]), [query], include_inactive)
+        vectors = embedder.embed([query])
+        [found] = catalog.search(vectors, [query], include_inactive)
         remember_original(item)  # "revert" brings back what the system proposed
         push_history(item)
         old = item.attributes or {}
@@ -686,6 +696,8 @@ def edit_attributes(item_id: int, body: AttributesIn):
         keep = ("columns", "original", "history", "fallback")
         kept = {key: old[key] for key in keep if key in old}
         attributes = body.model_dump() | {"search_text": query, "source": "manual"}
+        if vectors is None:
+            attributes["words_only"] = True
         item.attributes = attributes | kept
         apply_candidates(item, found)
         item.status = "corrected"  # a person has looked at the row, whatever the new confidence
@@ -812,6 +824,7 @@ def health():
         "catalog": catalog,
         "codes": len(state.catalog.codes) if state.catalog else 0,
         "llm": extractor.llm_state(),
+        "embeddings": embedder.state(),
         "providers": [  # names and limits only, never keys
             {"name": p.name, "model": p.model, "parallel": p.parallel, "down": p.is_down()}
             for p in extractor.PROVIDERS

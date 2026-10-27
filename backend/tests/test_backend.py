@@ -342,9 +342,11 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
     monkeypatch.setattr(search, "CACHE_DIR", TMP / "cache")
     api = importlib.import_module("api")  # reads the environment at import
     monkeypatch.setattr(embedder, "embed", lambda texts: None)  # Ollama is down: words only
+    monkeypatch.setattr(embedder, "state", lambda: "down")
     spec = "Наименование;Кол-во\nБумага для офисной техники А4;10\n=HYPERLINK(1) ноутбук;1\n"
     with TestClient(api.app) as client:
-        wait(client, "/api/health", lambda body: body["catalog"] == "ready")
+        health = wait(client, "/api/health", lambda body: body["catalog"] == "ready")
+        assert health["embeddings"] == "down"
         bad = client.post("/api/jobs", files={"file": ("x.pdf", b"text", "application/pdf")})
         assert bad.status_code == 400 and "pdf" in bad.json()["detail"]
 
@@ -358,6 +360,7 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
         job = wait(client, f"/api/jobs/{job_id}", lambda body: body["status"] == "done")
         assert job["filename"] == "spec.csv" and job["total"] == job["processed"] == 2
         assert job["fallback"] == 2  # no key in the tests: every row by the rules
+        assert job["words_only"] == 2  # and no vectors: the page warns about both
         assert not list((TMP / "uploads").iterdir())  # the file is deleted
 
         items = client.get(f"/api/jobs/{job_id}/items").json()["items"]

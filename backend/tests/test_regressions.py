@@ -57,6 +57,7 @@ def test_export_escapes_obscured_formulas(isolated_api, text):
 
 def test_blocked_upload_does_not_block_health(isolated_api, monkeypatch):
     api = isolated_api
+    monkeypatch.setattr(embedder, "state", lambda: "on")
     entered, release = threading.Event(), threading.Event()
     factory = api.SessionLocal
 
@@ -301,3 +302,40 @@ def test_accepted_rows_return_to_review_in_bulk(isolated_api):
         counts = client.get(f"/api/jobs/{job_id}").json()["counts"]
         assert counts["accepted"] == 0
         assert client.post("/api/jobs/not-a-uuid/revert", json={"ids": [1]}).status_code == 404
+
+
+def ollama(monkeypatch, handler) -> None:
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    monkeypatch.setattr(embedder, "_client", client)
+    monkeypatch.setattr(embedder, "_cache", {})
+    monkeypatch.setattr(embedder, "_status", {"up": None, "at": 0.0, "pause_until": 0.0})
+
+
+def test_embeddings_state_follows_the_answers(monkeypatch):
+    up = {"value": False}
+
+    def handler(request):
+        if not up["value"]:
+            raise httpx.ConnectError("refused", request=request)
+        texts = json.loads(request.content)["input"]
+        return httpx.Response(200, json={"embeddings": [[1.0] * embedder.DIM] * len(texts)})
+
+    ollama(monkeypatch, handler)
+    assert embedder.state() == "down"  # the health probe asked Ollama itself
+    assert embedder.embed(["Лампа"]) is None
+    up["value"] = True
+    assert embedder.embed(["Лампа"]).shape == (1, embedder.DIM)
+    assert embedder.state() == "on"  # the job's answer is fresh: no second probe
+
+
+def test_hung_ollama_is_not_waited_for_again(monkeypatch):
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        raise httpx.ReadTimeout("no answer", request=request)
+
+    ollama(monkeypatch, handler)
+    assert embedder.embed(["Лампа"]) is None
+    assert embedder.embed(["Стол"]) is None  # paused: no second request
+    assert len(calls) == 1 and embedder.state() == "down"
