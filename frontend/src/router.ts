@@ -29,6 +29,21 @@ export function navigate(path: string) {
   window.scrollTo(0, 0)
 }
 
+/** The position the person looked at last: the list of its job takes the focus back to it. */
+let lastItem: { jobId: string; itemId: number } | null = null
+
+export function rememberItem(jobId: string, itemId: number) {
+  lastItem = { jobId, itemId }
+}
+
+export function lastItemOf(jobId: string): number | null {
+  return lastItem?.jobId === jobId ? lastItem.itemId : null
+}
+
+export function forgetItem() {
+  lastItem = null
+}
+
 export const paths = {
   home: '/',
   catalog: '/catalog',

@@ -2,8 +2,9 @@ import { Input, InputNumber, message, Pagination, Switch } from 'antd'
 import { CheckCheck, ChevronDown, Eye, Search, SlidersHorizontal } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api, ApiError, type ItemRow, type Job } from './api'
+import { useHealth } from './health'
 import { Link } from './Link'
-import { navigate, paths } from './router'
+import { forgetItem, lastItemOf, navigate, paths } from './router'
 import { T } from './texts'
 import { Confidence, EmptyState, Notice, Skeleton, StatusChip } from './ui'
 
@@ -27,7 +28,7 @@ function ResultCard({ item, jobId, open, onToggle }: {
           {item.row_number}
         </span>
         <div className="res-title">
-          <Link className={`res-code ${item.ktru_code ? '' : 'none'}`} to={to}>
+          <Link className={`res-code ${item.ktru_code ? '' : 'none'}`} to={to} data-item={item.id}>
             {item.ktru_code ?? T.results.noCode}
           </Link>
           {item.ktru_name && (
@@ -81,6 +82,8 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
   const [opened, setOpened] = useState<Set<number>>(new Set())
   const [threshold, setThreshold] = useState(85)
   const [toast, toastHolder] = message.useMessage()
+  const health = useHealth()
+  const noKeys = typeof health === 'object' && health !== null && health.llm === 'off'
 
   useEffect(() => {
     const timer = window.setTimeout(() => setQuery(search.trim()), 300)
@@ -101,6 +104,16 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
     }
     // job.processed: new rows of a running job appear without touching what is open
   }, [job.id, job.processed, status, query, page, version, toast])
+
+  // Back from a position: the focus goes to its row, so the keyboard does not start from the top
+  const [returnTo] = useState(() => lastItemOf(job.id))
+  useEffect(() => {
+    if (data === null || returnTo === null) return
+    const row = document.querySelector<HTMLElement>(`[data-item="${returnTo}"]`)
+    row?.focus()
+    row?.scrollIntoView({ block: 'center' })
+    forgetItem()
+  }, [data, returnTo])
 
   const acceptAll = async () => {
     try {
@@ -150,8 +163,8 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
     <>
       {toastHolder}
       {Boolean(job.fallback) && (
-        <Notice kind="info" title={T.results.fallbackTitle}>
-          {T.results.fallback(job.fallback ?? 0, job.total)}
+        <Notice kind="info" title={noKeys ? T.results.fallbackNoKeysTitle : T.results.fallbackTitle}>
+          {(noKeys ? T.results.fallbackNoKeys : T.results.fallback)(job.fallback ?? 0, job.total)}
         </Notice>
       )}
 

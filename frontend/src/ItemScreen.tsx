@@ -29,7 +29,7 @@ import {
   ktruUrl,
 } from './api'
 import { Link } from './Link'
-import { navigate, paths } from './router'
+import { navigate, paths, rememberItem } from './router'
 import { capital, T } from './texts'
 import { Confidence, EmptyState, KtruCode, RawText, Skeleton, StatusChip } from './ui'
 
@@ -579,6 +579,7 @@ export function ItemScreen({ jobId, itemId }: { jobId: string; itemId: number })
       })
 
   useEffect(() => {
+    rememberItem(jobId, itemId)
     void load()
     api.job(jobId).then(setJob).catch(() => undefined)
     // the page is keyed by the item, so this runs once per position
