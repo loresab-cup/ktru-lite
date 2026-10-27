@@ -707,7 +707,39 @@ def get_item(item_id: int):
             "prev_id": edge(func.max, Item.id < item.id),
             "next_id": edge(func.min, Item.id > item.id),
             "next_unreviewed_id": next_review,
+            "same_pending": count(*same_rows(item)),
         }
+
+
+def same_rows(item: Item) -> tuple:
+    """Conditions for the other rows of the job with the same text that still wait for a look."""
+    return (
+        Item.job_id == item.job_id,
+        Item.id != item.id,
+        Item.raw_text == item.raw_text,
+        Item.status.in_(("needs_review", "failed")),
+    )
+
+
+@app.post("/api/items/{item_id}/apply-same")
+def apply_same(item_id: int):
+    """The code a person gave this row goes to the identical rows of the job that wait."""
+    with SessionLocal() as session:
+        item = get_or_404(session, Item, item_id, "Позиция")
+        if item.status not in ("accepted", "corrected") or not item.ktru_code:
+            raise HTTPException(400, "Сначала примите или исправьте код этой позиции")
+        others = session.scalars(select(Item).where(*same_rows(item))).all()
+        for other in others:
+            remember_original(other)
+            if other.ktru_code == item.ktru_code:
+                other.status = "accepted"
+                continue
+            push_history(other)
+            other.ktru_code, other.ktru_name = item.ktru_code, item.ktru_name
+            other.status, other.confidence, other.zone = "corrected", None, "low"
+            other.summary = f"Код взят из такой же строки {item.row_number}: выбран человеком"
+        session.commit()
+        return {"applied": len(others)}
 
 
 class Correction(BaseModel):

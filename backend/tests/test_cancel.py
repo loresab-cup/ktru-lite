@@ -304,3 +304,42 @@ def test_rows_of_a_cancelled_chunk_are_not_extracted():
     stop.set()
     with pytest.raises(extractor.Cancelled):
         extractor.extract_chunk(["Бумага"], time.monotonic() + 5, stop)
+
+
+def test_one_decision_goes_to_the_identical_rows_that_wait(api, monkeypatch):
+    monkeypatch.setattr(api.state, "catalog", tiny_catalog())
+    job_id = uuid.uuid4()
+    proposed = {"ktru_code": "17.12.14.129-00000001", "ktru_name": "Бумага для офисной техники"}
+    rows = [("Ноутбук 16 ГБ", "needs_review"), ("Ноутбук 16 ГБ", "needs_review")]
+    rows += [("Ноутбук 16 ГБ", "auto"), ("Бумага А4", "needs_review")]
+    with api.SessionLocal() as session:
+        session.add(api.Job(id=job_id, filename="a.txt", status="done"))
+        for n, (text, status) in enumerate(rows, start=1):
+            session.add(
+                api.Item(
+                    job_id=job_id,
+                    row_number=n,
+                    raw_text=text,
+                    status=status,
+                    confidence=60.0,
+                    zone="medium",
+                    summary="Поиск",
+                    **proposed,
+                )
+            )
+        session.commit()
+        ids = [item.id for item in session.query(api.Item).order_by(api.Item.id)]
+    with TestClient(api.app) as client:
+        assert client.get(f"/api/items/{ids[0]}").json()["same_pending"] == 1
+        assert client.post(f"/api/items/{ids[0]}/apply-same").status_code == 400  # not decided
+        client.patch(f"/api/items/{ids[0]}", json={"ktru_code": "26.20.11.110-00000001"})
+        assert client.post(f"/api/items/{ids[0]}/apply-same").json() == {"applied": 1}
+        twin = client.get(f"/api/items/{ids[1]}").json()
+        assert twin["status"] == "corrected" and twin["ktru_code"] == "26.20.11.110-00000001"
+        assert twin["confidence"] is None and "строки 1" in twin["summary"]
+        assert client.get(f"/api/items/{ids[2]}").json()["status"] == "auto"  # not waiting
+        assert client.get(f"/api/items/{ids[3]}").json()["status"] == "needs_review"
+        back = client.post(f"/api/items/{ids[1]}/undo-code").json()
+        assert back["ktru_code"] == proposed["ktru_code"]
+        assert back["status"] == "needs_review"  # undone: it waits again
+        assert client.get(f"/api/items/{ids[0]}").json()["same_pending"] == 1
