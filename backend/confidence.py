@@ -58,6 +58,76 @@ def explain(best: dict, is_product: bool) -> str:
     return text[:1].upper() + text[1:]
 
 
+TWIN_GAP = 0.02  # first and second code of one name this close: the row cannot tell them apart
+WEAK_SCORE = 0.8  # below it the best code is far from the row
+MAX_NAMED = 3  # characteristics named in the reason
+# Unit keys of search.unit_key in words: codes of one name often differ only by the unit
+UNIT_WORDS = {
+    "l": "литрах",
+    "ml": "миллилитрах",
+    "kg": "килограммах",
+    "g": "граммах",
+    "t": "тоннах",
+    "pcs": "штуках",
+    "pack": "упаковках",
+    "set": "комплектах",
+    "pair": "парах",
+    "m": "метрах",
+    "m2": "квадратных метрах",
+    "m3": "кубических метрах",
+    "manhour": "человеко-часах",
+    "unit": "условных единицах",
+}
+
+
+def differing_names(first: dict, second: dict) -> list[str]:
+    """Characteristics the two codes have with different values (as far as the card shows)."""
+    a = {c[0]: tuple(c[1]) for c in first.get("characteristics") or []}
+    b = {c[0]: tuple(c[1]) for c in second.get("characteristics") or []}
+    return sorted(name for name in a.keys() | b.keys() if a.get(name) != b.get(name))
+
+
+def review_reason(
+    candidates: list[dict], is_product: bool = True, cards: list[dict] | None = None
+) -> str:
+    """Why a person has to look at the row, in plain words; "" when the code goes to auto.
+
+    cards: full catalog cards of the first two candidates; the candidates keep only six
+    characteristics, and codes of one name usually differ further down."""
+    if not candidates:
+        return "Подходящих кодов КТРУ не найдено"
+    best = candidates[0]
+    if not is_product:
+        return "Строка не похожа на товар, работу или услугу"
+    if best.get("status") in STATUS_LABELS:
+        return f"Лучший код {STATUS_LABELS[best['status']]}"
+    if assess(candidates, is_product)["status"] == "auto":
+        return ""
+    second = candidates[1] if len(candidates) > 1 else None
+    if second and second["name"] == best["name"] and raw(best) - raw(second) < TWIN_GAP:
+        first_card, second_card = cards if cards and len(cards) == 2 else (best, second)
+        units = [card.get("units") or [] for card in (first_card, second_card)]
+        if all(units) and units[0] != units[1]:
+            listed = " и ".join(UNIT_WORDS.get(u[0], u[0]) for u in units)
+            return (
+                f"Два кода «{best['name']}» различаются единицей закупки: в {listed}. "
+                "Укажите единицу в колонке «Ед. изм.» или выберите код"
+            )
+        names = differing_names(first_card, second_card)
+        if names:
+            listed = ", ".join(f"«{n}»" for n in names[:MAX_NAMED])
+            return (
+                f"Два кода «{best['name']}» почти равны. Они различаются характеристиками "
+                f"{listed}: уточните их в строке или выберите код"
+            )
+        return f"Два кода «{best['name']}» почти равны, в каталоге у них одинаковые характеристики"
+    if min(raw(best), 1.0) < WEAK_SCORE:
+        return "Совпадение с каталогом слабое: проверьте наименование и характеристики"
+    if second:
+        return f"Второй кандидат {second['code']} «{second['name']}» почти так же близок"
+    return "Уверенность ниже порога автоматического выбора"
+
+
 def raw(candidate: dict) -> float:
     """The score before the cap at 1.0; rows stored before 27.10.2026 have only the capped one."""
     return candidate.get("raw_score", candidate["score"])

@@ -86,6 +86,8 @@ def test_choice_changes_only_doubtful_rows_and_never_user_edits(api, monkeypatch
     # the confidence is the chosen candidate's: below the search's first one
     second = api.confidence.with_confidences(items[0].candidates)[1]["confidence"]
     assert items[0].confidence == second and items[0].zone == api.confidence.zone_of(second)
+    assert "Нейросеть выбрала этот код" in items[0].attributes["review"]
+    assert "review" not in (items[1].attributes or {})  # the auto row is not touched
     assert "choose" in stages
 
 

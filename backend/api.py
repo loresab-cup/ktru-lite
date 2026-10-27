@@ -175,6 +175,17 @@ def tick(stages: dict, stage: str, started: float) -> None:
     stages[stage] = round(stages.get(stage, 0.0) + time.monotonic() - started, 2)
 
 
+def full_cards(candidates: list) -> list[dict] | None:
+    """Every kept characteristic of the codes, from the catalog in memory (None without it)."""
+    catalog = state.catalog
+    if catalog is None or not hasattr(catalog, "index"):
+        return None
+    found = [catalog.index.get(c.get("code")) for c in candidates]
+    if None in found:
+        return None
+    return [catalog.brief(i, full=True) for i in found]
+
+
 def apply_candidates(item: Item, found: list, is_product: bool = True) -> None:
     """Top-5 -> the best code, confidence, zone, status and explanation of the item."""
     verdict = confidence.assess(found, is_product=is_product)
@@ -183,6 +194,12 @@ def apply_candidates(item: Item, found: list, is_product: bool = True) -> None:
     item.ktru_code, item.ktru_name = best.get("code"), best.get("name")
     item.confidence, item.zone = verdict["confidence"], verdict["zone"]
     item.status, item.summary = verdict["status"], verdict["summary"]
+    # Why a person has to look: kept with the attributes (a JSON column, no new table column)
+    attributes = {k: v for k, v in (item.attributes or {}).items() if k != "review"}
+    reason = ""
+    if verdict["status"] != "auto":
+        reason = confidence.review_reason(found, is_product, full_cards(found[:2]))
+    item.attributes = attributes | ({"review": reason} if reason else {})
 
 
 def build_item(job_id: uuid.UUID, row: parser.Item, attributes: dict, found: list) -> Item:
@@ -291,6 +308,12 @@ def choose_codes(job_id: uuid.UUID, stages: dict, until: float) -> None:
                 c for c in confidence.with_confidences(item.candidates) if c["code"] == code
             )
             summary = f"Код выбран нейросетью ({provider}) из 5 кандидатов поиска. {item.summary}"
+            # The reason was about the search's first code; now it is about the choice
+            first = item.candidates[0]
+            review = (
+                f"Нейросеть выбрала этот код вместо первого кандидата поиска {first['code']} "
+                f"«{first['name']}»: проверьте выбор"
+            )
             session.execute(
                 update(Item)
                 .where(
@@ -304,6 +327,7 @@ def choose_codes(job_id: uuid.UUID, stages: dict, until: float) -> None:
                     confidence=chosen["confidence"],
                     zone=confidence.zone_of(chosen["confidence"]),
                     summary=summary[:1000],
+                    attributes=(item.attributes or {}) | {"review": review},
                 )
             )
         session.commit()
