@@ -1118,15 +1118,15 @@ a {
 
 /* the fold of a found code, as the fold of a card in the list of a specification */
 .found-more {
-  display: inline-flex;
-  align-self: flex-start;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 6px;
-  min-height: 32px;
-  padding: 0 10px;
-  margin-left: -10px;
+  width: 100%;
+  height: 44px;
+  margin-top: var(--s4);
+  padding: 0 var(--s3);
   border: 0;
-  border-radius: var(--radius-sm);
+  border-top: 1px solid var(--line-soft);
   background: transparent;
   color: var(--ink-2);
   font: inherit;
@@ -1155,11 +1155,27 @@ a {
 }
 
 .found-row {
+  padding: var(--s5) 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.found-row.has-fold {
+  padding-bottom: 0;
+}
+
+.found-body {
   display: flex;
   align-items: center;
   gap: var(--s6);
-  padding: var(--s5) 0;
-  border-top: 1px solid var(--line-soft);
+}
+
+.found-differs {
+  align-self: center;
+  font-size: var(--text-sm);
+}
+
+.found-rest {
+  padding: var(--s1) var(--s3) var(--s5);
 }
 
 .found-main {
@@ -2805,7 +2821,7 @@ a {
   }
 
   .cand,
-  .found-row {
+  .found-body {
     flex-direction: column;
     align-items: stretch;
     gap: var(--s3);

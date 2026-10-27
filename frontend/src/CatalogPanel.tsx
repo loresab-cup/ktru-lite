@@ -8,51 +8,94 @@ import { Skeleton } from './ui'
 const MIN_LETTERS = 2 // the service finds nothing useful by one letter
 const STEP = 20 // rows shown at first and added by "Show more"
 const LIMIT = 500 // codes asked for at once: past that the query is worth narrowing
+const MAIN = 3 // characteristics always shown, the rest are under the fold
 
-/** One found code: the code, its state, the name, its characteristics folded as in the list of
- *  a specification, and a link to the same code in the EIS. */
-function CodeRow({ code, open, onToggle }: { code: CatalogCode; open: boolean; onToggle: () => void }) {
+type Chars = CatalogCode['characteristics']
+
+/** For each name met more than once in the answer, the characteristics whose values differ
+ *  between its codes, with the number of different values: seventeen «Молоко питьевое» are told
+ *  apart by «Вид молока» and the like. */
+function differing(codes: CatalogCode[]): Map<string, Map<string, number>> {
+  const byName = new Map<string, CatalogCode[]>()
+  for (const code of codes) byName.set(code.name, [...(byName.get(code.name) ?? []), code])
+  const result = new Map<string, Map<string, number>>()
+  for (const [name, group] of byName) {
+    if (group.length < 2) continue
+    const maps = group.map((code) => new Map(code.characteristics.map(([n, v]) => [n, v.join('; ')])))
+    const names = new Set(maps.flatMap((m) => [...m.keys()]))
+    const counts = [...names].map((n) => [n, new Set(maps.map((m) => m.get(n))).size] as const)
+    result.set(name, new Map(counts.filter(([, count]) => count > 1)))
+  }
+  return result
+}
+
+function ChipList({ chars }: { chars: Chars }) {
+  return chars.map(([name, values]) => (
+    <span key={name} className="chip">
+      {name}: {values.join('; ')}
+    </span>
+  ))
+}
+
+/** One found code: the code, its state, the name, the characteristics that tell it from codes
+ *  of the same name (or its first ones), the rest folded as in the list of a specification,
+ *  and a link to the same code in the EIS. */
+function CodeRow({ code, differs, open, onToggle }: {
+  code: CatalogCode
+  differs?: Map<string, number>
+  open: boolean
+  onToggle: () => void
+}) {
   const active = code.status === 'ACTIVE'
   const url = ktruUrl(code.code)
-  const count = code.characteristics.length
+  // the ones with the most different values tell the codes apart best, so they go first
+  const differ = code.characteristics
+    .filter(([name]) => differs?.has(name))
+    .sort(([a], [b]) => (differs?.get(b) ?? 0) - (differs?.get(a) ?? 0))
+  const main = (differ.length ? differ : code.characteristics).slice(0, MAIN)
+  const rest = code.characteristics.filter((c) => !main.includes(c))
   return (
-    <li className="found-row">
-      <div className="found-main">
-        <div className="found-top">
-          <span className="code num">{code.code}</span>
-          <span className={`status ${active ? 'status-accepted' : 'status-corrected'}`}>
-            <span className="status-dot" aria-hidden="true" />
-            {capital(T.codeStatus[code.status] ?? code.status)}
-          </span>
-        </div>
-        <div className="found-name">
-          <span className="sentence">{code.name}</span>
-          {code.okpd2_code && (
-            <span className="muted num">
-              {T.catalogSearch.okpd2} {code.okpd2_code}
+    <li className={`found-row ${rest.length ? 'has-fold' : ''}`}>
+      <div className="found-body">
+        <div className="found-main">
+          <div className="found-top">
+            <span className="code num">{code.code}</span>
+            <span className={`status ${active ? 'status-accepted' : 'status-corrected'}`}>
+              <span className="status-dot" aria-hidden="true" />
+              {capital(T.codeStatus[code.status] ?? code.status)}
             </span>
+          </div>
+          <div className="found-name">
+            <span className="sentence">{code.name}</span>
+            {code.okpd2_code && (
+              <span className="muted num">
+                {T.catalogSearch.okpd2} {code.okpd2_code}
+              </span>
+            )}
+          </div>
+          {main.length > 0 && (
+            <div className="chips">
+              {differ.length > 0 && <span className="muted found-differs">{T.drawer.differs}</span>}
+              <ChipList chars={main} />
+            </div>
           )}
         </div>
-        {count > 0 && (
-          <button type="button" className="found-more" aria-expanded={open} onClick={onToggle}>
-            {T.catalogSearch.chars(count)}
-            <ChevronDown size={16} aria-hidden="true" className={open ? 'flip' : ''} />
-          </button>
-        )}
-        {count > 0 && open && (
-          <div className="chips">
-            {code.characteristics.map(([name, values]) => (
-              <span key={name} className="chip">
-                {name}: {values.join('; ')}
-              </span>
-            ))}
-          </div>
+        {url && (
+          <a className="btn small" href={url} target="_blank" rel="noopener noreferrer" title={T.results.openEis}>
+            {T.item.openEis} <ExternalLink size={15} aria-hidden="true" />
+          </a>
         )}
       </div>
-      {url && (
-        <a className="btn small" href={url} target="_blank" rel="noopener noreferrer" title={T.results.openEis}>
-          {T.item.openEis} <ExternalLink size={15} aria-hidden="true" />
-        </a>
+      {rest.length > 0 && (
+        <button type="button" className="found-more" aria-expanded={open} onClick={onToggle}>
+          {T.catalogSearch.restChars}
+          <ChevronDown size={18} aria-hidden="true" className={open ? 'flip' : ''} />
+        </button>
+      )}
+      {rest.length > 0 && open && (
+        <div className="chips found-rest">
+          <ChipList chars={rest} />
+        </div>
       )}
     </li>
   )
@@ -106,6 +149,7 @@ export function CatalogPanel() {
 
   const ready = q.length >= MIN_LETTERS ? found : null
   const list = (ready ?? []).filter((code) => inactive || code.status === 'ACTIVE')
+  const differs = differing(list)
   const hiddenInactive = (ready?.length ?? 0) > 0 && list.length === 0
   // Active codes come first, so a cut answer misses only inactive ones unless all are shown
   const cut = (ready?.length ?? 0) >= LIMIT && list.length === ready?.length
@@ -156,6 +200,7 @@ export function CatalogPanel() {
                 <CodeRow
                   key={code.code}
                   code={code}
+                  differs={differs.get(code.name)}
                   open={showAll !== flipped.has(code.code)}
                   onToggle={() => toggle(code.code)}
                 />
