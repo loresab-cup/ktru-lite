@@ -248,6 +248,7 @@ def process_batch(
         include_inactive,
         units=[column or guessed for column, guessed in hints],
         column_units=[column for column, _ in hints],
+        anchors=[row.text for row in batch],
     )
     tick(stages, "search", started)
     started = time.monotonic()

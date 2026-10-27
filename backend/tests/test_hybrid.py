@@ -44,3 +44,50 @@ def test_lexical_part_skips_inactive_codes(monkeypatch):
     query = np.asarray([[1.0, 0.0]], dtype=np.float32)
     assert [x["name"] for x in c.search(query, ["Кефир"])[0]] == ["Пинцет"]
     assert "Кефир" in [x["name"] for x in c.search(query, ["Кефир"], include_inactive=True)[0]]
+
+
+# --- the product name written in the row (anchors) ----------------------------------------
+
+
+def anchored(c, vector, text):
+    vectors = None if vector is None else np.asarray([vector], dtype=np.float32)
+    return c.search(vectors, [text], anchors=[text])[0]
+
+
+def test_anchor_returns_the_named_product_when_characteristics_dominate(monkeypatch):
+    monkeypatch.setattr(search, "VECTOR_LIMIT", 1)
+    c = catalog(["Клавиатура", "Чай черный USB"], [[1.0, 0.0], [0.0, 1.0]])
+    assert anchored(c, None, "Клавиатура проводная USB цвет черный")[0]["name"] == "Клавиатура"
+    c.active[0] = False
+    assert anchored(c, None, "Клавиатура USB черный")[0]["name"] == "Чай черный USB"
+
+
+def test_anchor_keeps_the_real_cosine_of_a_generic_name():
+    c = catalog(["Мыло туалетное", "Шампунь"], [[0.6, 0.8], [1.0, 0.0]])
+    found = anchored(c, [1.0, 0.0], "Мыло")
+    assert found[0]["name"] == "Мыло туалетное"
+    assert found[0]["cosine"] == 0.6
+
+
+def test_anchor_keeps_a_more_specific_name_and_a_synonym_with_the_qualifier():
+    names = ["Анализатор биохимический", "Анализатор биохимический метаболического профиля"]
+    c = catalog(names, [[0.6, 0.8], [1.0, 0.0]])
+    assert anchored(c, [1.0, 0.0], "Анализатор биохимический")[0]["name"] == names[1]
+    c = catalog(["Стул операционный", "Кресло офисное"], [[0.6, 0.8], [1.0, 0.0]])
+    assert anchored(c, [1.0, 0.0], "Стул офисный")[0]["name"] == "Кресло офисное"
+
+
+def test_anchor_takes_the_name_of_the_row_not_of_the_search_hint():
+    """The LLM hint «Сухари» comes first in the query; the row says «Изделия сухарные»."""
+    c = catalog(["Изделия сухарные", "Сухари"], [[1.0, 0.0], [0.6, 0.8]])
+    row = "Изделия сухарные. Вид изделия: Сухари сдобные"
+    query = f"Сухари. Вид: сдобные. {row}"
+    vector = np.asarray([[1.0, 0.0]], dtype=np.float32)
+    assert c.search(vector, [query], anchors=[row])[0][0]["name"] == "Изделия сухарные"
+    assert c.search(vector, [query], anchors=[query])[0][0]["name"] == "Сухари"
+
+
+def test_without_anchors_the_ranking_is_unchanged():
+    c = catalog(["Мыло туалетное", "Шампунь"], [[0.6, 0.8], [1.0, 0.0]])
+    vector = np.asarray([[1.0, 0.0]], dtype=np.float32)
+    assert c.search(vector, ["Мыло"])[0][0]["name"] == "Шампунь"

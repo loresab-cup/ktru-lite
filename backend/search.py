@@ -323,6 +323,10 @@ class Catalog:
         self.index = {code: i for i, code in enumerate(self.codes)}
         self.active = np.array([s == "ACTIVE" for s in self.statuses], dtype=bool)
         self._names_lower = [name.lower().replace("ё", "е") for name in self.names]
+        # lowercase name -> its codes: a name written in the row is found at once
+        self._name_groups: dict[str, list[int]] = {}
+        for i, name in enumerate(self._names_lower):
+            self._name_groups.setdefault(name, []).append(i)
         self._postings: dict[str, np.ndarray] | None = None
         self._bm25: dict[str, tuple[np.ndarray, np.ndarray]] | None = None
         self._lock = threading.Lock()
@@ -336,8 +340,12 @@ class Catalog:
         include_inactive: bool = False,
         units: list[str | None] | None = None,
         column_units: list[str | None] | None = None,
+        anchors: list[str] | None = None,
     ) -> list[list[dict]]:
-        """Top-5 candidates for every text; vectors=None -> by words only."""
+        """Top-5 candidates for every text; vectors=None -> by words only.
+
+        anchors: the rows as the customer wrote them; the product name at their start is
+        kept among the candidates (see _anchored)."""
         query_words = [words(text) for text in texts]
         if vectors is not None:
             nearest = self._nearest_by_vectors(vectors, include_inactive)
@@ -348,17 +356,82 @@ class Catalog:
                 self._merge(near, self._lexical(stems(text), include_inactive), vector)
                 for near, text, vector in zip(nearest, texts, vectors, strict=True)
             ]
-        return [
+        units = units or [None] * len(texts)
+        column_units = column_units or [None] * len(texts)
+        ranked = [
             self._rank(qw, query_bounds(text), stems(text), near, unit, text, column_unit)
             for qw, text, near, unit, column_unit in zip(
-                query_words,
-                texts,
-                nearest,
-                units or [None] * len(texts),
-                column_units or [None] * len(texts),
-                strict=True,
+                query_words, texts, nearest, units, column_units, strict=True
             )
         ]
+        if anchors is None:
+            return ranked
+        rows = zip(
+            anchors,
+            texts,
+            ranked,
+            vectors if vectors is not None else [None] * len(texts),
+            units,
+            column_units,
+            strict=True,
+        )
+        return [self._anchored(*row, include_inactive) for row in rows]
+
+    def _anchored(self, anchor, text, found, vector, unit, column_unit, include_inactive):
+        """Keeps the product the row names when the ranking lost it: «клавиатура USB чёрная»
+        went to tea and «мышь с проводом 1,5 м» to fuel oil, characteristics outweighed the name.
+
+        If the start of the row is a catalog name and the best candidate lacks its words, the
+        codes of that name are ranked instead, with real cosines and the same rules; a more
+        specific name that has all the words stays. The name comes from the row, not from the
+        search hint of the LLM: «Изделия сухарные» must not become «Сухари». Measurements:
+        docs/final-report-2026-10-28.md."""
+        if vector is None:
+            return self._anchored_word(
+                anchor, text, found, vector, unit, column_unit, include_inactive
+            )
+        head = re.split(r"\.\s|[,;:]", anchor, maxsplit=1)[0].lower().replace("ё", "е").split()
+        for end in range(len(head), 0, -1):
+            name = " ".join(head[:end])
+            pool = [
+                i for i in self._name_groups.get(name, []) if include_inactive or self.active[i]
+            ]
+            if not pool:
+                continue
+            if found and words(name) <= words(found[0]["name"]):
+                return found
+            return self._rank_pool(pool, text, vector, unit, column_unit)
+        # A synonym can keep the qualifier: «стул офисный» found «кресло офисное»
+        qualifiers = {w[:5] for w in words(" ".join(head[1:])) if re.search(r"[а-я]", w)}
+        if found and qualifiers & stems(found[0]["name"]):
+            return found
+        return self._anchored_word(anchor, text, found, vector, unit, column_unit, include_inactive)
+
+    def _anchored_word(self, anchor, text, found, vector, unit, column_unit, include_inactive):
+        """The first word of the row (3+ letters) must be in the best name; if it is not, the
+        codes whose name has that word are ranked instead."""
+        first = re.search(r"[а-яА-ЯёЁa-zA-Z]{3,}", anchor)
+        first_words = words(first.group()) if first else set()
+        if not first_words or (found and first_words & words(found[0]["name"])):
+            return found
+        postings = self._name_postings()
+        pool = {int(i) for word in first_words for i in postings.get(word, [])}
+        pool = sorted(i for i in pool if include_inactive or self.active[i])
+        if not pool:
+            return found
+        return self._rank_pool(pool, text, vector, unit, column_unit)
+
+    def _rank_pool(self, pool, text, vector, unit, column_unit) -> list[dict]:
+        qw = words(text)
+        if vector is None:
+            nearest = [
+                (i, WORDS_ONLY_BASE * len(qw & words(self.names[i])) / max(1, len(qw)))
+                for i in pool
+            ]
+        else:
+            cosines = self.vectors[pool] @ vector
+            nearest = [(i, float(c)) for i, c in zip(pool, cosines, strict=True)]
+        return self._rank(qw, query_bounds(text), stems(text), nearest, unit, text, column_unit)
 
     def _bm25_postings(self) -> dict[str, tuple[np.ndarray, np.ndarray]]:
         """stem -> (code indices, BM25 weight of the stem in that code name)."""
