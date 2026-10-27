@@ -278,6 +278,7 @@ def test_search_words_only_and_lookup(catalog):
     assert found[0]["code"] == "26.20.11.110-00000001"
     assert catalog.lookup("26.20")[0]["name"] == "Ноутбук"
     assert catalog.lookup("бумага офисной")[0]["status"] == "ACTIVE"
+    assert len(catalog.lookup("бумага", limit=1)) == 1
 
 
 def test_lookup_falls_back_to_word_stems(catalog):
@@ -364,6 +365,10 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
     with TestClient(api.app) as client:
         health = wait(client, "/api/health", lambda body: body["catalog"] == "ready")
         assert health["embeddings"] == "down"
+        found = client.get("/api/catalog/search", params={"q": "бумага", "limit": 1})
+        assert len(found.json()) == 1
+        too_many = client.get("/api/catalog/search", params={"q": "бумага", "limit": 501})
+        assert too_many.status_code == 422
         bad = client.post("/api/jobs", files={"file": ("x.pdf", b"text", "application/pdf")})
         assert bad.status_code == 400 and "pdf" in bad.json()["detail"]
 

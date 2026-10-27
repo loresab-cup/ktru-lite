@@ -829,9 +829,15 @@ def cancel_job(job_id: str):
     return to_dict(job)
 
 
+MAX_LOOKUP = 500  # the catalog page lists many codes; a broad query is then worth narrowing
+
+
 @app.get("/api/catalog/search")
-def catalog_search(q: str = Query(..., min_length=1, max_length=100)):
-    return require_catalog().lookup(q)
+def catalog_search(
+    q: str = Query(..., min_length=1, max_length=100),
+    limit: int = Query(20, ge=1, le=MAX_LOOKUP),
+):
+    return require_catalog().lookup(q, limit)
 
 
 @app.get("/api/health")
