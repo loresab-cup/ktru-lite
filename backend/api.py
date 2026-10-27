@@ -656,7 +656,11 @@ def get_item(item_id: int):
         def edge(pick, *conditions) -> int | None:
             return session.scalar(select(pick(Item.id)).where(in_job, *conditions))
 
-        not_reviewed = Item.status.not_in(("accepted", "corrected"))
+        # Review walks the doubtful rows and wraps to the beginning of the job
+        not_reviewed = Item.status.in_(("needs_review", "failed"))
+        next_review = edge(func.min, Item.id > item.id, not_reviewed)
+        if next_review is None:
+            next_review = edge(func.min, Item.id < item.id, not_reviewed)
         shown = to_dict(item)
         shown["candidates"] = with_differences(confidence.with_confidences(item.candidates or []))
         return shown | {
@@ -664,7 +668,7 @@ def get_item(item_id: int):
             "total": count(),
             "prev_id": edge(func.max, Item.id < item.id),
             "next_id": edge(func.min, Item.id > item.id),
-            "next_unreviewed_id": edge(func.min, Item.id > item.id, not_reviewed),
+            "next_unreviewed_id": next_review,
         }
 
 
@@ -683,7 +687,9 @@ def correct_item(item_id: int, body: Correction):
         remember_original(item)
         push_history(item)
         item.ktru_code, item.ktru_name, item.status = code["code"], code["name"], "corrected"
-        item.confidence, item.zone, item.summary = 100.0, "high", "Код выбран вручную"
+        # A person's choice is not a score of the search: no made-up 100 %
+        item.confidence, item.zone = None, "low"
+        item.summary = "Код выбран вручную. Алгоритмическая уверенность не оценивалась"
         session.commit()
         return to_dict(item)
 
@@ -853,8 +859,9 @@ MAX_LOOKUP = 500  # the catalog page lists many codes; a broad query is then wor
 def catalog_search(
     q: str = Query(..., min_length=1, max_length=100),
     limit: int = Query(20, ge=1, le=MAX_LOOKUP),
+    include_inactive: bool = True,
 ):
-    return require_catalog().lookup(q, limit)
+    return require_catalog().lookup(q, limit, include_inactive=include_inactive)
 
 
 @app.get("/api/health")

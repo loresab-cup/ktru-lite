@@ -202,9 +202,15 @@ def is_name_cell(cell: str) -> bool:
     )
 
 
+SINGLE_HEADERS = {"наименование", "наименование товара", "наименование позиции", "название товара"}
+
+
 def find_header(rows: list[list[str]]) -> int | None:
     for index, row in enumerate(rows[:30]):
-        if sum(1 for cell in row if cell) >= 2 and any(is_header_cell(c) for c in row):
+        filled = [cell for cell in row if cell]
+        # A one-column list titled «Наименование» has a header too: it is not a product
+        single_name = len(filled) == 1 and filled[0].lower() in SINGLE_HEADERS
+        if single_name or (len(filled) >= 2 and any(is_header_cell(c) for c in row)):
             return index
     return None
 

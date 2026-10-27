@@ -292,6 +292,15 @@ def test_lookup_falls_back_to_word_stems(catalog):
     assert active_first == ["ACTIVE", "ACTIVE", "TERMINATED"]
 
 
+def test_lookup_filters_inactive_before_limit(catalog):
+    for query in ("бумага", "бумага офисная", "17.12"):
+        found = catalog.lookup(query, limit=1, include_inactive=False)
+        assert found and all(c["status"] == "ACTIVE" for c in found)
+    inactive = next(c for c in catalog.lookup("бумага") if c["status"] == "TERMINATED")
+    assert catalog.lookup(inactive["code"], include_inactive=False) == []
+    assert catalog.lookup(inactive["code"], include_inactive=True)[0]["code"] == inactive["code"]
+
+
 # --- confidence ----------------------------------------------------------------------------
 
 

@@ -16,6 +16,14 @@ import embedder
 import parser
 
 
+def test_single_column_name_header_is_not_a_product(tmp_path):
+    path = tmp_path / "single.csv"
+    path.write_text("Наименование\nКлавиатура\nМышь\n", encoding="utf-8-sig")
+    rows = parser.parse_file(path)
+    assert [(row.row_number, row.text) for row in rows] == [(2, "Клавиатура"), (3, "Мышь")]
+    assert parser.parse_rows([["Мыло"], ["Бумага"]])[0].text == "Мыло"
+
+
 @pytest.fixture
 def isolated_api(monkeypatch, tmp_path):
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'initial.db'}")

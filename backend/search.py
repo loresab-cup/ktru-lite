@@ -545,11 +545,14 @@ class Catalog:
         i = self.index.get(code.strip())
         return None if i is None else self.brief(i)
 
-    def lookup(self, query: str, limit: int = 20) -> list[dict]:
+    def lookup(self, query: str, limit: int = 20, include_inactive: bool = True) -> list[dict]:
         """Manual correction: by code prefix or by words of the name; ACTIVE codes first.
 
         Names that have every word of the query come first; when there are none, the query is
-        matched by word stems (case endings, a stray «А4» or «2,5%» do not empty the answer)."""
+        matched by word stems (case endings, a stray «А4» or «2,5%» do not empty the answer).
+        A word of the query starts a word of the name: «стул» does not find «фистульный».
+        Without include_inactive the inactive codes are dropped before the limit, so a broad
+        query still gives up to limit active codes."""
         query = query.strip().lower().replace("ё", "е")
         if not query:
             return []
@@ -558,15 +561,22 @@ class Catalog:
             found = [i for i, code in enumerate(self.codes) if code.startswith(query)]
         else:
             parts = query.split()
-            found = [i for i, n in enumerate(self._names_lower) if all(p in n for p in parts)]
+            patterns = [re.compile(r"\b" + re.escape(part)) for part in parts]
+            found = [
+                i for i, n in enumerate(self._names_lower) if all(p.search(n) for p in patterns)
+            ]
+        if not include_inactive:
+            found = [i for i in found if self.active[i]]
         if not found and not is_code:
-            return [self.brief(i) for i in self._by_stems(query, limit)]
+            return [self.brief(i) for i in self._by_stems(query, limit, include_inactive)]
         found.sort(key=lambda i: (not self.active[i], len(self.names[i]), self.codes[i]))
         return [self.brief(i, full=self.codes[i] == query) for i in found[:limit]]
 
-    def _by_stems(self, query: str, limit: int) -> list[int]:
+    def _by_stems(self, query: str, limit: int, include_inactive: bool = True) -> list[int]:
         """Codes whose name shares word stems with the query: ACTIVE first, then best BM25."""
         scores = self._bm25_scores(stems(query))
+        if not include_inactive:
+            scores[~self.active] = 0
         hits = np.flatnonzero(scores > 0)
         order = np.lexsort((-scores[hits], ~self.active[hits]))
         return [int(i) for i in hits[order][:limit]]
