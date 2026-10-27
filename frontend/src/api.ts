@@ -236,8 +236,8 @@ export const api = {
       `/api/jobs/${encodeURIComponent(jobId)}/accept?min_confidence=${minConfidence}`,
       json('POST'),
     ),
-  catalog: (q: string) =>
-    request<CatalogCode[]>(`/api/catalog/search?q=${encodeURIComponent(q)}`),
+  catalog: (q: string, limit = 20) =>
+    request<CatalogCode[]>(`/api/catalog/search?q=${encodeURIComponent(q)}&limit=${limit}`),
   exportUrl: (jobId: string, format: 'xlsx' | 'csv') =>
     `/api/jobs/${encodeURIComponent(jobId)}/export?format=${format}`,
 }

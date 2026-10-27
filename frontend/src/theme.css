@@ -395,31 +395,6 @@ a {
   font-size: var(--text-sm);
 }
 
-/* the toggle after the first chips: shows the rest of the characteristics of a code */
-.chip-more {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 30px;
-  padding: 3px 10px 3px 12px;
-  border: 1px solid var(--accent-line);
-  border-radius: 15px;
-  background: var(--accent-softer);
-  color: var(--accent);
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.chip-more:hover {
-  background: var(--accent-soft);
-}
-
-.chip-more .flip {
-  transform: rotate(180deg);
-}
-
 .chip.good {
   background: var(--green-soft);
   color: var(--green);
@@ -1127,8 +1102,44 @@ a {
 
 .found-head {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
+  align-items: center;
+  gap: var(--s2) var(--s4);
+}
+
+.found-count {
+  display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
+  gap: var(--s3);
+}
+
+/* the fold of a found code, as the fold of a card in the list of a specification */
+.found-more {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  margin-left: -10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.found-more:hover {
+  background: var(--field);
+}
+
+.found-more .flip {
+  transform: rotate(180deg);
 }
 
 .found-head .section-h {

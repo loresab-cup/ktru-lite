@@ -1,4 +1,4 @@
-import { App as AntApp, Checkbox, Input } from 'antd'
+import { App as AntApp, Checkbox, Input, Switch } from 'antd'
 import { ChevronDown, ExternalLink, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api, ApiError, ktruUrl, type CatalogCode } from './api'
@@ -6,15 +6,15 @@ import { capital, T } from './texts'
 import { Skeleton } from './ui'
 
 const MIN_LETTERS = 2 // the service finds nothing useful by one letter
-const STEP = 8 // rows shown at first and added by "Show more"
-const CHIPS = 3 // characteristics shown before "Show all"
+const STEP = 20 // rows shown at first and added by "Show more"
+const LIMIT = 500 // codes asked for at once: past that the query is worth narrowing
 
-/** One found code: the code, its state, the name and a link to the same code in the EIS. */
-function CodeRow({ code }: { code: CatalogCode }) {
+/** One found code: the code, its state, the name, its characteristics folded as in the list of
+ *  a specification, and a link to the same code in the EIS. */
+function CodeRow({ code, open, onToggle }: { code: CatalogCode; open: boolean; onToggle: () => void }) {
   const active = code.status === 'ACTIVE'
   const url = ktruUrl(code.code)
-  const [open, setOpen] = useState(false)
-  const extra = code.characteristics.length - CHIPS
+  const count = code.characteristics.length
   return (
     <li className="found-row">
       <div className="found-main">
@@ -33,24 +33,19 @@ function CodeRow({ code }: { code: CatalogCode }) {
             </span>
           )}
         </div>
-        {code.characteristics.length > 0 && (
+        {count > 0 && (
+          <button type="button" className="found-more" aria-expanded={open} onClick={onToggle}>
+            {T.catalogSearch.chars(count)}
+            <ChevronDown size={16} aria-hidden="true" className={open ? 'flip' : ''} />
+          </button>
+        )}
+        {count > 0 && open && (
           <div className="chips">
-            {code.characteristics.slice(0, open ? undefined : CHIPS).map(([name, values]) => (
+            {code.characteristics.map(([name, values]) => (
               <span key={name} className="chip">
                 {name}: {values.join('; ')}
               </span>
             ))}
-            {extra > 0 && (
-              <button
-                type="button"
-                className="chip-more"
-                aria-expanded={open}
-                onClick={() => setOpen(!open)}
-              >
-                {open ? T.catalogSearch.fewerChars : T.catalogSearch.moreChars(extra)}
-                <ChevronDown size={16} aria-hidden="true" className={open ? 'flip' : ''} />
-              </button>
-            )}
           </div>
         )}
       </div>
@@ -71,6 +66,16 @@ export function CatalogPanel() {
   const [found, setFound] = useState<CatalogCode[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [shown, setShown] = useState(STEP)
+  // The switch opens or closes every row; a row can still be flipped on its own after that
+  const [showAll, setShowAll] = useState(false)
+  const [flipped, setFlipped] = useState<Set<string>>(new Set())
+  const toggle = (code: string) =>
+    setFlipped((prev) => {
+      const next = new Set(prev)
+      if (next.has(code)) next.delete(code)
+      else next.add(code)
+      return next
+    })
 
   const q = query.trim()
   useEffect(() => {
@@ -79,11 +84,12 @@ export function CatalogPanel() {
     const timer = window.setTimeout(() => {
       setLoading(true)
       api
-        .catalog(q)
+        .catalog(q, LIMIT)
         .then((codes) => {
           if (!alive) return
           setFound(codes)
           setShown(STEP)
+          setFlipped(new Set())
         })
         .catch((e) => {
           if (!alive) return
@@ -101,6 +107,8 @@ export function CatalogPanel() {
   const ready = q.length >= MIN_LETTERS ? found : null
   const list = (ready ?? []).filter((code) => inactive || code.status === 'ACTIVE')
   const hiddenInactive = (ready?.length ?? 0) > 0 && list.length === 0
+  // Active codes come first, so a cut answer misses only inactive ones unless all are shown
+  const cut = (ready?.length ?? 0) >= LIMIT && list.length === ready?.length
 
   return (
     <div className="catalog-panel">
@@ -126,12 +134,31 @@ export function CatalogPanel() {
         {!loading && ready !== null && list.length > 0 && (
           <>
             <div className="found-head">
-              <h2 className="section-h">{T.catalogSearch.found(list.length)}</h2>
-              <span className="muted">{T.catalogSearch.activeFirst}</span>
+              <div className="found-count">
+                <h2 className="section-h">{T.catalogSearch.found(list.length)}</h2>
+                <span className="muted">{T.catalogSearch.activeFirst}</span>
+              </div>
+              <label className="switch-row">
+                <Switch
+                  checked={showAll}
+                  onChange={(on) => {
+                    setShowAll(on)
+                    setFlipped(new Set())
+                  }}
+                  aria-label={T.catalogSearch.showChars}
+                />
+                {T.catalogSearch.showChars}
+              </label>
             </div>
+            {cut && <p className="muted">{T.catalogSearch.limited(LIMIT)}</p>}
             <ul className="found-list">
               {list.slice(0, shown).map((code) => (
-                <CodeRow key={code.code} code={code} />
+                <CodeRow
+                  key={code.code}
+                  code={code}
+                  open={showAll !== flipped.has(code.code)}
+                  onToggle={() => toggle(code.code)}
+                />
               ))}
             </ul>
             {list.length > shown && (
