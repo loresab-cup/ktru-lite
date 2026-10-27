@@ -454,7 +454,7 @@ def test_search_numeric_range_picks_neighbour():
         units=[[]] * len(records),
     )
     bounds = search.query_bounds("не менее 3000 и менее 4000 мм, до 5,5")
-    assert bounds == ({3000.0}, {4000.0, 5.5}, set())
+    assert bounds == ({(3000.0, None)}, {(4000.0, "length"), (5.5, None)}, set())
     [found] = catalog.search(
         np.stack([unit([1, 0])]), ["Клеть дуо производительность не менее 1.25"]
     )
@@ -463,11 +463,11 @@ def test_search_numeric_range_picks_neighbour():
 
 def test_search_numbers_in_other_units():
     # «2 м» = «2000 мм», «0,1 кг» = «100 г»; compound units are not converted
-    assert search.query_bounds("длина не менее 2 м") == ({2000.0}, set(), set())
-    assert search.query_bounds("Вес: 0,1 Килограмм; 100 г") == (set(), set(), {0.1})
+    assert search.query_bounds("длина не менее 2 м") == ({(2000.0, "length")}, set(), set())
+    assert search.query_bounds("Вес: 0,1 Килограмм; 100 г") == (set(), set(), {(0.1, "mass")})
     assert search.query_bounds("80 г/м2, 5 кубический метр в час") == (set(), set(), set())
     assert search.numeric_bounds([{"values": [{"min": 90, "max": 110, "unit": "Грамм"}]}]) == [
-        [0.09, 0.11]
+        [0.09, 0.11, "mass", False, False]
     ]
     weight = [
         {"name": "Масса нетто", "values": [{"min": 90, "max": 110, "unit": "Грамм"}]},
@@ -499,6 +499,37 @@ def small_catalog(records: list[dict]) -> search.Catalog:
         templates=[bool(r.get("is_template")) for r in records],
         units=[search.code_units(r.get("units")) for r in records],
     )
+
+
+def test_numbers_meet_only_numbers_of_the_same_quantity():
+    # «16 ГБ» of memory is not inside «≥ 14 Штука» of cores; «15.6 Дюйм» is not in millimetres
+    cores = {
+        "name": "Количество ядер процессора",
+        "values": [{"min": 14, "min_op": "≥", "text": "≥ 14", "unit": "Штука"}],
+    }
+    memory = {
+        "name": "Объем оперативной памяти",
+        "values": [{"min": 16, "min_op": "≥", "text": "≥ 16", "unit": "Гигабайт"}],
+    }
+    laptops = small_catalog(
+        [
+            {"code": "26.20.11.110-00000001", "name": "Ноутбук", "characteristics": [cores]},
+            {"code": "26.20.11.110-00000002", "name": "Ноутбук", "characteristics": [memory]},
+        ]
+    )
+    [found] = laptops.search(np.stack([unit([1, 0])]), ["Ноутбук 15.6 дюйм, 16 ГБ"])
+    assert found[0]["code"].endswith("02") and found[0]["numeric_matches"] == 1
+    assert found[1]["numeric_matches"] == 0
+
+
+def test_strict_side_of_a_code_range():
+    # «> 1 Штука» does not hold one place; «≥ 1» does
+    more = {"name": "Количество мест", "values": [{"min": 1, "min_op": ">", "unit": "Штука"}]}
+    some = {"name": "Количество мест", "values": [{"min": 1, "min_op": "≥", "unit": "Штука"}]}
+    bounds = search.query_bounds("Количество мест: 1 шт")[2]
+    [(value, quantity)] = bounds
+    assert not search.inside(value, search.numeric_bounds([more])[0])
+    assert search.inside(value, search.numeric_bounds([some])[0]) and quantity == "count"
 
 
 def fixed(name: str, value: str) -> dict:

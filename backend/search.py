@@ -8,6 +8,7 @@ Exact, not HNSW: on this catalog HNSW loses up to 14 % of the right codes.
 """
 
 import base64
+import functools
 import gzip
 import json
 import logging
@@ -32,12 +33,12 @@ WORDS_ONLY_BASE = 0.6  # without vectors the score stays low: nothing goes to au
 MAX_CODE_WORDS = 400
 # Characteristics kept per code: candidates show 6 x 5 of them, a lookup of one code all
 BRIEF_CHARS, BRIEF_VALUES = 20, 40
-CACHE_VERSION = 6  # bump when the cached metadata changes
+CACHE_VERSION = 8  # bump when the cached metadata changes
 # Neighbour codes of one group often differ only by a range: "> 1.25" vs "<= 1.25".
 # A bound of the row equal to a bound of the code adds NUMERIC_BONUS, so does a plain value with
 # a unit inside a range of the code («Вес: 100 г» and «≥ 90 и < 110 Грамм»); the same number on
 # the other side ("не менее 1.25" against "<= 1.25") takes NUMERIC_CLASH off. Numbers are in
-# base units (unit_scale).
+# base units (unit_of).
 NUMERIC_BONUS = 0.01
 NUMERIC_CLASH = 0.01
 # Neighbour codes also differ by a fixed characteristic («Неизменяемая заказчиком») with one
@@ -140,50 +141,52 @@ _PLAIN = re.compile(rf"(?<![\w.,]){_NUM}")
 # Numbers are compared in one unit per quantity: «2 м» = «2000 Миллиметр», «0,1 кг» = «100 г».
 # The base is the most common unit of the quantity in the catalog (Миллиметр: 150 392 values,
 # Килограмм, Кубический сантиметр, Гигабайт), so a number without a unit still meets most codes
-# in their own unit. Unit -> factor; full names by prefix (longer first), short forms as a whole
-# word. «Кубический метр в час», «г/м2», «Грамм на квадратный метр» are other quantities: a unit
-# followed by «в», «на» or «/» is not converted.
+# in their own unit. Unit -> (factor, quantity); full names by prefix (longer first), short forms
+# as a whole word. «Кубический метр в час», «г/м2», «Грамм на квадратный метр» are other
+# quantities: a unit followed by «в», «на» or «/» is not converted.
+# The quantity keeps numbers of different things apart: «16 ГБ» of memory is not inside
+# «≥ 14 Штука» of processor cores, «15.6 Дюйм» is not inside a range of millimetres.
 _SCALE_PREFIXES = (
-    ("кубический сантиметр", 1.0),
-    ("кубический дециметр", 1000.0),
-    ("кубический метр", 1e6),
-    ("миллиметр", 1.0),
-    ("сантиметр", 10.0),
-    ("километр", 1e6),
-    ("метр", 1000.0),
-    ("миллиграмм", 1e-6),
-    ("килограмм", 1.0),
-    ("грамм", 0.001),
-    ("тонн", 1000.0),
-    ("миллилитр", 1.0),
-    ("литр", 1000.0),
-    ("мегабайт", 1 / 1024),
-    ("гигабайт", 1.0),
-    ("терабайт", 1024.0),
-    ("штук", 1.0),
-    ("процент", 1.0),
-    ("дюйм", 1.0),
-    ("%", 1.0),
+    ("кубический сантиметр", 1.0, "volume"),
+    ("кубический дециметр", 1000.0, "volume"),
+    ("кубический метр", 1e6, "volume"),
+    ("миллиметр", 1.0, "length"),
+    ("сантиметр", 10.0, "length"),
+    ("километр", 1e6, "length"),
+    ("метр", 1000.0, "length"),
+    ("миллиграмм", 1e-6, "mass"),
+    ("килограмм", 1.0, "mass"),
+    ("грамм", 0.001, "mass"),
+    ("тонн", 1000.0, "mass"),
+    ("миллилитр", 1.0, "volume"),
+    ("литр", 1000.0, "volume"),
+    ("мегабайт", 1 / 1024, "bytes"),
+    ("гигабайт", 1.0, "bytes"),
+    ("терабайт", 1024.0, "bytes"),
+    ("штук", 1.0, "count"),
+    ("процент", 1.0, "percent"),
+    ("дюйм", 1.0, "inch"),
+    ("%", 1.0, "percent"),
 )
 _SCALE_SHORT = {
-    "мм": 1.0,
-    "см": 10.0,
-    "м": 1000.0,
-    "км": 1e6,
-    "мг": 1e-6,
-    "г": 0.001,
-    "гр": 0.001,
-    "кг": 1.0,
-    "т": 1000.0,
-    "мл": 1.0,
-    "см3": 1.0,
-    "л": 1000.0,
-    "дм3": 1000.0,
-    "м3": 1e6,
-    "мб": 1 / 1024,
-    "гб": 1.0,
-    "тб": 1024.0,
-    "шт": 1.0,
+    "мм": (1.0, "length"),
+    "см": (10.0, "length"),
+    "м": (1000.0, "length"),
+    "км": (1e6, "length"),
+    "мг": (1e-6, "mass"),
+    "г": (0.001, "mass"),
+    "гр": (0.001, "mass"),
+    "кг": (1.0, "mass"),
+    "т": (1000.0, "mass"),
+    "мл": (1.0, "volume"),
+    "см3": (1.0, "volume"),
+    "л": (1000.0, "volume"),
+    "дм3": (1000.0, "volume"),
+    "м3": (1e6, "volume"),
+    "мб": (1 / 1024, "bytes"),
+    "гб": (1.0, "bytes"),
+    "тб": (1024.0, "bytes"),
+    "шт": (1.0, "count"),
 }
 _COMPOUND = ("в ", "на ", "/")
 
@@ -194,27 +197,36 @@ def words(text: str) -> set[str]:
     return {w for w in _WORD.findall(text) if len(w) >= 3 or any(c.isdigit() for c in w)}
 
 
-def unit_scale(text: str) -> float | None:
-    """Factor to the base unit for the unit at the start of lowercase text: «м …» -> 1000."""
+def unit_of(text: str) -> tuple[float, str] | None:
+    """(factor to the base unit, quantity) for the unit at the start of lowercase text:
+    «м …» -> (1000, "length")."""
     text = text.lstrip(" (").replace("³", "3")
-    found = next(((p, f) for p, f in _SCALE_PREFIXES if text.startswith(p)), None)
+    found = next(((p, f, q) for p, f, q in _SCALE_PREFIXES if text.startswith(p)), None)
     if found is None:
         word = _WORD.match(text)
         if not word or word.group() not in _SCALE_SHORT:
             return None
-        found = (word.group(), _SCALE_SHORT[word.group()])
+        found = (word.group(), *_SCALE_SHORT[word.group()])
     rest = text[len(found[0]) :].lstrip("абвгдеёжзийклмнопрстуфхцчшщъыьэюя").lstrip(" .")
-    return None if rest.startswith(_COMPOUND) else found[1]
+    return None if rest.startswith(_COMPOUND) else found[1:]
 
 
-def in_base(number: str, unit_text: str) -> float:
-    """«2», «м» -> 2000.0; rounded so that 0,1 кг and 100 г are equal floats."""
-    return round(float(number.replace(",", ".")) * (unit_scale(unit_text) or 1.0), 9)
+def in_base(number: str, unit_text: str) -> tuple[float, str | None]:
+    """«2», «м» -> (2000.0, "length"); rounded so that 0,1 кг and 100 г are equal floats.
+    A number without a known unit keeps its value and has no quantity."""
+    factor, quantity = unit_of(unit_text) or (1.0, None)
+    return round(float(number.replace(",", ".")) * factor, 9), quantity
 
 
-def query_bounds(text: str) -> tuple[set[float], set[float], set[float]]:
-    """Lower and upper bounds and plain values with a unit in a row, in base units:
-    "не менее 3 м и менее 4000 мм, вес 100 г" -> {3000}, {4000}, {0.1}."""
+def same_quantity(a: str | None, b: str | None) -> bool:
+    """A number without a unit is compared with anything; two units must measure one thing."""
+    return a is None or b is None or a == b
+
+
+def query_bounds(text: str) -> tuple[set, set, set]:
+    """Lower and upper bounds and plain values with a unit in a row, as (value in base units,
+    quantity): "не менее 3 м и менее 4000 мм, вес 100 г" ->
+    {(3000, length)}, {(4000, length)}, {(0.1, mass)}."""
     text = (text or "").lower().replace("ё", "е")
     lower, upper, plain, bound_spans = set(), set(), set(), set()
     for pattern, found in ((_LOWER, lower), (_UPPER, upper)):
@@ -223,7 +235,7 @@ def query_bounds(text: str) -> tuple[set[float], set[float], set[float]]:
             bound_spans.add(m.span(1))
     for m in _PLAIN.finditer(text):
         after = text[m.end() : m.end() + 40]
-        if m.span(1) not in bound_spans and unit_scale(after) is not None:
+        if m.span(1) not in bound_spans and unit_of(after) is not None:
             plain.add(in_base(m.group(1), after))
     return lower, upper, plain
 
@@ -244,9 +256,24 @@ def stems(text: str) -> set[str]:
     return {word[:5] for word in words(text)}
 
 
+# Names and values of the catalog come up for every row again: their words are kept, not
+# recomputed (a third of the search time on 1000 rows went to the same few thousand strings)
+CATALOG_TEXT_CACHE = 100_000
+
+
+@functools.lru_cache(maxsize=CATALOG_TEXT_CACHE)
+def catalog_stems(text: str) -> frozenset[str]:
+    return frozenset(stems(text))
+
+
+@functools.lru_cache(maxsize=CATALOG_TEXT_CACHE)
+def catalog_words(text: str) -> frozenset[str]:
+    return frozenset(words(text))
+
+
 def is_named(name: str, query_stems: set[str]) -> bool:
     """The row has at least half of the words of a characteristic name."""
-    name_stems = stems(name)
+    name_stems = catalog_stems(name)
     return len(name_stems & query_stems) >= max(1, len(name_stems) // 2)
 
 
@@ -407,16 +434,19 @@ class Catalog:
                 self._postings = {w: np.array(ix, dtype=np.int32) for w, ix in lists.items()}
             return self._postings
 
-    def _numeric_fit(self, i: int, query: tuple[set[float], ...]) -> tuple[int, int]:
+    def _numeric_fit(self, i: int, query: tuple[set, set, set]) -> tuple[int, int]:
         """(bounds of the row the code has + plain values inside a range of the code,
-        bounds the code has only on the other side)."""
+        bounds the code has only on the other side). Only numbers of one quantity meet."""
         lower, upper, plain = query
         ranges = self.bounds[i]
-        code_lower = {low for low, _ in ranges if low is not None}
-        code_upper = {high for _, high in ranges if high is not None}
-        matches = len(lower & code_lower) + len(upper & code_upper)
-        matches += sum(any(inside(value, *bounds) for bounds in ranges) for value in plain)
-        clashes = len((lower & code_upper) - code_lower) + len((upper & code_lower) - code_upper)
+
+        def has(value: float, quantity: str | None, side: int) -> bool:
+            return any(r[side] == value and same_quantity(quantity, r[2]) for r in ranges)
+
+        matches = sum(has(v, q, 0) for v, q in lower) + sum(has(v, q, 1) for v, q in upper)
+        matches += sum(any(q == r[2] and inside(v, r) for r in ranges) for v, q in plain)
+        clashes = sum(has(v, q, 1) and not has(v, q, 0) for v, q in lower)
+        clashes += sum(has(v, q, 0) and not has(v, q, 1) for v, q in upper)
         return matches, clashes
 
     def _fixed_fit(self, i: int, query_stems: set[str], text: str = "") -> tuple[float, int, int]:
@@ -433,7 +463,7 @@ class Catalog:
                 continue
             written = written_value(text, name.lower().replace("ё", "е")) if text else None
             where = query_stems if written is None else written
-            if any(stems(value) and stems(value) <= where for value in values):
+            if any(catalog_stems(value) and catalog_stems(value) <= where for value in values):
                 matches += 1 / len(values)
             elif named:
                 clashes += 1
@@ -447,7 +477,7 @@ class Catalog:
     def _rank(
         self,
         query_words: set[str],
-        query: tuple[set[float], set[float]],
+        query: tuple[set, set, set],
         query_stems: set[str],
         nearest: list,
         unit: str | None = None,
@@ -466,7 +496,7 @@ class Catalog:
             fixed_matches, fixed_clashes, flags = self._fixed_fit(i, query_stems, low)
             score += FIXED_BONUS * fixed_matches - FIXED_CLASH * fixed_clashes - FIXED_FLAG * flags
             score -= TEMPLATE_PENALTY * self.templates[i]
-            score -= NAME_EXTRA_PENALTY * len(stems(self.names[i]) - query_stems)
+            score -= NAME_EXTRA_PENALTY * len(catalog_stems(self.names[i]) - query_stems)
             score -= UNNAMED_PENALTY * self._unnamed(i, query_stems)
             score += UNIT_BONUS * (unit is not None and unit in self.units[i])
             score += COLUMN_UNIT_BONUS * (column_unit is not None and column_unit in self.units[i])
@@ -489,7 +519,7 @@ class Catalog:
         matched = []
         for name, values, _ in self.chars[i]:
             for value in values:
-                value_words = words(value)
+                value_words = catalog_words(value)
                 if value_words and value_words <= query_words:
                     matched.append(f"{name}: {value}")
                     break
@@ -559,9 +589,10 @@ def code_units(units: list | None) -> list[str]:
     return sorted(key for key in keys if key)
 
 
-def numeric_bounds(characteristics: list) -> list[list[float | None]]:
-    """[[min, max], ...] of the numeric values in base units: «≥ 2 и < 3 Метр» -> [2000, 3000];
-    None is an open side."""
+def numeric_bounds(characteristics: list) -> list[list]:
+    """[[min, max, quantity, min is strict, max is strict], ...] of the numeric values in base
+    units: «≥ 2 и < 3 Метр» -> [2000, 3000, "length", False, True]; an exact value «1 Штука» is
+    [1, 1, "count", False, False]. None is an open side or a value without a known unit."""
     ranges = []
     for characteristic in characteristics or []:
         for value in characteristic.get("values") or []:
@@ -569,14 +600,22 @@ def numeric_bounds(characteristics: list) -> list[list[float | None]]:
             if not isinstance(low, int | float) and not isinstance(high, int | float):
                 continue
             unit = str(value.get("unit") or "").lower()
-            ranges.append(
-                [in_base(str(x), unit) if isinstance(x, int | float) else None for x in (low, high)]
-            )
+            quantity = (unit_of(unit) or (1.0, None))[1]
+            sides = [
+                in_base(str(x), unit)[0] if isinstance(x, int | float) else None
+                for x in (low, high)
+            ]
+            strict = [value.get("min_op") == ">", value.get("max_op") == "<"]
+            ranges.append([*sides, quantity, *strict])
     return ranges
 
 
-def inside(value: float, low: float | None, high: float | None) -> bool:
-    return (low is None or value >= low) and (high is None or value <= high)
+def inside(value: float, bounds: list) -> bool:
+    """A plain value of the row inside [min, max, quantity, min strict, max strict] of a code."""
+    low, high, _, low_strict, high_strict = bounds
+    above = low is None or value > low or (value == low and not low_strict)
+    below = high is None or value < high or (value == high and not high_strict)
+    return above and below
 
 
 def brief_chars(characteristics: list) -> tuple[list, list[str]]:
