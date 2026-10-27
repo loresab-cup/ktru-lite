@@ -262,6 +262,9 @@ def attribute_hits(attributes: dict, expected: dict) -> dict[str, list[int]]:
     return hits
 
 
+SURE = "seed_reference"  # label_status of a row whose code is known (human_1000)
+
+
 def upload(client: httpx.Client, path: pathlib.Path) -> str:
     with path.open("rb") as f:
         return client.post("/api/jobs", files={"file": (path.name, f)}).json()["job_id"]
@@ -344,6 +347,11 @@ def main() -> None:
     if options.reference:
         lines = options.reference.read_text(encoding="utf-8").splitlines()
         reference = {int(row["row_number"]): row for row in map(json.loads, filter(None, lines))}
+    # human_1000: incomplete and service rows have no reliable code; only their auto share counts
+    unsure = {
+        n: row for n, row in reference.items() if row.get("label_status", "") not in ("", SURE)
+    }
+    reference = {n: row for n, row in reference.items() if n not in unsure}
 
     started = time.monotonic()
     with httpx.Client(base_url=options.api, timeout=120) as client:
@@ -357,6 +365,14 @@ def main() -> None:
     print(f"rows by rules (no neural network): {percent(rules, len(items))}")
     failed = sum(item["status"] == "failed" for item in items)
     print(f"failed rows: {failed}")
+    for status in sorted({row["label_status"] for row in unsure.values()}):
+        rows = [
+            item
+            for item in items
+            if unsure.get(item["row_number"], {}).get("label_status") == status
+        ]
+        auto = sum(item["status"] == "auto" for item in rows)
+        print(f"{status} rows (not in the accuracy): {len(rows)}, in auto {auto}")
     n = result["rows"]
     if not n:
         return
