@@ -311,6 +311,16 @@ def test_candidate_confidences_match_the_item():
     assert confidence.with_confidences([]) == []
 
 
+def test_confidence_reads_the_gap_before_the_cap():
+    # Both neighbours passed 1.0: the capped scores tie, the raw ones tell them apart
+    tie = [candidate(1.0) | {"raw_score": 1.06}, candidate(1.0) | {"raw_score": 1.059}]
+    gap = [candidate(1.0) | {"raw_score": 1.06}, candidate(1.0) | {"raw_score": 1.0}]
+    assert confidence.assess(tie)["status"] == "needs_review"
+    assert confidence.assess(gap)["status"] == "auto"
+    old = [candidate(0.95), candidate(0.80)]  # stored before raw_score existed
+    assert confidence.assess(old)["status"] == "auto"
+
+
 def test_confidence_terminated_never_auto():
     verdict = confidence.assess([candidate(0.99, "TERMINATED"), candidate(0.5)])
     assert verdict["status"] == "needs_review"

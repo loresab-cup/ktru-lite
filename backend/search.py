@@ -501,12 +501,14 @@ class Catalog:
             score += UNIT_BONUS * (unit is not None and unit in self.units[i])
             score += COLUMN_UNIT_BONUS * (column_unit is not None and column_unit in self.units[i])
             scored.append((score, cosine, i, shared, matches))
-        # Sorted by the raw sum: the cap at 1.0 must not make near-perfect matches equal
+        # Sorted by the raw sum: the cap at 1.0 must not make near-perfect matches equal;
+        # the confidence takes the gap between the first two from raw_score for the same reason
         scored.sort(key=lambda row: row[0], reverse=True)
         return [
             {
                 **self.brief(i),
                 "score": round(min(1.0, score), 4),
+                "raw_score": round(score, 4),
                 "cosine": round(cosine, 4),
                 "shared_words": sorted(shared)[:12],
                 "matched_characteristics": self._matched_chars(i, query_words),
