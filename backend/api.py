@@ -292,13 +292,18 @@ def forget(session: Session, item: Item) -> None:
 
 def unit_hints(row: parser.Item, attributes: dict) -> tuple[str | None, str | None]:
     """Units of the row: the one of the «Ед. изм.» column and the one the network says it is
-    bought in. The column is the customer's word and counts more."""
-    column = None
+    bought in. The column is the customer's word and counts more; when the customer wrote a
+    unit we do not know («Минута»), the guess of the network does not stand in for it."""
+    column, written = None, False
     for title, value in row.columns.items():
-        column = search.unit_key(value) if title.lower().startswith("ед") else None
+        if not title.lower().startswith("ед"):
+            continue
+        written = written or bool(str(value).strip())
+        column = search.unit_key(value)
         if column:
             break
-    return column, search.unit_key(attributes.get("measure") or "")
+    guessed = search.unit_key(attributes.get("measure") or "")
+    return column, None if written and column is None else guessed
 
 
 def process_items(

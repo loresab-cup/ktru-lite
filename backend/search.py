@@ -80,9 +80,12 @@ LEX_LIMIT = int(os.getenv("LEX_LIMIT", "20"))
 BM25_K1, BM25_B = 1.2, 0.75
 # Twin codes differ only by the unit: «Кефир» in litres and in kilograms. The unit of the row
 # (the «Ед. изм.» column, else the unit the product is usually bought in) decides such a tie;
-# A unit the network guessed only breaks a tie; a unit written in the file by the customer is
-# worth more than a near-tie of the cosine.
-UNIT_BONUS = 0.005
+# A unit written in the file by the customer is worth more than a near-tie of the cosine; the
+# unit the network guessed (dairy in litres) settles a tie. 0.005 -> 0.01 on 28.10.2026 together
+# with the synonyms below, replayed on two runs of saved LLM answers: auto rows 845 -> 887 and
+# 828 -> 870 on the 1000-row file and its copy, wrong codes in auto 7 -> 7 on every set, no row
+# broken; 0.02 put a wrong dairy code of the real file into auto.
+UNIT_BONUS = 0.01
 COLUMN_UNIT_BONUS = 0.03
 
 # Lowercased unit -> key; full names by prefix (longer first), short forms exactly
@@ -191,6 +194,21 @@ _SCALE_SHORT = {
     "шт": (1.0, "count"),
 }
 _COMPOUND = ("в ", "на ", "/")
+
+
+# Names of characteristics that customers write otherwise than the catalog: «жирность 2,5 %»
+# is «Массовая доля жира», so the value is compared with that characteristic (milk of the real
+# file got its code back). Only the ranking sees them, the embedding gets the row as written.
+SYNONYMS = (
+    (re.compile(r"\bжирност[а-яё]*", re.IGNORECASE), "массовая доля жира"),
+    (re.compile(r"\bвес\b", re.IGNORECASE), "масса"),
+)
+
+
+def with_synonyms(text: str) -> str:
+    for pattern, name in SYNONYMS:
+        text = pattern.sub(name, text)
+    return text
 
 
 def words(text: str) -> set[str]:
@@ -346,6 +364,7 @@ class Catalog:
 
         anchors: the rows as the customer wrote them; the product name at their start is
         kept among the candidates (see _anchored)."""
+        texts = [with_synonyms(text) for text in texts]
         query_words = [words(text) for text in texts]
         if vectors is not None:
             nearest = self._nearest_by_vectors(vectors, include_inactive)

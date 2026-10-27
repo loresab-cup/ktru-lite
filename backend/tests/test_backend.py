@@ -596,13 +596,22 @@ def test_search_prefers_code_without_unnamed_characteristics():
         "мыло туалетное твердое ординарное о 100 110",
         "мыло туалетное твердое ординарное о",
     ]
-    row = "Мыло туалетное твердое. Марка мыла: Ординарное (О); Вес: 100 Грамм"
+    row = "Мыло туалетное твердое. Марка мыла: Ординарное (О); Количество в упаковке: 100 Штука"
     [found] = soap.search(np.stack([unit([1, 0])]), [row])
     assert found[0]["code"].endswith("02")
     assert "100" not in found[0]["shared_words"] + found[1]["shared_words"]
     # Free text names no characteristic: no penalty at all
     assert soap._unnamed(0, search.stems("Мыло туалетное твердое 100 г")) == 0
     assert soap._unnamed(0, search.stems(row)) == 1
+    # «Вес» is the catalog's «Масса»: the row names the mass, and 100 g is inside the range
+    weighed = "Мыло туалетное твердое. Марка мыла: Ординарное (О); Вес: 100 Грамм"
+    [found] = soap.search(np.stack([unit([1, 0])]), [weighed])
+    assert found[0]["code"].endswith("07")
+
+
+def test_customer_words_for_catalog_characteristics():
+    assert search.with_synonyms("Кефир, Жирность 2,5 %") == "Кефир, массовая доля жира 2,5 %"
+    assert search.with_synonyms("вес 1 кг, весна") == "масса 1 кг, весна"
 
 
 def test_search_fixed_characteristics_pick_neighbour():

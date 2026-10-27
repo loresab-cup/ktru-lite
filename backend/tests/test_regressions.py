@@ -422,3 +422,15 @@ def test_item_page_says_how_candidates_differ(isolated_api):
         shown = client.get(f"/api/items/{item.id}").json()["candidates"]
     assert shown[0]["differs"] == [["Масса нетто", "< 90 Грамм"]]  # «Вид» is the same in both
     assert shown[1]["differs"] == [["Масса нетто", "≥ 90 Грамм"]]
+
+
+def test_a_unit_the_customer_wrote_is_not_replaced_by_a_guess(isolated_api):
+    api = isolated_api
+    guessed = {"measure": "усл. ед"}
+    minute = parser.Item(1, "Услуги телефонной связи", {"Ед. изм.": "Минута"})
+    assert api.unit_hints(minute, guessed) == (None, None)  # a unit we do not know
+    litre = parser.Item(2, "Кефир", {"Ед. изм.": "л"})
+    assert api.unit_hints(litre, {"measure": "кг"}) == ("l", "kg")
+    blank = parser.Item(3, "Кефир", {"Ед. изм.": " "})
+    assert api.unit_hints(blank, {"measure": "л"}) == (None, "l")
+    assert api.unit_hints(parser.Item(4, "Кефир", {}), {"measure": "л"}) == (None, "l")
