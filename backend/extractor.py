@@ -170,9 +170,11 @@ def answer_by_id(objects: list[dict]) -> dict[int, dict]:
 
 _BRAND = re.compile(r"\b[A-Z][A-Za-z]*[a-z][A-Za-z]*\b")
 _MODEL = re.compile(r"\b[\w-]*\d[\w-]*\b")
-_UNITS = r"мм|см|м|км|мкм|кг|г|мг|мл|л|гб|тб|мб|вт|квт|в|а|°c|г/м2|%|шт|дюйм\w*|листов"
+_UNITS = r"мм|см|м|км|мкм|кг|г|мг|мл|л|гб|тб|мб|вт|квт|в|а|°c|г/м2|%|шт|дюйм\w*|листов|страниц"
+# «белизна не менее 146 %»: the bound belongs to the value, not to the name
+_BOUND = r"(?:не\s+)?(?:менее|более|меньше|больше|свыше)\s+"
 _CHARACTERISTIC = re.compile(
-    rf"(?P<name>[а-яё]{{3,}}(?:\s[а-яё]{{3,}})?)?[\s:]*"
+    rf"(?P<name>[а-яё]{{3,}}(?:\s(?!{_BOUND})[а-яё]{{3,}})?)?[\s:]*(?P<bound>{_BOUND})?"
     rf"(?<!\w)(?P<value>\d+(?:[.,]\d+)?(?:x\d+)?)\s*(?P<unit>{_UNITS})?(?![\w/])",
     re.IGNORECASE,
 )
@@ -257,7 +259,7 @@ def rules(text: str, reason: str = ERROR) -> dict:
         characteristics = [
             {
                 "name": (m.group("name") or "").strip(),
-                "value": m.group("value"),
+                "value": " ".join(f"{m.group('bound') or ''}{m.group('value')}".split()),
                 "unit": m.group("unit") or "",
             }
             for m in _CHARACTERISTIC.finditer(_CONVERSION.sub("", text))

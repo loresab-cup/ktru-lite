@@ -177,6 +177,13 @@ def test_rules_fallback():
     assert attributes["source"] == "rules"
 
 
+def test_rules_keep_the_bound_with_the_value():
+    # «не менее» used to become the name of the characteristic
+    found = extractor.rules("Бумага А4. Белизна не менее 146 %, ресурс более 1600 страниц")
+    assert {"name": "Белизна", "value": "не менее 146", "unit": "%"} in found["characteristics"]
+    assert {"name": "ресурс", "value": "более 1600", "unit": "страниц"} in found["characteristics"]
+
+
 def test_rules_read_name_value_pairs():
     row = (
         "Ноутбук. Диагональ экрана: ≥ 15.6 Дюйм (25,4 мм) Общий объем оперативной памяти: "
