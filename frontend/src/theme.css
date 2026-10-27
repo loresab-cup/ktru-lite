@@ -2377,6 +2377,9 @@ a {
 }
 
 .ant-tooltip .ant-tooltip-container {
+  /* antd gives it the min height of a control (48px): the text is centred in it, not pressed up */
+  display: flex;
+  align-items: center;
   padding: var(--s2) var(--s4);
   border-radius: var(--radius-sm);
   background: var(--paper-raised);
