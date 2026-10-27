@@ -343,3 +343,51 @@ def test_one_decision_goes_to_the_identical_rows_that_wait(api, monkeypatch):
         assert back["ktru_code"] == proposed["ktru_code"]
         assert back["status"] == "needs_review"  # undone: it waits again
         assert client.get(f"/api/items/{ids[0]}").json()["same_pending"] == 1
+
+
+def test_a_persons_code_goes_to_the_same_row_of_a_later_file(api, monkeypatch):
+    monkeypatch.setattr(api.state, "catalog", tiny_catalog())
+    job_id = uuid.uuid4()
+    proposed = {"ktru_code": "17.12.14.129-00000001", "ktru_name": "Бумага для офисной техники"}
+    found = [
+        {
+            "code": proposed["ktru_code"],
+            "name": proposed["ktru_name"],
+            "score": 0.8,
+            "raw_score": 0.8,
+            "status": "ACTIVE",
+        }
+    ]
+    with api.SessionLocal() as session:
+        session.add(api.Job(id=job_id, filename="a.txt", status="done"))
+        session.add(
+            api.Item(
+                job_id=job_id,
+                row_number=1,
+                raw_text="Ноутбук  16 ГБ",
+                status="needs_review",
+                confidence=60.0,
+                zone="medium",
+                summary="Поиск",
+                candidates=found,
+                **proposed,
+            )
+        )
+        session.commit()
+        first = session.query(api.Item).one().id
+    later = api.parser.Item(5, "ноутбук 16 гб", {})
+    with TestClient(api.app) as client:
+        client.patch(f"/api/items/{first}", json={"ktru_code": "26.20.11.110-00000001"})
+        [decision] = api.recalled([later]).values()
+        item = api.build_item(uuid.uuid4(), later, {"name": "ноутбук"}, found, decision)
+        assert item.ktru_code == "26.20.11.110-00000001" and item.status == "auto"
+        assert item.confidence is None and "решения человека" in item.summary
+        assert "review" not in item.attributes
+        client.post(f"/api/items/{first}/revert")  # back to review: the decision is taken back
+        assert api.recalled([later]) == {}
+        client.post(f"/api/items/{first}/accept")  # a person agreed with a doubtful row
+        assert api.recalled([later])[api.text_key(later.text)].ktru_code == proposed["ktru_code"]
+        assert client.delete(f"/api/jobs/{job_id}").status_code == 204
+        assert api.recalled([later]) == {}  # the job is gone, so are its decisions
+    monkeypatch.setattr(api, "REMEMBER", False)
+    assert api.recalled([later]) == {}

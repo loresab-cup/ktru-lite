@@ -6,6 +6,7 @@ Pipeline of a batch: extractor (LLM or rules) -> embedder (bge-m3) -> search -> 
 """
 
 import csv
+import hashlib
 import io
 import logging
 import os
@@ -58,6 +59,8 @@ JOB_TIME_LIMIT = 270.0  # seconds: 1000 rows must be done within 5 minutes, with
 BATCH = 20  # small batches: finished rows reach the table while the rest are processed
 POLL_SECONDS = 1.0
 ITEM_STATUSES = ("auto", "needs_review", "corrected", "accepted", "failed")
+# A code a person gave a row goes to the same row of later files (REMEMBER_DECISIONS=0 - off)
+REMEMBER = os.getenv("REMEMBER_DECISIONS", "1") != "0"
 
 
 def now() -> datetime:
@@ -97,6 +100,22 @@ class Item(Base):
     zone: Mapped[str] = mapped_column(String(8), default="low")
     status: Mapped[str] = mapped_column(String(16), index=True)
     summary: Mapped[str] = mapped_column(Text, default="")
+
+
+class Decision(Base):
+    """The code a person accepted or chose for a row text; the job it came from."""
+
+    __tablename__ = "decisions"
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)  # text_key of the row
+    job_id: Mapped[uuid.UUID] = mapped_column(Uuid, index=True)
+    ktru_code: Mapped[str] = mapped_column(String(32))
+    ktru_name: Mapped[str] = mapped_column(Text, default="")
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+def text_key(text: str) -> str:
+    """The same row whatever its case, spaces and ё."""
+    return hashlib.sha256(" ".join(text.lower().replace("ё", "е").split()).encode()).hexdigest()
 
 
 sqlite = DATABASE_URL.startswith("sqlite")
@@ -202,7 +221,13 @@ def apply_candidates(item: Item, found: list, is_product: bool = True) -> None:
     item.attributes = attributes | ({"review": reason} if reason else {})
 
 
-def build_item(job_id: uuid.UUID, row: parser.Item, attributes: dict, found: list) -> Item:
+def build_item(
+    job_id: uuid.UUID,
+    row: parser.Item,
+    attributes: dict,
+    found: list,
+    decision: Decision | None = None,
+) -> Item:
     item = Item(
         job_id=job_id,
         row_number=row.row_number,
@@ -211,10 +236,58 @@ def build_item(job_id: uuid.UUID, row: parser.Item, attributes: dict, found: lis
     )
     try:
         apply_candidates(item, found, is_product=bool(attributes.get("name")))
+        if decision is not None:
+            apply_decision(item, decision)
     except Exception as exc:  # one broken row must not stop the job
         logger.exception("item failed")
         item.status, item.summary = "failed", f"Ошибка обработки позиции: {type(exc).__name__}"
     return item
+
+
+def apply_decision(item: Item, decision: Decision) -> None:
+    """The code a person gave the same row before, if it is still in force."""
+    code = state.catalog.get(decision.ktru_code) if hasattr(state.catalog, "get") else None
+    if not code or code.get("status") != "ACTIVE":
+        return
+    item.ktru_code, item.ktru_name = code["code"], code["name"]
+    item.status, item.confidence, item.zone = "auto", None, "high"
+    when = decision.decided_at
+    when = when if when.tzinfo else when.replace(tzinfo=UTC)  # SQLite keeps it without the zone
+    item.summary = f"Код из решения человека: эта строка уже проверялась. {item.summary}"
+    attributes = {k: v for k, v in item.attributes.items() if k != "review"}
+    item.attributes = attributes | {"remembered": when.isoformat()}
+
+
+def recalled(rows: list[parser.Item]) -> dict[str, Decision]:
+    """Decisions of a person for the rows of a batch, by text_key; one query."""
+    if not REMEMBER:
+        return {}
+    keys = {text_key(row.text) for row in rows}
+    with SessionLocal() as session:
+        found = session.scalars(select(Decision).where(Decision.key.in_(keys))).all()
+    return {d.key: d for d in found}
+
+
+def remember(session: Session, item: Item) -> None:
+    """Keeps what a person gave the row; the last decision for a text wins."""
+    if REMEMBER and item.ktru_code:
+        decision = Decision(
+            key=text_key(item.raw_text),
+            job_id=item.job_id,
+            ktru_code=item.ktru_code,
+            ktru_name=item.ktru_name or "",
+            decided_at=now(),
+        )
+        session.merge(decision)
+
+
+def forget(session: Session, item: Item) -> None:
+    """The decision this job made for the row text is taken back."""
+    session.execute(
+        delete(Decision).where(
+            Decision.key == text_key(item.raw_text), Decision.job_id == item.job_id
+        )
+    )
 
 
 def unit_hints(row: parser.Item, attributes: dict) -> tuple[str | None, str | None]:
@@ -269,7 +342,11 @@ def process_batch(
     )
     tick(stages, "search", started)
     started = time.monotonic()
-    items = [build_item(job_id, *args) for args in zip(batch, attributes, found, strict=True)]
+    known = recalled(batch)
+    items = [
+        build_item(job_id, row, attrs, cands, known.get(text_key(row.text)))
+        for row, attrs, cands in zip(batch, attributes, found, strict=True)
+    ]
     tick(stages, "confidence", started)
     with SessionLocal() as session:
         session.add_all(items)
@@ -560,6 +637,7 @@ def delete_job(job_id: str):
         if job.status == "processing" or job.id in state.cancels:
             raise HTTPException(409, "Задание ещё обрабатывается: сначала остановите его")
         session.execute(delete(Item).where(Item.job_id == job.id))
+        session.execute(delete(Decision).where(Decision.job_id == job.id))
         # A worker may take a queued job right now: then nothing is deleted and rows come back
         gone = session.execute(
             delete(Job).where(Job.id == job.id, Job.status != "processing")
@@ -760,6 +838,7 @@ def correct_item(item_id: int, body: Correction):
         # A person's choice is not a score of the search: no made-up 100 %
         item.confidence, item.zone = None, "low"
         item.summary = "Код выбран вручную. Алгоритмическая уверенность не оценивалась"
+        remember(session, item)
         session.commit()
         return to_dict(item)
 
@@ -822,6 +901,8 @@ def accept_item(item_id: int):
         if not item.ktru_code:
             raise HTTPException(400, "У позиции нет кода: выберите его вручную")
         remember_original(item)
+        if item.status in ("needs_review", "failed"):
+            remember(session, item)  # a person looked at a doubtful row and agreed
         item.status = "accepted"
         session.commit()
         return to_dict(item)
@@ -839,6 +920,9 @@ def undo_code(item_id: int):
         for field, value in history.pop().items():
             setattr(item, field, value)
         item.attributes = attributes | {"history": history}
+        forget(session, item)
+        if item.status == "corrected":
+            remember(session, item)  # the code before was a person's too
         session.commit()
         return to_dict(item)
 
@@ -852,6 +936,7 @@ def revert_item(item_id: int):
             raise HTTPException(400, "Позицию не удалось обработать: вернуть нечего")
         if item.status in ("accepted", "corrected"):
             restore_original(item)
+            forget(session, item)
             session.commit()
         return to_dict(item)
 
