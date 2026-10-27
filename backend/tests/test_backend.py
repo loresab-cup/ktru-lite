@@ -299,6 +299,18 @@ def test_confidence_zones():
     assert confidence.assess([])["confidence"] == 0.0
 
 
+def test_candidate_confidences_match_the_item():
+    found = [candidate(0.80), candidate(0.79), candidate(0.60)]
+    shown = confidence.with_confidences(found)
+    assert shown[0]["confidence"] == confidence.assess(found)["confidence"]
+    assert shown[0]["confidence"] > shown[1]["confidence"] > shown[2]["confidence"]
+    clear = confidence.with_confidences([candidate(0.95), candidate(0.80)])
+    assert clear[0]["confidence"] > 85 and clear[1]["confidence"] < 1
+    assert "confidence" not in found[0]  # the stored candidates are not changed
+    assert confidence.with_confidences([candidate(0.9)])[0]["confidence"] > 0
+    assert confidence.with_confidences([]) == []
+
+
 def test_confidence_terminated_never_auto():
     verdict = confidence.assess([candidate(0.99, "TERMINATED"), candidate(0.5)])
     assert verdict["status"] == "needs_review"

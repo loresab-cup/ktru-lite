@@ -30,6 +30,7 @@ from sqlalchemy import (
     String,
     Text,
     Uuid,
+    case,
     create_engine,
     delete,
     func,
@@ -509,11 +510,35 @@ def like_pattern(q: str) -> str:
     return "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
 
 
+STATUS_ORDER = (
+    "needs_review",
+    "failed",
+    "auto",
+    "corrected",
+    "accepted",
+)  # what needs a look first
+
+
+def order_by(sort: str, order: str) -> list:
+    """ORDER BY of the list: by code, confidence or status; the row id keeps the ties stable."""
+    if sort == "code":
+        key = Item.ktru_code
+    elif sort == "confidence":
+        key = Item.confidence
+    elif sort == "status":
+        key = case({s: i for i, s in enumerate(STATUS_ORDER)}, value=Item.status, else_=9)
+    else:
+        return [Item.id]
+    return [(key.desc() if order == "desc" else key.asc()).nulls_last(), Item.id]
+
+
 @app.get("/api/jobs/{job_id}/items")
 def list_items(
     job_id: str,
     status: str = "",
     q: str = Query("", max_length=200),
+    sort: str = Query("", pattern="^(code|confidence|status)?$"),
+    order: str = Query("asc", pattern="^(asc|desc)$"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     candidates: bool = True,  # the list of cards does not show them: ~10 KB less per row
@@ -533,7 +558,7 @@ def list_items(
                 )
             )
         total = session.scalar(select(func.count()).select_from(query.subquery()))
-        items = session.scalars(query.order_by(Item.id).limit(limit).offset(offset))
+        items = session.scalars(query.order_by(*order_by(sort, order)).limit(limit).offset(offset))
         rows = [to_dict(item) for item in items]
         if not candidates:
             for row in rows:
@@ -553,8 +578,20 @@ def remember_original(item: Item) -> None:
     item.attributes = {**attributes, "original": original}  # a new dict: JSON is not tracked
 
 
+HISTORY_LIMIT = 10  # steps of "return the previous code"
+
+
+def push_history(item: Item) -> None:
+    """Keeps the code the item had before a person changes it, to bring it back later."""
+    attributes = item.attributes or {}
+    snapshot = {field: getattr(item, field) for field in ORIGINAL_FIELDS}
+    history = [*attributes.get("history", []), snapshot][-HISTORY_LIMIT:]
+    item.attributes = {**attributes, "history": history}
+
+
 def restore_original(item: Item) -> None:
     attributes = dict(item.attributes or {})
+    attributes.pop("history", None)  # back to the proposal of the system: the steps are gone
     original = attributes.pop("original", None)
     if original is None:  # accepted before the snapshot existed: the code did not change
         verdict = confidence.assess(item.candidates, is_product=bool(attributes.get("name")))
@@ -578,7 +615,9 @@ def get_item(item_id: int):
             return session.scalar(select(pick(Item.id)).where(in_job, *conditions))
 
         not_reviewed = Item.status.not_in(("accepted", "corrected"))
-        return to_dict(item) | {
+        shown = to_dict(item)
+        shown["candidates"] = confidence.with_confidences(item.candidates or [])
+        return shown | {
             "position": count(Item.id <= item.id),
             "total": count(),
             "prev_id": edge(func.max, Item.id < item.id),
@@ -600,6 +639,7 @@ def correct_item(item_id: int, body: Correction):
     with SessionLocal() as session:
         item = get_or_404(session, Item, item_id, "Позиция")
         remember_original(item)
+        push_history(item)
         item.ktru_code, item.ktru_name, item.status = code["code"], code["name"], "corrected"
         item.confidence, item.zone, item.summary = 100.0, "high", "Код выбран вручную"
         session.commit()
@@ -640,9 +680,11 @@ def edit_attributes(item_id: int, body: AttributesIn):
         include_inactive = session.get(Job, item.job_id).include_inactive
         [found] = catalog.search(embedder.embed([query]), [query], include_inactive)
         remember_original(item)  # "revert" brings back what the system proposed
+        push_history(item)
         old = item.attributes or {}
         # "fallback" stays: the row still counts as one the network did not answer
-        kept = {key: old[key] for key in ("columns", "original", "fallback") if key in old}
+        keep = ("columns", "original", "history", "fallback")
+        kept = {key: old[key] for key in keep if key in old}
         attributes = body.model_dump() | {"search_text": query, "source": "manual"}
         item.attributes = attributes | kept
         apply_candidates(item, found)
@@ -660,6 +702,22 @@ def accept_item(item_id: int):
             raise HTTPException(400, "У позиции нет кода: выберите его вручную")
         remember_original(item)
         item.status = "accepted"
+        session.commit()
+        return to_dict(item)
+
+
+@app.post("/api/items/{item_id}/undo-code")
+def undo_code(item_id: int):
+    """Brings back the code the item had before the last manual change (also the old status)."""
+    with SessionLocal() as session:
+        item = get_or_404(session, Item, item_id, "Позиция")
+        attributes = dict(item.attributes or {})
+        history = list(attributes.get("history", []))
+        if not history:
+            raise HTTPException(400, "Предыдущего кода нет")
+        for field, value in history.pop().items():
+            setattr(item, field, value)
+        item.attributes = attributes | {"history": history}
         session.commit()
         return to_dict(item)
 
@@ -697,6 +755,27 @@ def accept_job(job_id: str, min_confidence: float = Query(85.0, ge=0, le=100)):
                 item.status, accepted = "accepted", accepted + 1
         session.commit()
         return {"accepted": accepted}
+
+
+class RevertIn(BaseModel):
+    ids: list[int] = Field(default_factory=list, max_length=1000)
+    all_accepted: bool = False  # every accepted row of the job, not only the listed ones
+
+
+@app.post("/api/jobs/{job_id}/revert")
+def revert_items(job_id: str, body: RevertIn):
+    """Returns accepted or corrected rows to review: the code the system proposed comes back."""
+    with SessionLocal() as session:
+        job = get_or_404(session, Job, job_id, "Задание")
+        if body.all_accepted:
+            conditions = [Item.status == "accepted"]
+        else:
+            conditions = [Item.status.in_(("accepted", "corrected")), Item.id.in_(body.ids)]
+        items = session.scalars(select(Item).where(Item.job_id == job.id, *conditions)).all()
+        for item in items:
+            restore_original(item)
+        session.commit()
+        return {"reverted": len(items)}
 
 
 @app.post("/api/jobs/{job_id}/cancel")

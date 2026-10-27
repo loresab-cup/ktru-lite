@@ -57,6 +57,18 @@ def explain(best: dict, is_product: bool) -> str:
     return text[:1].upper() + text[1:]
 
 
+def with_confidences(candidates: list[dict]) -> list[dict]:
+    """The candidates with the confidence each of them would have as the pick: its margin is to
+    the best of the others, so the first one gets the confidence of the item and the rest get low."""
+    scores = [c["score"] for c in candidates]
+    result = []
+    for i, candidate in enumerate(candidates):
+        others = scores[:i] + scores[i + 1 :]
+        margin = scores[i] - max(others) if others else 0.0
+        result.append(candidate | {"confidence": round(probability(scores[i], margin), 1)})
+    return result
+
+
 def assess(candidates: list[dict], is_product: bool = True) -> dict:
     if not candidates:
         return {
