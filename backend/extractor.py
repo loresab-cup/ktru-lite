@@ -44,7 +44,11 @@ GATEWAY_PAUSE = 15.0
 # other keys take the batches meanwhile, this one is tried again soon
 TIMEOUT_PAUSE = 30.0
 CONNECT_PAUSE = 15.0  # a refused connection fails at once: try again soon, the gateway may be back
-AHEAD_ROUNDS = 2  # unfinished batches of one job in the pool: 2 rounds of all request slots
+# Unfinished batches of one job in the pool, in rounds of all request slots. One round: a finished
+# batch is replaced at once (JobExtractor._top_up), so the slots stay busy, and a file uploaded
+# during a big one waits for one free slot, not for a queue of the big file. With 2 rounds an
+# 11-row file sent 10 s after a 1000-row one waited 49 s for its first answer (28.10.2026).
+AHEAD_ROUNDS = 1
 
 # Why the rules were used for a row (shown to the user)
 NO_KEY, UNAVAILABLE, BUDGET, ERROR, MISSING = "no_key", "unavailable", "budget", "error", "missing"
