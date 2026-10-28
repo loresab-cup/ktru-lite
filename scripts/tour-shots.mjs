@@ -2,6 +2,8 @@
 //
 //   node scripts/tour-shots.mjs [--site http://127.0.0.1:5173]
 //
+// The site has accounts: TOUR_LOGIN and TOUR_PASSWORD in the environment (a test user of
+// backend/users.py); the script logs in and gives the session to the browser.
 // Uploads frontend/public/primer.xlsx, takes one shot per step with the place to press lit up,
 // saves frontend/public/tour/<step>.webp and deletes the job it made.
 import { spawn } from 'node:child_process'
@@ -117,12 +119,28 @@ const click = (selector, text) =>
   run(`[...document.querySelectorAll(${JSON.stringify(selector)})]
     .find((e) => e.textContent.includes(${JSON.stringify(text)})).click()`)
 
+/** Logs in; the session cookie goes to every request of the script and to the browser. */
+async function logIn() {
+  const login = process.env.TOUR_LOGIN
+  const password = process.env.TOUR_PASSWORD
+  if (!login || !password) throw new Error('set TOUR_LOGIN and TOUR_PASSWORD')
+  const answer = await fetch(`${SITE}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ login, password }),
+  })
+  if (!answer.ok) throw new Error(`login: HTTP ${answer.status}`)
+  const [name, value] = answer.headers.getSetCookie()[0].split(';')[0].split('=')
+  await send('Network.setCookie', { name, value, url: SITE, httpOnly: true })
+  return { cookie: `${name}=${value}` }
+}
+
 async function upload() {
   const form = new FormData()
   form.append('file', new Blob([readFileSync(EXAMPLE)]), 'Пример спецификации.xlsx')
-  const job = await (await fetch(`${SITE}/api/jobs`, { method: 'POST', body: form })).json()
+  const job = await (await fetch(`${SITE}/api/jobs`, { method: 'POST', body: form, headers })).json()
   for (let i = 0; i < 240; i++) {
-    const state = await (await fetch(`${SITE}/api/jobs/${job.job_id}`)).json()
+    const state = await (await fetch(`${SITE}/api/jobs/${job.job_id}`, { headers })).json()
     if (state.status !== 'queued' && state.status !== 'processing') return job.job_id
     await sleep(1000)
   }
@@ -131,6 +149,8 @@ async function upload() {
 
 mkdirSync(OUT, { recursive: true })
 await send('Page.enable')
+await send('Network.enable')
+const headers = await logIn()
 await send('Emulation.setDeviceMetricsOverride', { ...VIEW, deviceScaleFactor: SCALE, mobile: false })
 await open('/')
 await run(`localStorage.setItem('ktru-tour-seen', '1')`) // the tour must not cover the shots
@@ -150,8 +170,8 @@ try {
   await open(`/jobs/${jobId}`)
   await shot('export', '.dock .round.primary', '', true)
 
-  const items = await (await fetch(`${SITE}/api/jobs/${jobId}/items?status=needs_review&limit=1`)).json()
-  const itemId = (items.items[0] ?? (await (await fetch(`${SITE}/api/jobs/${jobId}/items?limit=1`)).json()).items[0]).id
+  const items = await (await fetch(`${SITE}/api/jobs/${jobId}/items?status=needs_review&limit=1`, { headers })).json()
+  const itemId = (items.items[0] ?? (await (await fetch(`${SITE}/api/jobs/${jobId}/items?limit=1`, { headers })).json()).items[0]).id
   await open(`/jobs/${jobId}/items/${itemId}`)
   await shot('accept', '.item-head .btn.primary')
   await open(`/jobs/${jobId}/items/${itemId}`)
@@ -169,7 +189,7 @@ try {
   await sleep(2500)
   await shot('catalog', '.main-nav a[href="/catalog"]')
 } finally {
-  await fetch(`${SITE}/api/jobs/${jobId}`, { method: 'DELETE' })
+  await fetch(`${SITE}/api/jobs/${jobId}`, { method: 'DELETE', headers })
   socket.close()
   edge.kill()
 }

@@ -769,6 +769,7 @@ a {
 
 .eis-link {
   display: inline-flex;
+  white-space: nowrap;
   align-items: center;
   gap: 6px;
   font-size: var(--text-sm);
@@ -2550,7 +2551,10 @@ a {
     padding-left: var(--s6);
     padding-right: var(--s6);
   }
+}
 
+/* the login and «Выйти» take the room of the link to the EIS catalog on a laptop screen */
+@media (max-width: 1440px) {
   .eis-link {
     display: none;
   }
