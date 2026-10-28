@@ -13,6 +13,7 @@ export interface Job {
   error: string | null
   include_inactive: boolean
   created_at: string
+  started_at?: string | null // when a worker took the job
   stage_seconds: Record<string, number>
   counts?: Record<ItemStatus, number>
   fallback?: number // rows whose attributes came from the rules

@@ -60,8 +60,19 @@ function StopButton({ job, onStopped }: { job: Job; onStopped: (job: Job) => voi
   )
 }
 
+const ETA_FROM = 40 // rows done before the pace says anything about the rest
+
+/** Seconds left at the pace so far; null while there is too little to judge by. */
+function secondsLeft(job: Job): number | null {
+  if (!job.started_at || job.processed < ETA_FROM || job.processed >= job.total) return null
+  const spent = (Date.now() - new Date(job.started_at).getTime()) / 1000
+  if (spent <= 0) return null
+  return ((job.total - job.processed) * spent) / job.processed
+}
+
 function ProgressCard({ job, onStopped }: { job: Job; onStopped: (job: Job) => void }) {
   const percent = job.total ? Math.floor((100 * job.processed) / job.total) : 0
+  const left = secondsLeft(job)
   const states = stepStates(job)
   return (
     <section className="progress" aria-live="polite" aria-labelledby="progress-title">
@@ -86,6 +97,7 @@ function ProgressCard({ job, onStopped }: { job: Job; onStopped: (job: Job) => v
           ) : (
             <>
               {T.progress.processed} <b>{job.processed}</b> {T.progress.of} <b>{job.total}</b>
+              {left !== null && <span className="muted"> · {T.progress.left(left)}</span>}
             </>
           )}
         </div>
