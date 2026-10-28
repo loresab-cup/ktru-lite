@@ -1,8 +1,8 @@
 import { App as AntApp, ConfigProvider } from 'antd'
 import ruRU from 'antd/locale/ru_RU'
-import { ExternalLink, LogOut, LucideProvider, Menu, ScanSearch, X } from 'lucide-react'
+import { CircleUserRound, ExternalLink, LogOut, LucideProvider, Menu, ScanSearch, X } from 'lucide-react'
 import { useMemo, useEffect, useState, type ReactNode } from 'react'
-import { HealthContext, useHealth, type HealthState } from './health'
+import { HealthContext, type HealthState } from './health'
 import { api, ApiError, LOGGED_OUT, type Me } from './api'
 import { EisMark } from './EisMark'
 import { ItemScreen } from './ItemScreen'
@@ -70,7 +70,8 @@ function UserTools({ me, onLogout }: { me: Me; onLogout: () => void }) {
   return (
     <div className="user-tools">
       <span className="user-name" title={T.login.user(me.login)}>
-        {me.login}
+        <CircleUserRound size={18} aria-hidden="true" />
+        <span className="user-login">{me.login}</span>
       </span>
       <button type="button" className="btn ghost small" onClick={onLogout}>
         <LogOut size={16} aria-hidden="true" /> {T.login.logout}
@@ -122,33 +123,6 @@ function readTokens() {
   }
 }
 
-/** The state of the service in the header: the catalog and whether it answers at all. */
-function HealthBadge() {
-  const health = useHealth()
-  if (!health) return null
-  if (health === 'offline') {
-    return (
-      <div className="health low">
-        <span className="dot" aria-hidden="true" />
-        {T.app.catalog.offline}
-      </div>
-    )
-  }
-  const tone = health.catalog === 'ready' ? 'high' : health.catalog === 'loading' ? 'medium' : 'low'
-  const text =
-    health.catalog === 'ready'
-      ? T.app.catalog.ready(health.codes)
-      : health.catalog === 'loading'
-        ? T.app.catalog.loading
-        : T.app.catalog.error
-  return (
-    <div className={`health num ${tone}`}>
-      <span className="dot" aria-hidden="true" />
-      {text}
-    </div>
-  )
-}
-
 function Missing() {
   return (
     <div className="wrap section">
@@ -195,7 +169,6 @@ function Header({
           ))}
         </nav>
         <div className="head-tools">
-          <HealthBadge />
           <a
             className="eis-link"
             href={EIS_CATALOG}
@@ -228,7 +201,6 @@ function Header({
             ))}
           </nav>
           <div className="wrap mobile-tools">
-            <HealthBadge />
             <UserTools me={me} onLogout={onLogout} />
           </div>
         </div>

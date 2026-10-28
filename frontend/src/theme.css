@@ -724,47 +724,8 @@ a {
 .head-tools {
   display: flex;
   align-items: center;
-  gap: var(--s4);
+  gap: var(--s6);
   justify-self: end;
-}
-
-.health {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s2);
-  height: 34px;
-  padding: 0 14px;
-  border-radius: 17px;
-  background: var(--field);
-  color: var(--ink-2);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.health .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--green-dot);
-}
-
-.health.medium {
-  background: var(--amber-soft);
-  color: var(--amber);
-}
-
-.health.medium .dot {
-  background: var(--amber-dot);
-}
-
-.health.low {
-  background: var(--red-soft);
-  color: var(--red);
-}
-
-.health.low .dot {
-  background: var(--red-dot);
 }
 
 .eis-link {
@@ -2553,8 +2514,7 @@ a {
   }
 }
 
-/* the login and «Выйти» take the room of the link to the EIS catalog on a laptop screen */
-@media (max-width: 1440px) {
+@media (max-width: 1240px) {
   .eis-link {
     display: none;
   }
@@ -2984,28 +2944,41 @@ a {
   justify-content: center;
 }
 
+/* the account: who is logged in and «Выйти», set apart from the links by a thin line */
 .user-tools {
   display: flex;
   align-items: center;
-  gap: var(--s2);
+  gap: var(--s3);
+  padding-left: var(--s6);
+  border-left: 1px solid var(--line);
 }
 
 .user-name {
-  max-width: 12ch;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.user-login {
+  max-width: 14ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--ink-2);
 }
 
 .mobile-tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  margin-top: var(--s3);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+}
+
+.mobile-tools .user-tools {
   justify-content: space-between;
-  gap: var(--s3);
+  padding-left: 0;
+  border-left: 0;
 }
 
 .login-rule {

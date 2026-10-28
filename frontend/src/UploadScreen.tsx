@@ -82,7 +82,14 @@ function FileList({ files, busy, onRemove, onClear, onProcess }: {
 /** What the service says about itself before a file is sent: a loading catalog, no neural network. */
 function ServiceNotices() {
   const health = useHealth()
-  if (!health || health === 'offline') return null
+  if (!health) return null
+  if (health === 'offline') {
+    return (
+      <Notice kind="warn" title={T.app.banner.offline}>
+        {T.app.banner.offlineHint}
+      </Notice>
+    )
+  }
   return (
     <>
       {health.catalog === 'loading' && (
