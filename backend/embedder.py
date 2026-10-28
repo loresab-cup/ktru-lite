@@ -53,7 +53,7 @@ _lock = threading.Lock()
 _probe_lock = threading.Lock()
 _status = {"up": None, "at": 0.0, "pause_until": 0.0}  # up: None - not asked yet
 _rate_lock = threading.Lock()
-_next_slot = [0.0]  # monotonic time of the next allowed Yandex request
+_next_slot: dict[str, float] = {}  # folder -> monotonic time of its next allowed request
 
 
 def _mark(up: bool, hung: bool = False) -> None:
@@ -87,23 +87,24 @@ def _request(texts: list[str], timeout=httpx.USE_CLIENT_DEFAULT) -> np.ndarray:
     return _normalized(response.json()["embeddings"], len(texts))
 
 
-def _wait_turn() -> None:
-    """Spreads the requests of all threads to YANDEX_RPS a second."""
+def _wait_turn(folder: str) -> None:
+    """Spreads the requests of all threads to one folder to YANDEX_RPS a second."""
     with _rate_lock:
         now = time.monotonic()
-        start = max(now, _next_slot[0])
-        _next_slot[0] = start + 1.0 / YANDEX_RPS
+        start = max(now, _next_slot.get(folder, 0.0))
+        _next_slot[folder] = start + 1.0 / YANDEX_RPS
     if start > now:
         time.sleep(start - now)
 
 
-def _yandex_one(text: str, model: str, timeout) -> list[float]:
-    if not YANDEX_KEY or not YANDEX_FOLDER:
+def _yandex_one(text: str, model: str, timeout, account: tuple[str, str] | None) -> list[float]:
+    key, folder = account or (YANDEX_KEY, YANDEX_FOLDER)
+    if not key or not folder:
         raise RuntimeError("YANDEX_EMBED_API_KEY or YANDEX_EMBED_FOLDER_ID is not set")
-    body = {"modelUri": f"emb://{YANDEX_FOLDER}/{model}/latest", "text": text[:YANDEX_MAX_CHARS]}
-    headers = {"Authorization": f"Api-Key {YANDEX_KEY}", "x-folder-id": YANDEX_FOLDER}
+    body = {"modelUri": f"emb://{folder}/{model}/latest", "text": text[:YANDEX_MAX_CHARS]}
+    headers = {"Authorization": f"Api-Key {key}", "x-folder-id": folder}
     for attempt in range(YANDEX_RETRIES + 1):
-        _wait_turn()
+        _wait_turn(folder)
         response = _client.post(YANDEX_URL, json=body, headers=headers, timeout=timeout)
         retry = response.status_code == 429 or response.status_code >= 500
         if not retry or attempt == YANDEX_RETRIES:
@@ -113,9 +114,17 @@ def _yandex_one(text: str, model: str, timeout) -> list[float]:
     return response.json()["embedding"]
 
 
-def yandex_vectors(texts: list[str], model: str, timeout=httpx.USE_CLIENT_DEFAULT) -> np.ndarray:
-    """One request per text, in order; any failure raises."""
-    return _normalized([_yandex_one(t or " ", model, timeout) for t in texts], len(texts))
+def yandex_vectors(
+    texts: list[str],
+    model: str,
+    timeout=httpx.USE_CLIENT_DEFAULT,
+    account: tuple[str, str] | None = None,
+) -> np.ndarray:
+    """One request per text, in order; any failure raises.
+
+    account = (key, folder) of another cloud: scripts/embed_catalog.py adds its quota."""
+    vectors = [_yandex_one(t or " ", model, timeout, account) for t in texts]
+    return _normalized(vectors, len(texts))
 
 
 def _normalized(rows: list, count: int) -> np.ndarray:
