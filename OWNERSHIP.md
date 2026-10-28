@@ -24,6 +24,7 @@
 | `backend/extractor.py` | запросы к нейросети, промпт, проверка значений по строке, правила |
 | `backend/embedder.py` | векторы Yandex AI Studio |
 | `backend/search.py` | каталог в памяти, точный поиск, правила ранжирования |
+| `backend/auth.py`, `backend/users.py` | вход: пользователи, пароли, сессии; команда для учёток |
 | `db/` | дамп каталога (в git не хранится) |
 | `docker-compose.yml`, `.env.example`, `.gitignore` | сборка и переменные |
 | `frontend/Dockerfile` | сборка фронта и **конфиг nginx** (лимиты, прокси, заголовки) |

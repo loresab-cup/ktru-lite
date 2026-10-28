@@ -13,6 +13,7 @@ comes from the service (GET /api/catalog/search?q=<code>); only stdlib and httpx
 import argparse
 import json
 import math
+import os
 import pathlib
 import re
 import time
@@ -265,6 +266,17 @@ def attribute_hits(attributes: dict, expected: dict) -> dict[str, list[int]]:
 SURE = "seed_reference"  # label_status of a row whose code is known (human_1000)
 
 
+def log_in(client: httpx.Client) -> None:
+    """The site has accounts: EVAL_LOGIN and EVAL_PASSWORD (a user of backend/users.py).
+
+    Without them nothing is sent: a server with AUTH_REQUIRED=0 needs no login."""
+    login, password = os.getenv("EVAL_LOGIN", ""), os.getenv("EVAL_PASSWORD", "")
+    if login and password:
+        client.post(
+            "/api/auth/login", json={"login": login, "password": password}
+        ).raise_for_status()
+
+
 def upload(client: httpx.Client, path: pathlib.Path) -> str:
     with path.open("rb") as f:
         return client.post("/api/jobs", files={"file": (path.name, f)}).json()["job_id"]
@@ -355,6 +367,7 @@ def main() -> None:
 
     started = time.monotonic()
     with httpx.Client(base_url=options.api, timeout=120) as client:
+        log_in(client)
         job, items = run(client, options.job or upload(client, options.file))
         seconds = time.monotonic() - started
         result = evaluate(client, items, reference, options.show)

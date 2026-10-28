@@ -5,7 +5,8 @@
 Sets: real eis eism 292 292m 1000 1000m human primer (all when none is given). For each set
 the file is uploaded, the finished job and its items go to OUT_DIR/<set>.json (the input of
 scripts/replay.py and scripts/compare_runs.py), and the job is deleted unless --keep.
-Each run costs LLM requests: a full run of all sets is about 3 600 rows.
+Each run costs LLM requests: a full run of all sets is about 3 600 rows. The site has accounts:
+set EVAL_LOGIN and EVAL_PASSWORD (a user of backend/users.py).
 Metrics are the ones of scripts/evaluate.py; human_1000 counts only its 770 rows with a known
 code, its incomplete and service rows only by how many went to auto.
 """
@@ -92,6 +93,7 @@ def main() -> None:
         args.error(f"unknown sets: {', '.join(sorted(unknown))}")
     options.out.mkdir(parents=True, exist_ok=True)
     with httpx.Client(base_url=options.api, timeout=120) as client:
+        evaluate.log_in(client)  # EVAL_LOGIN and EVAL_PASSWORD
         for name in options.sets or list(SETS):
             job_id = evaluate.upload(client, D / SETS[name][0])
             job, items = evaluate.run(client, job_id)
