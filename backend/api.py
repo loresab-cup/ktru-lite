@@ -501,7 +501,13 @@ def cleaner_loop() -> None:
 
 def load_catalog() -> None:
     try:
-        state.catalog = search.load_catalog()
+        catalog = search.load_catalog()
+        if catalog.vectors.shape[1] != embedder.DIM:
+            raise ValueError(
+                f"catalog vectors have {catalog.vectors.shape[1]} numbers, EMBED_PROVIDER="
+                f"{embedder.PROVIDER} gives {embedder.DIM}: set CATALOG_VECTORS for it"
+            )
+        state.catalog = catalog
     except Exception:
         logger.exception("catalog is not loaded")
         state.catalog_error = True
@@ -1070,6 +1076,7 @@ def health():
         "codes": len(state.catalog.codes) if state.catalog else 0,
         "llm": extractor.llm_state(),
         "embeddings": embedder.state(),
+        "embed_provider": embedder.PROVIDER,
         "providers": [  # names and limits only, never keys
             {"name": p.name, "model": p.model, "parallel": p.parallel, "down": p.is_down()}
             for p in extractor.PROVIDERS

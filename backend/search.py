@@ -24,7 +24,10 @@ logger = logging.getLogger(__name__)
 
 CATALOG_PATH = Path(os.getenv("CATALOG_PATH", "/catalog/ktru_catalog.jsonl.gz"))
 CACHE_DIR = Path(os.getenv("CACHE_DIR", "/cache"))
-DIM = 1024
+# Vectors of another model (Yandex embeddings) for the codes of the dump: an .npz with "codes"
+# and "vectors" from scripts/embed_catalog.py; empty - the bge-m3 vectors of the dump itself
+VECTORS_PATH = os.getenv("CATALOG_VECTORS", "")
+DIM = 1024  # bge-m3 in the dump
 VECTOR_LIMIT = 50
 WORD_BONUS = 0.02
 TOP_K = 5
@@ -810,14 +813,35 @@ def build(path: Path) -> tuple[np.ndarray, dict]:
     return vectors[:n], meta  # a view: no second 334 MB copy
 
 
-def load_catalog(path: Path | None = None, cache_dir: Path | None = None) -> Catalog:
+def other_vectors(path: Path, codes: list[str]) -> np.ndarray:
+    """Vectors of the file in the order of the catalog codes, L2-normalized.
+
+    A code of the catalog without a vector is an error: the file belongs to another dump."""
+    with np.load(path) as data:
+        stored = [str(c) for c in data["codes"]]
+        vectors = np.asarray(data["vectors"], dtype=np.float32)
+    if stored != codes:
+        index = {code: i for i, code in enumerate(stored)}
+        missing = [c for c in codes if c not in index]
+        if missing:
+            raise ValueError(f"{path}: no vectors for {len(missing)} codes, e.g. {missing[0]}")
+        vectors = vectors[[index[c] for c in codes]]
+    norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+    return vectors / np.maximum(norms, 1e-12)
+
+
+def load_catalog(
+    path: Path | None = None, cache_dir: Path | None = None, vectors_file: str | None = None
+) -> Catalog:
     path, cache_dir = path or CATALOG_PATH, cache_dir or CACHE_DIR
+    vectors_file = VECTORS_PATH if vectors_file is None else vectors_file
     stat = path.stat()
     key = f"v{CACHE_VERSION}-{stat.st_size}-{stat.st_mtime_ns}"
     vectors_path = cache_dir / f"catalog-{key}.npy"
     meta_path = cache_dir / f"catalog-{key}.json.gz"
     if vectors_path.exists() and meta_path.exists():
-        vectors = np.load(vectors_path)
+        # with vectors of another model the 334 MB of bge-m3 are not read into memory
+        vectors = np.load(vectors_path, mmap_mode="r" if vectors_file else None)
         with gzip.open(meta_path, "rt", encoding="utf-8") as file:
             meta = json.load(file)
         logger.info("catalog from cache: %s codes", len(meta["codes"]))
@@ -833,6 +857,9 @@ def load_catalog(path: Path | None = None, cache_dir: Path | None = None) -> Cat
                 json.dump(meta, file, ensure_ascii=False)
         except OSError:
             logger.warning("catalog cache is not written to %s", cache_dir, exc_info=True)
+    if vectors_file:
+        vectors = other_vectors(Path(vectors_file), meta["codes"])
+        logger.info("catalog vectors from %s: %s numbers", vectors_file, vectors.shape[1])
     return Catalog(
         vectors=vectors,
         codes=meta["codes"],

@@ -1,0 +1,15 @@
+# Without an NVIDIA GPU: embeddings by Yandex AI Studio instead of bge-m3, no ollama container.
+# Needs YANDEX_EMBED_API_KEY and YANDEX_EMBED_FOLDER_ID in .env and db/ktru_vectors_yandex.npz
+# (the catalog embedded by the same model, scripts/embed_catalog.py):
+#   docker compose -f docker-compose.yml -f docker-compose.yandex.yml up -d --build
+services:
+  backend:
+    environment:
+      EMBED_PROVIDER: yandex
+      CATALOG_VECTORS: /catalog/ktru_vectors_yandex.npz
+    depends_on: !override
+      db:
+        condition: service_healthy
+
+  ollama:
+    profiles: [ollama]  # not started

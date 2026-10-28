@@ -23,3 +23,5 @@ dist/
 .claude
 _figma
 Схема.png
+# Yandex embeddings of the catalog (scripts/embed_catalog.py)
+db/*.npz
