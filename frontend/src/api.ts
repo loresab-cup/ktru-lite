@@ -90,6 +90,7 @@ export interface Health {
   codes: number
   llm: 'on' | 'off' | 'down'
   embeddings: 'on' | 'down' | 'unknown'
+  embed_provider?: 'ollama' | 'yandex'
 }
 
 export interface AttributesInput {

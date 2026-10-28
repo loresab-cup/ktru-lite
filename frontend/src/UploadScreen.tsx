@@ -97,7 +97,9 @@ function ServiceNotices() {
       )}
       {health.embeddings === 'down' && (
         <Notice kind="warn" title={T.app.banner.embeddingsDown}>
-          {T.app.banner.embeddingsDownHint}
+          {health.embed_provider === 'yandex'
+            ? T.app.banner.embeddingsDownYandexHint
+            : T.app.banner.embeddingsDownHint}
         </Notice>
       )}
       {health.llm === 'down' && (
