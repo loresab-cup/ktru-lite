@@ -282,6 +282,40 @@ def test_run_job_stops_between_batches_and_keeps_finished_rows(api, monkeypatch,
     assert job_id not in api.state.cancels
 
 
+def test_vectors_of_the_next_batch_are_fetched_during_the_search(api, monkeypatch, tmp_path):
+    monkeypatch.setattr(api.state, "catalog", tiny_catalog())
+    second_embedded = threading.Event()
+    calls = []
+
+    def embed(texts):
+        calls.append(texts)
+        if len(calls) == 2:
+            second_embedded.set()
+
+    monkeypatch.setattr(embedder, "embed", embed)
+    job_id = uuid.uuid4()
+    with api.SessionLocal() as session:
+        session.add(api.Job(id=job_id, filename="spec.txt", status="processing"))
+        session.commit()
+    path = tmp_path / f"{job_id}.txt"
+    path.write_text("\n".join(f"Бумага А4 {i}" for i in range(api.BATCH * 2)), encoding="utf-8")
+    original = api.process_batch
+    overlapped = []
+
+    def slow_first_batch(job, batch, start, *args):
+        if start == 0:  # the search of the first batch: the second one is embedded meanwhile
+            overlapped.append(second_embedded.wait(5))
+        original(job, batch, start, *args)
+
+    monkeypatch.setattr(api, "process_batch", slow_first_batch)
+    api.run_job(job_id)
+    with api.SessionLocal() as session:
+        job = session.get(api.Job, job_id)
+    assert overlapped == [True]
+    assert job.status == "done" and job.processed == api.BATCH * 2
+    assert {"extract", "embed", "wait", "search", "save"} <= set(job.stage_seconds)
+
+
 def test_cancel_unblocks_a_row_waiting_for_the_network(monkeypatch):
     release = threading.Event()
 

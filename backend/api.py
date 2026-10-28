@@ -14,6 +14,7 @@ import re
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -312,37 +313,61 @@ def unit_hints(row: parser.Item, attributes: dict) -> tuple[str | None, str | No
 def process_items(
     job_id: uuid.UUID, rows: list[parser.Item], include_inactive: bool, stages: dict
 ) -> None:
+    """One thread of the job prepares the batches in order (the network's answer, then the
+    vectors), so the vectors of a batch are fetched while the next answers are awaited, and the
+    search of a batch here does not hold the vectors of the next one. Measured 28.10.2026: the
+    search stage of 1000 rows took 35-63 s, most of it the 20 vector requests a second."""
     llm = extractor.JobExtractor([row.text for row in rows], cancelled=state.cancels.get(job_id))
+    batches = [rows[start : start + BATCH] for start in range(0, len(rows), BATCH)]
+    preparer = ThreadPoolExecutor(1, thread_name_prefix="prepare")
     try:
-        for start in range(0, len(rows), BATCH):
+        prepared = [preparer.submit(prepare_batch, batch, llm, stages) for batch in batches]
+        for n, batch in enumerate(batches):
             if cancelled(job_id):
                 raise extractor.Cancelled
-            process_batch(job_id, rows[start : start + BATCH], start, llm, include_inactive, stages)
+            started = time.monotonic()
+            ready = prepared[n].result()
+            tick(stages, "wait", started)
+            process_batch(job_id, batch, n * BATCH, ready, include_inactive, stages)
     except extractor.Cancelled:
         llm.cancel()
         raise
+    finally:
+        preparer.shutdown(wait=False, cancel_futures=True)
+
+
+def prepare_batch(batch: list[parser.Item], llm: extractor.JobExtractor, stages: dict) -> dict:
+    """Attributes, search texts, units and vectors of a batch; runs in the preparing thread."""
+    started = time.monotonic()
+    attributes = [llm.get(row.text) for row in batch]
+    tick(stages, "extract", started)
+    started = time.monotonic()
+    queries = [f"{a['search_text']}. {row.text}" for a, row in zip(attributes, batch, strict=True)]
+    vectors = embedder.embed(queries)
+    if vectors is None:  # no vectors: the page warns that these rows were found by words
+        attributes = [a | {"words_only": True} for a in attributes]
+    tick(stages, "embed", started)
+    return {
+        "attributes": attributes,
+        "queries": queries,
+        "hints": [unit_hints(row, a) for a, row in zip(attributes, batch, strict=True)],
+        "vectors": vectors,
+    }
 
 
 def process_batch(
     job_id: uuid.UUID,
     batch: list[parser.Item],
     start: int,
-    llm: extractor.JobExtractor,
+    prepared: dict,
     include_inactive: bool,
     stages: dict,
 ) -> None:
     started = time.monotonic()
-    attributes = [llm.get(row.text) for row in batch]
-    tick(stages, "extract", started)
-    started = time.monotonic()
-    queries = [f"{a['search_text']}. {row.text}" for a, row in zip(attributes, batch, strict=True)]
-    hints = [unit_hints(row, a) for a, row in zip(attributes, batch, strict=True)]
-    vectors = embedder.embed(queries)
-    if vectors is None:  # no vectors: the page warns that these rows were found by words
-        attributes = [a | {"words_only": True} for a in attributes]
+    hints, attributes = prepared["hints"], prepared["attributes"]
     found = state.catalog.search(
-        vectors,
-        queries,
+        prepared["vectors"],
+        prepared["queries"],
         include_inactive,
         units=[column or guessed for column, guessed in hints],
         column_units=[column for column, _ in hints],
@@ -356,10 +381,12 @@ def process_batch(
         for row, attrs, cands in zip(batch, attributes, found, strict=True)
     ]
     tick(stages, "confidence", started)
+    started = time.monotonic()
     with SessionLocal() as session:
         session.add_all(items)
         session.commit()
     set_job(job_id, processed=start + len(batch), stage_seconds=dict(stages))
+    tick(stages, "save", started)
 
 
 def choose_codes(job_id: uuid.UUID, stages: dict, until: float) -> None:

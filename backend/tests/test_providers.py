@@ -419,6 +419,36 @@ def test_a_job_keeps_only_a_few_unfinished_batches_in_the_pool(monkeypatch):
     assert len(job._futures) == 10
 
 
+def test_a_finished_batch_is_replaced_without_waiting_for_get(monkeypatch):
+    """The job is busy with the vectors of earlier rows: the free slot still gets a batch."""
+    monkeypatch.setattr(extractor, "PROVIDERS", [openai()])
+    monkeypatch.setattr(extractor, "SLOTS", 1)
+    monkeypatch.setattr(extractor, "AHEAD_ROUNDS", 2)
+    monkeypatch.setattr(extractor, "BATCH_SIZE", 10)
+    monkeypatch.setattr(providers, "chat", fake_chat())
+    job = extractor.JobExtractor([f"Товар {i}" for i in range(100)])  # 10 batches, no get()
+    for _ in range(50):
+        if len(job._futures) == 10 and all(f.done() for f in job._futures):
+            break
+        time.sleep(0.1)
+    assert len(job._futures) == 10
+
+
+def test_a_cancelled_job_submits_no_more_batches(monkeypatch):
+    go = threading.Event()
+    inner = fake_chat()
+    monkeypatch.setattr(extractor, "PROVIDERS", [openai()])
+    monkeypatch.setattr(extractor, "SLOTS", 1)
+    monkeypatch.setattr(extractor, "AHEAD_ROUNDS", 2)
+    monkeypatch.setattr(extractor, "BATCH_SIZE", 10)
+    monkeypatch.setattr(providers, "chat", lambda *args: go.wait(5) and inner(*args))
+    job = extractor.JobExtractor([f"Товар {i}" for i in range(100)])
+    job.cancel()
+    go.set()
+    time.sleep(0.3)
+    assert len(job._futures) == 2
+
+
 @pytest.mark.parametrize("status", [401, 402, 403])
 def test_refused_key_or_payment_pauses_the_provider(monkeypatch, status):
     refused = httpx.HTTPStatusError("x", request=None, response=httpx.Response(status))

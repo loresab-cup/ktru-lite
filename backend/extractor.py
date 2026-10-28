@@ -463,15 +463,24 @@ class JobExtractor:
         }
         self._futures: list[Future] = []
         self._ahead = AHEAD_ROUNDS * SLOTS
+        # re-entrant: a callback of a future that is already done runs inside _top_up
+        self._lock = threading.RLock()
         self._top_up()
 
-    def _top_up(self) -> None:
-        """Submits the next batches while fewer than `ahead` of them are unfinished."""
-        pending = sum(not future.done() for future in self._futures)
-        while pending < self._ahead and len(self._futures) < len(self._chunks):
-            chunk = self._chunks[len(self._futures)]
-            self._futures.append(_pool.submit(extract_chunk, chunk, self.deadline, self.cancelled))
-            pending += 1
+    def _top_up(self, _done: Future | None = None) -> None:
+        """Submits the next batches while fewer than `ahead` of them are unfinished.
+
+        Also runs when a batch finishes: a slot does not wait until the job asks for a row."""
+        with self._lock:
+            pending = sum(not future.done() for future in self._futures)
+            while pending < self._ahead and len(self._futures) < len(self._chunks):
+                if self.cancelled.is_set():
+                    return
+                chunk = self._chunks[len(self._futures)]
+                future = _pool.submit(extract_chunk, chunk, self.deadline, self.cancelled)
+                self._futures.append(future)
+                pending += 1
+                future.add_done_callback(self._top_up)
 
     def cancel(self) -> None:
         """Queued batches are dropped; a request already sent finishes and is thrown away."""
