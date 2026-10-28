@@ -85,7 +85,6 @@ function ResultCard({ item, jobId, open, onToggle, pick }: {
           </span>
         )}
         <div className="res-title">
-          <div className="muted" title={item.raw_text}>{item.attributes.name || item.raw_text}</div>
           <Link className={`res-code ${item.ktru_code ? '' : 'none'}`} to={to} data-item={item.id}>
             {item.ktru_code ?? T.results.noCode}
           </Link>
