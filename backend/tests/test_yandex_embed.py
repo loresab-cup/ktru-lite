@@ -2,12 +2,14 @@
 
 import base64
 import gzip
+import importlib
 import json
 
 import httpx
 import numpy as np
 import pytest
 
+import confidence
 import embedder
 import search
 
@@ -107,3 +109,17 @@ def test_vectors_of_another_dump_are_an_error(tmp_path):
     np.savez(file, codes=np.asarray(["01.11.10.000-00000001"]), vectors=np.ones((1, 256)))
     with pytest.raises(ValueError, match="no vectors for 1 codes"):
         search.load_catalog(tmp_path / "dump.jsonl.gz", tmp_path / "cache", str(file))
+
+
+def test_yandex_mode_has_its_own_confidence_fit(monkeypatch):
+    monkeypatch.setenv("EMBED_PROVIDER", "yandex")
+    try:
+        importlib.reload(confidence)
+        assert (confidence.W_SCORE, confidence.W_MARGIN, confidence.BIAS) == (0.80, 167.2, -1.38)
+        # the cosine says little here: a clear margin goes to auto, a near tie does not
+        assert confidence.probability(0.70, 0.02) >= confidence.HIGH
+        assert confidence.probability(0.75, 0.002) < confidence.HIGH
+    finally:
+        monkeypatch.delenv("EMBED_PROVIDER")
+        importlib.reload(confidence)
+    assert confidence.W_SCORE == 8.8
