@@ -1,8 +1,8 @@
 """Accounts of the site: users with scrypt password hashes and login sessions in the database.
 
-A session is a random token in an HttpOnly cookie; the database keeps only its SHA-256, so a
+Anyone can register with a login and a password and is logged in at once. A session is a random token in an HttpOnly cookie; the database keeps only its SHA-256, so a
 leaked table does not let anyone in. The first admin comes from ADMIN_LOGIN and ADMIN_PASSWORD
-when there are no users yet; the others are added by `python users.py add <login>`.
+when there are no users yet; `python users.py` manages accounts from the command line.
 """
 
 import base64
@@ -15,6 +15,7 @@ import time
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import DateTime, ForeignKey, String, delete, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 # scrypt with 16 MB of memory per check: ~50 ms, slow enough against guessing a stolen hash
@@ -24,6 +25,10 @@ LOGIN_RE = re.compile(r"[a-z0-9._-]{3,32}")
 # Wrong passwords for one login from one address: after MAX_FAILS the login waits LOCK_SECONDS
 MAX_FAILS = 5
 LOCK_SECONDS = 60.0
+
+
+class LoginTaken(ValueError):
+    """Another user already has this login."""
 
 
 class AuthBase(DeclarativeBase):
@@ -82,23 +87,29 @@ def clean_login(login: str) -> str:
     """Lowercase login; ValueError when it has other characters or another length."""
     login = login.strip().lower()
     if not LOGIN_RE.fullmatch(login):
-        raise ValueError("логин: 3-32 знака, латинские буквы, цифры, точка, дефис, подчёркивание")
+        raise ValueError(
+            "Логин: от 3 до 32 знаков, латинские буквы, цифры, точка, дефис или подчёркивание"
+        )
     return login
 
 
 def check_password(password: str) -> None:
     if len(password) < MIN_PASSWORD:
-        raise ValueError(f"пароль: не короче {MIN_PASSWORD} знаков")
+        raise ValueError(f"Пароль: не короче {MIN_PASSWORD} знаков")
 
 
 def create_user(session: Session, login: str, password: str, is_admin: bool = False) -> User:
     login = clean_login(login)
     check_password(password)
     if session.scalar(select(User).where(User.login == login)):
-        raise ValueError(f"пользователь {login} уже есть")
+        raise LoginTaken(f"Логин {login} уже занят")
     user = User(login=login, password_hash=hash_password(password), is_admin=is_admin)
     session.add(user)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:  # the same login registered a moment ago by another request
+        session.rollback()
+        raise LoginTaken(f"Логин {login} уже занят") from None
     return user
 
 
@@ -121,7 +132,7 @@ def remove_user(session: Session, login: str) -> None:
 def _user(session: Session, login: str) -> User:
     user = session.scalar(select(User).where(User.login == clean_login(login)))
     if user is None:
-        raise ValueError(f"пользователя {login} нет")
+        raise ValueError(f"Пользователя {login} нет")
     return user
 
 
@@ -138,7 +149,7 @@ def has_users(session: Session) -> bool:
 
 
 def log_in(session: Session, login: str, password: str, hours: float) -> tuple[str, User] | None:
-    """(token, user) for the right password, None otherwise; old sessions are removed here."""
+    """(token, user) for the right password, None otherwise."""
     try:
         login = clean_login(login)
     except ValueError:
@@ -146,6 +157,17 @@ def log_in(session: Session, login: str, password: str, hours: float) -> tuple[s
     user = session.scalar(select(User).where(User.login == login)) if login else None
     if not verify_password(password, user.password_hash if user else _DUMMY_HASH) or not user:
         return None
+    return start_session(session, user, hours), user
+
+
+def register(session: Session, login: str, password: str, hours: float) -> tuple[str, User]:
+    """A new ordinary user, logged in at once; ValueError (LoginTaken) says what is wrong."""
+    user = create_user(session, login, password)
+    return start_session(session, user, hours), user
+
+
+def start_session(session: Session, user: User, hours: float) -> str:
+    """A new session token; sessions that are over are removed here."""
     now = datetime.now(UTC)
     session.execute(delete(LoginSession).where(LoginSession.expires_at < now))
     token = secrets.token_urlsafe(32)
@@ -155,7 +177,7 @@ def log_in(session: Session, login: str, password: str, hours: float) -> tuple[s
         )
     )
     session.commit()
-    return token, user
+    return token
 
 
 def user_by_token(session: Session, token: str) -> User | None:

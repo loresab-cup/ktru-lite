@@ -72,7 +72,14 @@ AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "1") != "0"
 SESSION_HOURS = float(os.getenv("SESSION_HOURS", "12"))
 COOKIE = "ktru_session"
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "0") == "1"  # 1 behind HTTPS
-PUBLIC = {"/api/health", "/api/auth/login", "/api/auth/logout", "/api/docs", "/api/openapi.json"}
+PUBLIC = {
+    "/api/health",
+    "/api/auth/login",
+    "/api/auth/register",
+    "/api/auth/logout",
+    "/api/docs",
+    "/api/openapi.json",
+}
 
 
 def now() -> datetime:
@@ -605,7 +612,8 @@ async def internal_error(_: Request, exc: Exception) -> JSONResponse:
 
 # --- accounts ------------------------------------------------------------------------------
 
-throttle = auth.Throttle()
+throttle = auth.Throttle()  # wrong passwords
+registrations = auth.Throttle()  # new accounts from one address: MAX_FAILS, then a pause
 
 
 @app.middleware("http")
@@ -646,7 +654,30 @@ def log_in(body: LoginIn, request: Request, response: Response):
         throttle.failed(key)
         raise HTTPException(401, "Неверный логин или пароль")
     throttle.passed(key)
-    token, user = found
+    return with_session(response, *found)
+
+
+@app.post("/api/auth/register", status_code=201)
+def register(body: LoginIn, request: Request, response: Response):
+    """A new account by login and password; the user is logged in at once."""
+    key = ("", client_address(request))
+    if registrations.blocked(key):
+        raise HTTPException(
+            429,
+            "С этого адреса только что зарегистрировали несколько учётных записей: подождите минуту",
+        )
+    with SessionLocal() as session:
+        try:
+            found = auth.register(session, body.login, body.password, SESSION_HOURS)
+        except auth.LoginTaken as exc:
+            raise HTTPException(409, str(exc)) from None
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
+    registrations.failed(key)  # counts accounts made from the address
+    return with_session(response, *found)
+
+
+def with_session(response: Response, token: str, user: auth.User) -> dict:
     response.set_cookie(
         COOKIE,
         token,
@@ -681,11 +712,8 @@ def me(request: Request):
 
 
 def auth_state() -> str:
-    """on: a login is needed; off: AUTH_REQUIRED=0; no_users: nobody can log in yet."""
-    if not AUTH_REQUIRED:
-        return "off"
-    with SessionLocal() as session:
-        return "on" if auth.has_users(session) else "no_users"
+    """on: a login is needed (anyone can register); off: AUTH_REQUIRED=0."""
+    return "on" if AUTH_REQUIRED else "off"
 
 
 # --- endpoints -----------------------------------------------------------------------------

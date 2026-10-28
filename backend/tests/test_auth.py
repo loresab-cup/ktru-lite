@@ -1,4 +1,4 @@
-"""Accounts: password hashes, login and logout, closed API, wrong passwords, the first admin."""
+"""Accounts: password hashes, registration, login and logout, closed API, wrong passwords."""
 
 import importlib
 from contextlib import asynccontextmanager
@@ -23,6 +23,7 @@ def site(monkeypatch, tmp_path):
     monkeypatch.setattr(api, "SessionLocal", sessions)
     monkeypatch.setattr(api, "AUTH_REQUIRED", True)
     monkeypatch.setattr(api, "throttle", auth.Throttle())
+    monkeypatch.setattr(api, "registrations", auth.Throttle())
 
     @asynccontextmanager
     async def lifespan(_):
@@ -119,8 +120,34 @@ def test_first_admin_only_when_there_are_no_users(tmp_path):
     engine.dispose()
 
 
-def test_health_says_when_nobody_can_log_in(site):
-    with site.SessionLocal() as session:
-        auth.remove_user(session, "ivan")
+def register(client, login="petya", password="long enough"):
+    return client.post("/api/auth/register", json={"login": login, "password": password})
+
+
+def test_anyone_registers_and_is_logged_in_at_once(site):
     with TestClient(site.app) as client:
-        assert client.get("/api/health").json()["auth"] == "no_users"
+        assert client.get("/api/health").json()["auth"] == "on"
+        answer = register(client, login=" Petya ")
+        assert answer.status_code == 201 and answer.json() == {"login": "petya", "is_admin": False}
+        assert "httponly" in answer.headers["set-cookie"].lower()
+        assert client.get("/api/jobs").status_code == 200
+        client.post("/api/auth/logout")
+        assert log_in(client, login="petya", password="long enough").status_code == 200
+
+
+def test_registration_says_what_is_wrong(site):
+    with TestClient(site.app) as client:
+        taken = register(client, login="IVAN")
+        assert taken.status_code == 409 and "занят" in taken.json()["detail"]
+        assert register(client, login="петя").status_code == 400  # not Latin
+        assert register(client, login="ab").status_code == 400  # too short
+        short = register(client, password="short")
+        assert short.status_code == 400 and "Пароль" in short.json()["detail"]
+        assert client.get("/api/jobs").status_code == 401  # nobody got logged in
+
+
+def test_many_accounts_from_one_address_wait(site):
+    with TestClient(site.app) as client:
+        for n in range(auth.MAX_FAILS):
+            assert register(client, login=f"user{n}").status_code == 201
+        assert register(client, login="one-more").status_code == 429
