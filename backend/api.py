@@ -21,9 +21,10 @@ from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import quote
 
-from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, Response, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import (
     JSON,
@@ -42,6 +43,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, defer, mapped_column, sessionmaker
 
+import auth
 import chooser
 import confidence
 import embedder
@@ -65,6 +67,12 @@ POLL_SECONDS = 1.0
 ITEM_STATUSES = ("auto", "needs_review", "corrected", "accepted", "failed")
 # A code a person gave a row goes to the same row of later files (REMEMBER_DECISIONS=0 - off)
 REMEMBER = os.getenv("REMEMBER_DECISIONS", "1") != "0"
+# Accounts: every /api/ address except PUBLIC needs a login (AUTH_REQUIRED=0 - only for development)
+AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "1") != "0"
+SESSION_HOURS = float(os.getenv("SESSION_HOURS", "12"))
+COOKIE = "ktru_session"
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "0") == "1"  # 1 behind HTTPS
+PUBLIC = {"/api/health", "/api/auth/login", "/api/auth/logout", "/api/docs", "/api/openapi.json"}
 
 
 def now() -> datetime:
@@ -550,9 +558,16 @@ def init_db() -> None:
                 raise
             logger.info("database is not ready, waiting")
             time.sleep(2)
+    auth.AuthBase.metadata.create_all(engine)
     with SessionLocal() as session:
         session.execute(update(Job).where(Job.status == "processing").values(status="queued"))
         session.commit()
+        admin = os.getenv("ADMIN_LOGIN", "admin")
+        try:
+            if auth.ensure_admin(session, admin, os.getenv("ADMIN_PASSWORD", "")):
+                logger.info("the first admin %s is created from ADMIN_LOGIN", admin)
+        except ValueError as exc:  # a short password: the site stays closed, the log says why
+            logger.error("ADMIN_LOGIN/ADMIN_PASSWORD are not accepted: %s", exc)
 
 
 @asynccontextmanager
@@ -586,6 +601,91 @@ async def validation_error(_: Request, __: RequestValidationError) -> JSONRespon
 async def internal_error(_: Request, exc: Exception) -> JSONResponse:
     logger.exception("request failed", exc_info=exc)
     return JSONResponse({"detail": "Внутренняя ошибка сервера"}, status_code=500)
+
+
+# --- accounts ------------------------------------------------------------------------------
+
+throttle = auth.Throttle()
+
+
+@app.middleware("http")
+async def require_login(request: Request, call_next):
+    """Every API address except PUBLIC needs a session; the static site itself is nginx's."""
+    path = request.url.path
+    if not AUTH_REQUIRED or not path.startswith("/api/") or path in PUBLIC:
+        return await call_next(request)
+    user = await run_in_threadpool(session_user, request.cookies.get(COOKIE, ""))
+    if user is None:
+        return JSONResponse({"detail": "Войдите в систему"}, status_code=401)
+    request.state.user = user
+    return await call_next(request)
+
+
+def session_user(token: str) -> auth.User | None:
+    with SessionLocal() as session:
+        return auth.user_by_token(session, token)
+
+
+class LoginIn(BaseModel):
+    login: str = Field(max_length=64)
+    password: str = Field(max_length=200)
+
+
+def user_out(user: auth.User) -> dict:
+    return {"login": user.login, "is_admin": user.is_admin}
+
+
+@app.post("/api/auth/login")
+def log_in(body: LoginIn, request: Request, response: Response):
+    key = (body.login.strip().lower(), client_address(request))
+    if throttle.blocked(key):
+        raise HTTPException(429, "Слишком много неудачных попыток: подождите минуту")
+    with SessionLocal() as session:
+        found = auth.log_in(session, body.login, body.password, SESSION_HOURS)
+    if found is None:
+        throttle.failed(key)
+        raise HTTPException(401, "Неверный логин или пароль")
+    throttle.passed(key)
+    token, user = found
+    response.set_cookie(
+        COOKIE,
+        token,
+        max_age=int(SESSION_HOURS * 3600),
+        httponly=True,
+        samesite="lax",
+        secure=COOKIE_SECURE,
+        path="/",
+    )
+    return user_out(user)
+
+
+def client_address(request: Request) -> str:
+    """The address nginx saw: it appends it last to X-Forwarded-For; the backend port is local."""
+    forwarded = request.headers.get("x-forwarded-for", "").split(",")[-1].strip()
+    return forwarded or (request.client.host if request.client else "")
+
+
+@app.post("/api/auth/logout", status_code=204)
+def log_out(request: Request, response: Response):
+    with SessionLocal() as session:
+        auth.log_out(session, request.cookies.get(COOKIE, ""))
+    response.delete_cookie(COOKIE, path="/")
+
+
+@app.get("/api/auth/me")
+def me(request: Request):
+    user = getattr(request.state, "user", None)
+    if user is None:  # AUTH_REQUIRED=0: nobody logged in, everything is open
+        return {"login": "", "is_admin": False}
+    return user_out(user)
+
+
+def auth_state() -> str:
+    """on: a login is needed; off: AUTH_REQUIRED=0; no_users: nobody can log in yet."""
+    if not AUTH_REQUIRED:
+        return "off"
+    with SessionLocal() as session:
+        return "on" if auth.has_users(session) else "no_users"
 
 
 # --- endpoints -----------------------------------------------------------------------------
@@ -1103,6 +1203,7 @@ def health():
         "codes": len(state.catalog.codes) if state.catalog else 0,
         "llm": extractor.llm_state(),
         "catalog_error": state.catalog_error,
+        "auth": auth_state(),
         "embeddings": embedder.state(),
         "providers": [  # names and limits only, never keys
             {"name": p.name, "model": p.model, "parallel": p.parallel, "down": p.is_down()}

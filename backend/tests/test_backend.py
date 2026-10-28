@@ -373,7 +373,8 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
     monkeypatch.setattr(search, "CATALOG_PATH", TMP / "catalog.jsonl.gz")
     monkeypatch.setattr(search, "VECTORS_PATH", str(VECTORS_FILE))
     monkeypatch.setattr(search, "CACHE_DIR", TMP / "cache")
-    api = importlib.import_module("api")  # reads the environment at import
+    # reads the environment at import; another test may have imported it with other settings
+    api = importlib.reload(importlib.import_module("api"))
     monkeypatch.setattr(embedder, "embed", lambda texts: None)  # no vectors: words only
     monkeypatch.setattr(embedder, "state", lambda: "down")
     spec = "Наименование;Кол-во\nБумага для офисной техники А4;10\n=HYPERLINK(1) ноутбук;1\n"
