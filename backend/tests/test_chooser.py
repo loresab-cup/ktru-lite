@@ -83,9 +83,9 @@ def test_choice_changes_only_doubtful_rows_and_never_user_edits(api, monkeypatch
         items = session.query(api.Item).order_by(api.Item.row_number).all()
     assert [i.ktru_code for i in items] == ["2", "1", "1"]
     assert items[0].status == "needs_review" and "нейросетью (x)" in items[0].summary
-    # the confidence is the chosen candidate's: below the search's first one
-    second = api.confidence.with_confidences(items[0].candidates)[1]["confidence"]
-    assert items[0].confidence == second and items[0].zone == api.confidence.zone_of(second)
+    # no made-up percent for the pick of the network: the search's one was about another code
+    assert items[0].confidence is None and items[0].zone == "low"
+    assert items[0].ktru_name == "Опора знака дорожного"
     assert "Нейросеть выбрала этот код" in items[0].attributes["review"]
     assert "review" not in (items[1].attributes or {})  # the auto row is not touched
     assert "choose" in stages

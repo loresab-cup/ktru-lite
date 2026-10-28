@@ -91,3 +91,19 @@ def test_without_anchors_the_ranking_is_unchanged():
     c = catalog(["Мыло туалетное", "Шампунь"], [[0.6, 0.8], [1.0, 0.0]])
     vector = np.asarray([[1.0, 0.0]], dtype=np.float32)
     assert c.search(vector, ["Мыло"])[0][0]["name"] == "Шампунь"
+
+
+def test_a_product_with_the_word_in_its_name_is_not_the_named_product():
+    """«3D-сканер стационарный» outranked «Сканер»: it has the word but is another product."""
+    c = catalog(["3D-сканер стационарный", "Сканер"], [[1.0, 0.0], [0.6, 0.8]])
+    assert anchored(c, [1.0, 0.0], "Сканер. Формат A4")[0]["name"] == "Сканер"
+
+
+def test_the_same_words_in_another_order_are_the_same_product():
+    assert search.same_product("поручень опорный", "Опорный поручень")
+    assert search.same_product("видеоскоп гибкий", "Видеоскоп гибкий, одноразовый")
+    assert not search.same_product("сканер", "3D-сканер стационарный")
+    c = catalog(["Опорный поручень", "Поручень"], [[1.0, 0.0], [0.6, 0.8]])
+    assert (
+        anchored(c, [1.0, 0.0], "Поручень опорный. Длина 600 мм")[0]["name"] == "Опорный поручень"
+    )

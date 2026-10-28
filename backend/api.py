@@ -387,11 +387,10 @@ def choose_codes(job_id: uuid.UUID, stages: dict, until: float) -> None:
             code, provider = picks.get(item.id, (item.ktru_code, ""))
             if code == item.ktru_code:
                 continue
-            # The confidence of the chosen candidate, as its card shows it: the search's
-            # percent was about another code
-            chosen = next(
-                c for c in confidence.with_confidences(item.candidates) if c["code"] == code
-            )
+            # No percent for this pick: the search's one was about another code, and the one a
+            # lower candidate gets in its card says only that the search preferred another
+            # (the right «Сканер» showed 0 % next to the search's wrong «3D-сканер»)
+            chosen = next(c for c in item.candidates if c["code"] == code)
             summary = f"Код выбран нейросетью ({provider}) из 5 кандидатов поиска. {item.summary}"
             # The reason was about the search's first code; now it is about the choice
             first = item.candidates[0]
@@ -409,8 +408,8 @@ def choose_codes(job_id: uuid.UUID, stages: dict, until: float) -> None:
                 .values(
                     ktru_code=code,
                     ktru_name=chosen["name"],
-                    confidence=chosen["confidence"],
-                    zone=confidence.zone_of(chosen["confidence"]),
+                    confidence=None,
+                    zone="low",
                     summary=summary[:1000],
                     attributes=(item.attributes or {}) | {"review": review},
                 )

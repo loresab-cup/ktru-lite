@@ -222,6 +222,16 @@ def is_number(word: str) -> bool:
     return word.isdigit() or _DECIMAL.fullmatch(word) is not None
 
 
+def same_product(name: str, catalog_name: str) -> bool:
+    """The best code is the product the row names: the same words in any order («Поручень
+    опорный», «Опорный поручень») or a more specific name that starts with them («Анализатор
+    биохимический» -> «… метаболического профиля»). «3D-сканер стационарный» has the word
+    «сканер» but is another product than «Сканер»."""
+    asked = _WORD.findall(name.lower().replace("ё", "е"))
+    best = _WORD.findall(catalog_name.lower().replace("ё", "е"))
+    return set(asked) == set(best) or best[: len(asked)] == asked
+
+
 def unit_of(text: str) -> tuple[float, str] | None:
     """(factor to the base unit, quantity) for the unit at the start of lowercase text:
     «м …» -> (1000, "length")."""
@@ -417,7 +427,12 @@ class Catalog:
             ]
             if not pool:
                 continue
-            if found and words(name) <= words(found[0]["name"]):
+            # compared with the whole name of the row too: «Поручень опорный» is not a catalog
+            # name, «Поручень» is, and the best «Опорный поручень» is the row's product
+            whole = " ".join(head)
+            if found and (
+                same_product(name, found[0]["name"]) or same_product(whole, found[0]["name"])
+            ):
                 return found
             return self._rank_pool(pool, text, vector, unit, column_unit)
         # A synonym can keep the qualifier: «стул офисный» found «кресло офисное»
