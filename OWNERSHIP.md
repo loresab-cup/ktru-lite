@@ -22,7 +22,7 @@
 |---|---|
 | `backend/parser.py` | чтение xlsx/csv/docx/pdf/txt, поиск шапки, лимиты |
 | `backend/extractor.py` | запросы к нейросети, промпт, проверка значений по строке, правила |
-| `backend/embedder.py` | векторы через Ollama |
+| `backend/embedder.py` | векторы Yandex AI Studio |
 | `backend/search.py` | каталог в памяти, точный поиск, правила ранжирования |
 | `db/` | дамп каталога (в git не хранится) |
 | `docker-compose.yml`, `.env.example`, `.gitignore` | сборка и переменные |
