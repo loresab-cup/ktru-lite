@@ -107,3 +107,15 @@ def test_the_same_words_in_another_order_are_the_same_product():
     assert (
         anchored(c, [1.0, 0.0], "Поручень опорный. Длина 600 мм")[0]["name"] == "Опорный поручень"
     )
+
+
+def test_anchor_finds_the_name_written_in_another_word_order(monkeypatch):
+    """292 modified, 28.10.2026: «Цифровой микроскоп» went to auto as «Микроскоп световой
+    инвертированный», «Музыкальный микрофон» as «Микрофон компьютерный»."""
+    monkeypatch.setattr(search, "VECTOR_LIMIT", 1)
+    names = ["Микроскоп световой инвертированный", "Микроскоп цифровой"]
+    c = catalog(names, [[1.0, 0.0], [0.9, 0.44]])
+    text = "Цифровой микроскоп. Строение оптической схемы: Инвертированный"
+    assert anchored(c, [1.0, 0.0], text)[0]["name"] == "Микроскоп цифровой"
+    # one word is not a name in another order: «Микроскоп» alone keeps the ranking
+    assert anchored(c, [1.0, 0.0], "Микроскоп инвертированный")[0]["name"] == names[0]

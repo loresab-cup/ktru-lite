@@ -223,6 +223,11 @@ def is_number(word: str) -> bool:
     return word.isdigit() or _DECIMAL.fullmatch(word) is not None
 
 
+def name_key(name: str) -> tuple[str, ...]:
+    """The words of a lowercase name in any order."""
+    return tuple(sorted(_WORD.findall(name)))
+
+
 def same_product(name: str, catalog_name: str) -> bool:
     """The best code is the product the row names: the same words in any order («Поручень
     опорный», «Опорный поручень») or a more specific name that starts with them («Анализатор
@@ -354,8 +359,14 @@ class Catalog:
         self._names_lower = [name.lower().replace("ё", "е") for name in self.names]
         # lowercase name -> its codes: a name written in the row is found at once
         self._name_groups: dict[str, list[int]] = {}
+        # the same words in another order: «Цифровой микроскоп» is the catalog's «Микроскоп
+        # цифровой», «Видеокамера экшн» its «Экшн видеокамера»
+        self._name_orders: dict[tuple[str, ...], list[int]] = {}
         for i, name in enumerate(self._names_lower):
             self._name_groups.setdefault(name, []).append(i)
+            key = name_key(name)
+            if len(key) > 1:
+                self._name_orders.setdefault(key, []).append(i)
         self._postings: dict[str, np.ndarray] | None = None
         self._bm25: dict[str, tuple[np.ndarray, np.ndarray]] | None = None
         self._lock = threading.Lock()
@@ -423,9 +434,8 @@ class Catalog:
         head = re.split(r"\.\s|[,;:]", anchor, maxsplit=1)[0].lower().replace("ё", "е").split()
         for end in range(len(head), 0, -1):
             name = " ".join(head[:end])
-            pool = [
-                i for i in self._name_groups.get(name, []) if include_inactive or self.active[i]
-            ]
+            codes = self._name_groups.get(name) or self._name_orders.get(name_key(name), [])
+            pool = [i for i in codes if include_inactive or self.active[i]]
             if not pool:
                 continue
             # compared with the whole name of the row too: «Поручень опорный» is not a catalog
