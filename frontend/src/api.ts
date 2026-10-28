@@ -90,7 +90,17 @@ export interface Health {
   codes: number
   llm: 'on' | 'off' | 'down'
   embeddings: 'on' | 'off' | 'down' | 'unknown'
+  auth?: 'on' | 'off' | 'no_users'
 }
+
+/** The logged-in user; an empty login when the server runs without accounts. */
+export interface Me {
+  login: string
+  is_admin: boolean
+}
+
+/** Sent on window when the server answers 401: the session is over, App shows the login page. */
+export const LOGGED_OUT = 'ktru:logged-out'
 
 export interface AttributesInput {
   name: string
@@ -140,6 +150,9 @@ async function send(url: string, init?: RequestInit): Promise<Response> {
   try {
     const response = await fetch(url, { ...init, signal: controller.signal })
     if (!response.ok) {
+      if (response.status === 401 && !url.startsWith('/api/auth/')) {
+        window.dispatchEvent(new Event(LOGGED_OUT))
+      }
       let detail = ''
       try {
         detail = (await response.json()).detail
@@ -183,6 +196,10 @@ const json = (method: string, body?: unknown): RequestInit => ({
 
 export const api = {
   health: () => request<Health>('/api/health'),
+  me: () => request<Me>('/api/auth/me'),
+  login: (login: string, password: string) =>
+    request<Me>('/api/auth/login', json('POST', { login, password })),
+  logout: () => request<void>('/api/auth/logout', json('POST')),
   /** The newest jobs and how many there are in all. */
   jobs: async (limit = 8, q = '', sort: JobSort = 'new') => {
     const query = new URLSearchParams({ limit: String(limit), sort })

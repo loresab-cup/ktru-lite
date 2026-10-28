@@ -1,14 +1,15 @@
 import { App as AntApp, ConfigProvider } from 'antd'
 import ruRU from 'antd/locale/ru_RU'
-import { ExternalLink, LucideProvider, Menu, ScanSearch, X } from 'lucide-react'
+import { ExternalLink, LogOut, LucideProvider, Menu, ScanSearch, X } from 'lucide-react'
 import { useMemo, useEffect, useState, type ReactNode } from 'react'
 import { HealthContext, useHealth, type HealthState } from './health'
-import { api } from './api'
+import { api, ApiError, LOGGED_OUT, type Me } from './api'
 import { EisMark } from './EisMark'
 import { ItemScreen } from './ItemScreen'
 import { JobScreen } from './JobScreen'
 import { JobsScreen } from './JobsScreen'
 import { Link } from './Link'
+import { LoginScreen } from './LoginScreen'
 import { parseRoute, paths, usePath } from './router'
 import { T } from './texts'
 import { UploadScreen } from './UploadScreen'
@@ -38,6 +39,44 @@ function HealthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
   return <HealthContext.Provider value={health}>{children}</HealthContext.Provider>
+}
+
+/** Who is logged in: undefined while asking, null when the login page is needed. A 401 from any
+ * request (the session ended) sends the user back to the login page. */
+function useMe() {
+  const [me, setMe] = useState<Me | null | undefined>(undefined)
+  useEffect(() => {
+    let alive = true
+    api
+      .me()
+      .then((found) => alive && setMe(found))
+      .catch((error) => {
+        // no answer at all: show the site, its own notices say that the server is unreachable
+        if (!alive) return
+        setMe(error instanceof ApiError && error.status === 401 ? null : { login: '', is_admin: false })
+      })
+    const loggedOut = () => setMe(null)
+    window.addEventListener(LOGGED_OUT, loggedOut)
+    return () => {
+      alive = false
+      window.removeEventListener(LOGGED_OUT, loggedOut)
+    }
+  }, [])
+  return [me, setMe] as const
+}
+
+function UserTools({ me, onLogout }: { me: Me; onLogout: () => void }) {
+  if (!me.login) return null // the server runs without accounts
+  return (
+    <div className="user-tools">
+      <span className="user-name" title={T.login.user(me.login)}>
+        {me.login}
+      </span>
+      <button type="button" className="btn ghost small" onClick={onLogout}>
+        <LogOut size={16} aria-hidden="true" /> {T.login.logout}
+      </button>
+    </div>
+  )
 }
 
 /** antd tokens are read from theme.css, so the colors and sizes stay in one place. */
@@ -122,7 +161,15 @@ function Missing() {
   )
 }
 
-function Header({ page }: { page: ReturnType<typeof parseRoute>['page'] }) {
+function Header({
+  page,
+  me,
+  onLogout,
+}: {
+  page: ReturnType<typeof parseRoute>['page']
+  me: Me
+  onLogout: () => void
+}) {
   const path = usePath()
   // The menu is open for the page it was opened on: a tap on an item changes the page and closes it
   const [openAt, setOpenAt] = useState<string | null>(null)
@@ -158,6 +205,7 @@ function Header({ page }: { page: ReturnType<typeof parseRoute>['page'] }) {
           >
             {T.app.catalogLink} <ExternalLink size={14} aria-hidden="true" />
           </a>
+          <UserTools me={me} onLogout={onLogout} />
         </div>
         <button
           type="button"
@@ -179,8 +227,9 @@ function Header({ page }: { page: ReturnType<typeof parseRoute>['page'] }) {
               </Link>
             ))}
           </nav>
-          <div className="wrap">
+          <div className="wrap mobile-tools">
             <HealthBadge />
+            <UserTools me={me} onLogout={onLogout} />
           </div>
         </div>
       )}
@@ -192,6 +241,13 @@ export function App() {
   const path = usePath()
   const route = parseRoute(path)
   const config = useMemo(() => readTokens(), [])
+  const [me, setMe] = useMe()
+  const logout = () => {
+    void api
+      .logout()
+      .catch(() => undefined) // the cookie is gone or the server is down: the login page anyway
+      .finally(() => setMe(null))
+  }
 
   const page = () => {
     switch (route.page) {
@@ -217,19 +273,22 @@ export function App() {
       <LucideProvider className="icon" strokeWidth={1.75}>
         <AntApp component={false}>
           <HealthProvider>
-            <div className="site">
-              <Header page={route.page} />
-              <main>{page()}</main>
-              <footer className="site-foot" aria-labelledby="feedback-title">
-                <div className="wrap foot-in">
-                  <h2 id="feedback-title" className="foot-title">
-                    {T.feedback.title}
-                  </h2>
-                  <span>{T.feedback.name}</span>
-                  <a href={`mailto:${T.feedback.email}`}>{T.feedback.email}</a>
-                </div>
-              </footer>
-            </div>
+            {me === null && <LoginScreen onDone={setMe} />}
+            {me && (
+              <div className="site">
+                <Header page={route.page} me={me} onLogout={logout} />
+                <main>{page()}</main>
+                <footer className="site-foot" aria-labelledby="feedback-title">
+                  <div className="wrap foot-in">
+                    <h2 id="feedback-title" className="foot-title">
+                      {T.feedback.title}
+                    </h2>
+                    <span>{T.feedback.name}</span>
+                    <a href={`mailto:${T.feedback.email}`}>{T.feedback.email}</a>
+                  </div>
+                </footer>
+              </div>
+            )}
           </HealthProvider>
         </AntApp>
       </LucideProvider>

@@ -2924,3 +2924,82 @@ a {
     display: none;
   }
 }
+
+/* --- login --------------------------------------------------------------------------------- */
+
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--s6) var(--s4);
+  background: var(--bg);
+}
+
+.login-card {
+  width: min(400px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s8) var(--s6);
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.login-title {
+  margin: var(--s2) 0 0;
+  font-size: var(--text-xl);
+}
+
+.login-hint {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.login-error {
+  margin: 0;
+  color: var(--red);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.login-submit {
+  justify-content: center;
+}
+
+.user-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.user-name {
+  max-width: 12ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.mobile-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
