@@ -17,7 +17,8 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 import auth
-from api import DATABASE_URL
+from database import DATABASE_URL
+from migrate import upgrade_database
 
 
 def ask_password() -> str:
@@ -38,7 +39,7 @@ def main() -> None:
     if options.command != "list" and not options.login:
         args.error("нужен логин")
     engine = create_engine(DATABASE_URL)
-    auth.AuthBase.metadata.create_all(engine)
+    upgrade_database(engine)
     with sessionmaker(engine)() as session:
         try:
             if options.command == "list":

@@ -1,0 +1,150 @@
+/* --- header and footer ------------------------------------------------------------------- */
+
+.site-head {
+  position: relative;
+  z-index: 10;
+  background: var(--paper-raised);
+  border-bottom: 1px solid var(--line);
+}
+
+.head-in {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: 76px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  justify-self: start;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.eis-mark {
+  flex: none;
+  color: var(--accent);
+}
+
+.brand-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.1px;
+}
+
+.main-nav {
+  display: flex;
+  gap: var(--s1);
+}
+
+.main-nav a,
+.mobile-menu a {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 var(--s4);
+  border-radius: 20px;
+  color: var(--ink-2);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.main-nav a:hover,
+.mobile-menu a:hover {
+  background: var(--field);
+}
+
+.main-nav a[aria-current='page'],
+.mobile-menu a[aria-current='page'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.head-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s6);
+  justify-self: end;
+}
+
+.eis-link {
+  display: inline-flex;
+  white-space: nowrap;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.eis-link:hover {
+  text-decoration: underline;
+}
+
+.menu-btn {
+  display: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.menu-btn.open {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mobile-menu {
+  display: none;
+  padding: var(--s2) var(--s4) var(--s5);
+  border-top: 1px solid var(--line);
+  background: var(--paper-raised);
+}
+
+.mobile-menu nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  margin-bottom: var(--s3);
+}
+
+.mobile-menu nav a {
+  height: 56px;
+  border-radius: 14px;
+  font-weight: 600;
+  font-size: var(--text);
+}
+
+/* the end of every page: whom to write to */
+.site-foot {
+  background: var(--paper-raised);
+  border-top: 1px solid var(--line);
+  color: var(--ink-2);
+}
+
+.foot-in {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2) var(--s6);
+  padding-top: var(--s6);
+  padding-bottom: var(--s6);
+}
+
+.foot-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.foot-in a {
+  color: var(--accent);
+  font-weight: 600;
+}

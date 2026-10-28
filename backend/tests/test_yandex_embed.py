@@ -140,3 +140,11 @@ def test_the_confidence_fit_is_the_yandex_one():
 def test_without_a_key_the_health_says_off(monkeypatch):
     monkeypatch.setattr(embedder, "YANDEX_KEY", "")
     assert embedder.state() == "off"
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), 0.0])
+def test_corrupt_catalog_vectors_are_rejected(tmp_path, bad):
+    file = tmp_path / "vectors.npz"
+    np.savez(file, codes=np.asarray(["code"]), vectors=np.full((1, 256), bad))
+    with pytest.raises(ValueError):
+        search.catalog_vectors(file, ["code"])

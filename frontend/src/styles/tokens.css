@@ -1,0 +1,80 @@
+/* All colors, sizes and spacing of the app live here; components use only these variables.
+   Style: a calm light page, white cards with large corners and soft shadows, one blue.
+   Color also carries meaning: green - done, amber - check, red - error, and every such
+   color comes with a word or a shape. The values match the Figma file (v2). */
+
+:root {
+  color-scheme: light;
+  --bg: #f5f7fa;
+  --paper-raised: #ffffff;
+  --field: #f3f5f9;
+  --head-bar: #e9edf3;
+  --line: #e3e8ef;
+  --line-soft: #edf0f5;
+  --input-line: #8a94a6;
+  --ink: #16202f;
+  --ink-2: #475467;
+  --ink-3: #667085;
+  --ink-off: #7a8599;
+  --accent: #1f5fd6;
+  --accent-2: #194db0;
+  --accent-soft: #eaf1fe;
+  --accent-softer: #f5f8ff;
+  --accent-line: #c5d6f7;
+  --primary-bg: #1f5fd6;
+  --primary-hover: #194db0;
+  --green: #0b7a43;
+  --green-soft: #e4f5eb;
+  --green-dot: #1daa61;
+  --amber: #9a5200;
+  --amber-soft: #fff1d6;
+  --amber-dot: #f59e0b;
+  --red: #b42318;
+  --red-soft: #fdeae8;
+  --red-dot: #e5484d;
+  --gray: #475467;
+  --gray-soft: #eef1f6;
+  --gray-dot: #98a2b3;
+  --warn-line: #f3d38a;
+  --error-line: #f2b3ad;
+  --ok-line: #b2e1c5;
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 16px rgba(16, 24, 40, 0.04);
+  --shadow-lift: 0 2px 4px rgba(16, 24, 40, 0.06), 0 12px 28px rgba(16, 24, 40, 0.1);
+  --shadow-blue: 0 8px 20px rgba(31, 95, 214, 0.35);
+  --shadow-float: 0 6px 16px rgba(16, 24, 40, 0.14), 0 1px 3px rgba(16, 24, 40, 0.1);
+  --skeleton: #e9edf3;
+  --skeleton-shine: #f6f8fb;
+
+  /* confidence zones speak with the meaning colors */
+  --high: var(--green);
+  --medium: var(--amber);
+  --low: var(--red);
+
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text: 15px;
+  --text-lg: 18px;
+  --text-xl: 24px;
+  --text-hero: 40px;
+  /* spacing: 4-point scale */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s7: 32px;
+  --s8: 48px;
+  /* shape */
+  --radius: 20px;
+  --radius-lg: 24px;
+  --radius-md: 16px;
+  --radius-sm: 12px;
+  --radius-xs: 8px;
+  --page: 1200px;
+  --control: 48px;
+  --button: 44px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --fast: 140ms;
+}

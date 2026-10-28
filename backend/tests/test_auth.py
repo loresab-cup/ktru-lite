@@ -1,8 +1,5 @@
 """Accounts: password hashes, registration, login and logout, closed API, wrong passwords."""
 
-import importlib
-from contextlib import asynccontextmanager
-
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
@@ -12,28 +9,15 @@ import auth
 
 
 @pytest.fixture
-def site(monkeypatch, tmp_path):
-    """The API with accounts on, its own SQLite database and a user «ivan»."""
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'initial.db'}")
-    api = importlib.import_module("api")
-    engine = api.create_engine(f"sqlite:///{tmp_path / 'test.db'}")
-    api.Base.metadata.create_all(engine)
-    auth.AuthBase.metadata.create_all(engine)
-    sessions = api.sessionmaker(engine, expire_on_commit=False)
-    monkeypatch.setattr(api, "SessionLocal", sessions)
-    monkeypatch.setattr(api, "AUTH_REQUIRED", True)
-    monkeypatch.setattr(api, "throttle", auth.Throttle())
-    monkeypatch.setattr(api, "registrations", auth.Throttle())
-
-    @asynccontextmanager
-    async def lifespan(_):
-        yield
-
-    monkeypatch.setattr(api.app.router, "lifespan_context", lifespan)
-    with sessions() as session:
+def site(api_database, monkeypatch):
+    """Use the shared isolated database with real account checks enabled."""
+    monkeypatch.setattr(runtime, "AUTH_REQUIRED", True)
+    monkeypatch.setattr(routes.accounts, "throttle", auth.Throttle())
+    monkeypatch.setattr(routes.accounts, "registrations", auth.Throttle())
+    monkeypatch.setattr(routes.accounts, "profile_attempts", auth.Throttle())
+    with database.SessionLocal() as session:
         auth.create_user(session, "Ivan", "correct horse")
-    yield api
-    engine.dispose()
+    return api_database
 
 
 def log_in(client, login="ivan", password="correct horse"):
@@ -65,8 +49,8 @@ def test_api_is_closed_without_a_login_and_open_after(site):
 
 def test_the_database_keeps_no_token(site):
     with TestClient(site.app) as client:
-        token = log_in(client).cookies[site.COOKIE]
-    with site.SessionLocal() as session:
+        token = log_in(client).cookies[runtime.COOKIE]
+    with database.SessionLocal() as session:
         stored = session.scalars(select(auth.LoginSession.token_hash)).all()
     assert len(stored) == 1 and token not in stored[0]
 
@@ -88,7 +72,7 @@ def test_many_wrong_passwords_block_the_login_for_a_while(site):
 
 
 def test_an_expired_session_does_not_open_the_api(site, monkeypatch):
-    monkeypatch.setattr(site, "SESSION_HOURS", -1.0)
+    monkeypatch.setattr(runtime, "SESSION_HOURS", -1.0)
     with TestClient(site.app) as client:
         assert log_in(client).status_code == 200
         assert client.get("/api/jobs").status_code == 401
@@ -97,7 +81,7 @@ def test_an_expired_session_does_not_open_the_api(site, monkeypatch):
 def test_a_new_password_ends_the_sessions(site):
     with TestClient(site.app) as client:
         log_in(client)
-        with site.SessionLocal() as session:
+        with database.SessionLocal() as session:
             auth.set_password(session, "ivan", "another horse")
         assert client.get("/api/jobs").status_code == 401
         assert log_in(client, password="another horse").status_code == 200
@@ -121,7 +105,17 @@ def test_first_admin_only_when_there_are_no_users(tmp_path):
 
 
 def register(client, login="petya", password="long enough"):
-    return client.post("/api/auth/register", json={"login": login, "password": password})
+    import privacy
+
+    return client.post(
+        "/api/auth/register",
+        json={
+            "login": login,
+            "password": password,
+            "privacy_version": privacy.VERSION,
+            "privacy_accepted": True,
+        },
+    )
 
 
 def test_anyone_registers_and_is_logged_in_at_once(site):
@@ -151,3 +145,131 @@ def test_many_accounts_from_one_address_wait(site):
         for n in range(auth.MAX_FAILS):
             assert register(client, login=f"user{n}").status_code == 201
         assert register(client, login="one-more").status_code == 429
+
+
+def test_profile_login_change_rotates_sessions_and_preserves_the_account(site):
+    with TestClient(site.app) as client, TestClient(site.app) as other:
+        log_in(client)
+        log_in(other)
+        old = client.cookies[runtime.COOKIE]
+        response = client.patch(
+            "/api/auth/profile", json={"current_password": "correct horse", "login": " New.Login "}
+        )
+        assert response.status_code == 200 and response.json() == {
+            "login": "new.login",
+            "is_admin": False,
+        }
+        assert client.cookies[runtime.COOKIE] != old
+        assert client.get("/api/auth/me").json()["login"] == "new.login"
+        assert other.get("/api/auth/me").status_code == 401
+        assert log_in(other).status_code == 401
+        assert log_in(other, login="new.login").status_code == 200
+        with database.SessionLocal() as session:
+            users = session.scalars(select(auth.User)).all()
+            assert len(users) == 1 and users[0].id == 1
+
+
+def test_profile_password_change_rejects_the_old_password(site):
+    with TestClient(site.app) as client, TestClient(site.app) as other:
+        log_in(client)
+        log_in(other)
+        response = client.patch(
+            "/api/auth/profile",
+            json={"current_password": "correct horse", "password": "new correct horse"},
+        )
+        assert response.status_code == 200
+        assert client.get("/api/auth/me").status_code == 200
+        assert other.get("/api/auth/me").status_code == 401
+        assert log_in(other).status_code == 401
+        assert log_in(other, password="new correct horse").status_code == 200
+        assert set(response.json()) == {"login", "is_admin"}
+
+
+def test_profile_wrong_password_and_taken_login_do_not_change_anything(site):
+    with database.SessionLocal() as session:
+        auth.create_user(session, "taken", "a different password")
+    with TestClient(site.app) as client:
+        log_in(client)
+        cookie = client.cookies[runtime.COOKIE]
+        response = client.patch(
+            "/api/auth/profile", json={"current_password": "wrong", "login": "new-login"}
+        )
+        assert response.status_code == 403
+        response = client.patch(
+            "/api/auth/profile",
+            json={
+                "current_password": "correct horse",
+                "login": "TAKEN",
+                "password": "new password",
+            },
+        )
+        assert response.status_code == 409
+        assert client.cookies[runtime.COOKIE] == cookie
+        assert client.get("/api/auth/me").json()["login"] == "ivan"
+        assert log_in(client).status_code == 200
+
+
+@pytest.mark.parametrize("changes", [{}, {"login": "абв"}, {"password": "short"}])
+def test_profile_validates_changes_without_ending_the_session(site, changes):
+    with TestClient(site.app) as client:
+        log_in(client)
+        response = client.patch(
+            "/api/auth/profile", json={"current_password": "correct horse", **changes}
+        )
+        assert response.status_code == 400
+        assert client.get("/api/auth/me").json()["login"] == "ivan"
+
+
+def test_profile_cannot_change_another_account_or_grant_admin(site):
+    with TestClient(site.app) as client:
+        assert (
+            client.patch(
+                "/api/auth/profile",
+                json={"current_password": "correct horse", "login": "new-login"},
+            ).status_code
+            == 401
+        )
+        log_in(client)
+        response = client.patch(
+            "/api/auth/profile",
+            json={"current_password": "correct horse", "is_admin": True, "user_id": 99},
+        )
+        assert response.status_code == 422
+        assert client.get("/api/auth/me").json() == {"login": "ivan", "is_admin": False}
+
+
+def test_profile_wrong_password_is_throttled(site):
+    with TestClient(site.app) as client:
+        log_in(client)
+        for _ in range(auth.MAX_FAILS):
+            assert (
+                client.patch(
+                    "/api/auth/profile", json={"current_password": "wrong", "login": "new-login"}
+                ).status_code
+                == 403
+            )
+        assert (
+            client.patch(
+                "/api/auth/profile",
+                json={"current_password": "correct horse", "login": "new-login"},
+            ).status_code
+            == 429
+        )
+
+
+def test_open_development_mode_does_not_authorize_profile_changes(site, monkeypatch):
+    monkeypatch.setattr(runtime, "AUTH_REQUIRED", False)
+    with TestClient(site.app) as client:
+        assert (
+            client.patch(
+                "/api/auth/profile",
+                json={"current_password": "correct horse", "login": "new-login"},
+            ).status_code
+            == 401
+        )
+
+
+import database
+import routes
+import routes.accounts
+import runtime

@@ -1,0 +1,64 @@
+/* --- page heads ---------------------------------------------------------------------------- */
+
+.page-head {
+  padding-top: var(--s7);
+}
+
+.page-title {
+  font-size: var(--text-hero);
+  line-height: 48px;
+  font-weight: 600;
+  letter-spacing: -1.2px;
+}
+
+.title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--s4);
+}
+
+.title-count {
+  display: inline-block; /* «12 позиций» moves to the next line as a whole on a phone */
+  white-space: nowrap;
+  margin-left: var(--s4);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--ink-3);
+}
+
+.took {
+  margin-top: var(--s2);
+}
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s4);
+  font-size: var(--text-sm);
+}
+
+.crumbs a {
+  display: inline-flex;
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.crumbs a:hover {
+  text-decoration: underline;
+}
+
+.crumb-sep {
+  color: var(--ink-off);
+}
+
+.crumb-now {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-3);
+}

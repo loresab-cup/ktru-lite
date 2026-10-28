@@ -27,7 +27,11 @@ STATUS_LABELS = {"TERMINATED": "код отменён", "INACTIVE": "код не
 
 def probability(top1: float, margin: float) -> float:
     z = W_SCORE * min(top1, 1.0) + W_MARGIN * min(margin, MAX_MARGIN) + BIAS
-    return 100.0 / (1.0 + math.exp(-z))
+    # Lower candidates can have a large negative margin: avoid exp(-z) overflow.
+    if z >= 0:
+        return 100.0 / (1.0 + math.exp(-z))
+    exp_z = math.exp(z)
+    return 100.0 * exp_z / (1.0 + exp_z)
 
 
 def zone_of(confidence: float) -> str:
@@ -140,6 +144,17 @@ def with_confidences(candidates: list[dict]) -> list[dict]:
         margin = scores[i] - max(others) if others else 0.0
         result.append(candidate | {"confidence": round(probability(scores[i], margin), 1)})
     return result
+
+
+def for_code(candidates: list[dict], code: str) -> float | None:
+    """Search support for this code against the strongest alternative, not an LLM self-rating.
+
+    Reuse the candidate-card formula, including a negative margin when search prefers another
+    code. An unknown code has no search evidence and must not receive an invented percentage.
+    """
+    return next(
+        (c["confidence"] for c in with_confidences(candidates) if c.get("code") == code), None
+    )
 
 
 def assess(candidates: list[dict], is_product: bool = True) -> dict:

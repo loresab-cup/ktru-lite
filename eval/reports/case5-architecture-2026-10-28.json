@@ -1,0 +1,118 @@
+{
+  "case": 5,
+  "live": true,
+  "checks": {
+    "stack": {
+      "passed": true,
+      "catalog_codes": 81509,
+      "worker_available": true,
+      "pgvector_version": "0.8.7"
+    },
+    "pdf_51_pages": {
+      "job_id": "4fa51b52-804e-4903-bb3f-e818cd6a5c70",
+      "status": "done",
+      "rows": 51,
+      "upload_seconds": 0.264,
+      "seconds": 10.611,
+      "fallback": 0,
+      "words_only": 0,
+      "passed": true
+    },
+    "attributes": {
+      "job_id": "02ffba4d-7d91-490a-8d43-606b7d04250f",
+      "status": "done",
+      "rows": 12,
+      "upload_seconds": 0.013,
+      "seconds": 6.694,
+      "fallback": 0,
+      "words_only": 0,
+      "hits": {
+        "name": 12,
+        "brand": 12,
+        "model": 12
+      },
+      "denominator": 12,
+      "passed": true
+    },
+    "classification": {
+      "job_id": "52a1c8c5-ad02-47c8-b2d2-af13c8a4faa1",
+      "status": "done",
+      "rows": 1000,
+      "upload_seconds": 0.012,
+      "seconds": 192.612,
+      "fallback": 0,
+      "words_only": 0,
+      "exact": 990,
+      "passed": true
+    },
+    "performance": {
+      "seconds": 192.612,
+      "limit": 300,
+      "passed": true
+    },
+    "manual_correction": {
+      "passed": true
+    },
+    "confidence": {
+      "passed": true
+    },
+    "export_csv": {
+      "passed": true
+    },
+    "export_xlsx": {
+      "passed": true
+    }
+  },
+  "limitations": [
+    "Attribute set is 12 handcrafted examples; not an independent organizer benchmark. PDF is text, not a scanned document.",
+    "Confidence values are algorithm estimates, not independently calibrated probabilities.",
+    "Exact pgvector retrieval can reorder tied candidates compared with NumPy; 99/100 first codes matched in a controlled comparison.",
+    "Benchmark runs before the final removal of unused worker flags and separation of the hourly cleanup task; classification pipeline unchanged."
+  ],
+  "passed": true,
+  "date": "2026-10-28",
+  "backend_tests": {
+    "passed": 197,
+    "skipped": 10,
+    "ruff_check": true,
+    "ruff_format": true
+  },
+  "queue_integration": {
+    "pdf_pages": 51,
+    "pdf_upload_seconds": 0.16019275199869298,
+    "pdf_total_seconds": 11.159502815999076,
+    "duplicate_delivery_safe": true,
+    "cancellation_safe": true
+  },
+  "broker_recovery": {
+    "job_id": "c1c3de02-30ce-4ae7-b331-83b9f48411ba",
+    "upload_seconds": 4.03384138399997,
+    "recovered": true,
+    "recovery_seconds": 5.061338713001533
+  },
+  "clean_start": {
+    "passed": true,
+    "catalog": "ready",
+    "codes": 81509,
+    "queue": "celery",
+    "vector_search": "pgvector",
+    "fresh_schema": "0002",
+    "fresh_catalog_vectors": 81509,
+    "frontend_http": 200,
+    "upload_http": 202,
+    "completed_rows": 2,
+    "llm_calls": 0,
+    "limitations": "Fresh Docker project on this computer, not another physical machine; model keys intentionally absent."
+  },
+  "data_preserved": {
+    "jobs": {
+      "original_rows": 16,
+      "hash_preserved": true
+    },
+    "items": {
+      "original_rows": 7225,
+      "hash_preserved": true
+    },
+    "schema": "0002"
+  }
+}

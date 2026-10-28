@@ -3,6 +3,11 @@
 import confidence
 
 
+def test_very_low_candidate_confidence_does_not_overflow():
+    assert confidence.probability(0.5, -10) == 0.0
+    assert 0 <= confidence.probability(0.5, -0.01) < confidence.HIGH
+
+
 def cand(code, name="Кефир", score=0.9, chars=None, status="ACTIVE"):
     return {
         "code": code,

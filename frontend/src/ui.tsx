@@ -16,7 +16,7 @@ export function Confidence({ value, zone }: { value: number | null; zone: Zone }
   if (value === null) return <span className="muted" title={T.confidenceUnknown}>—</span>
   const percent = value
   return (
-    <span className={`conf num zone-${zone}`} title={T.zone[zone]}>
+    <span className={`conf num zone-${zone}`} title={T.confidenceHint}>
       {/* floor: 84.6 % is a "needs review" row and must not read as 85 */}
       {Math.floor(percent)} %<span className="sr-only">, {T.zone[zone]}</span>
     </span>

@@ -25,3 +25,7 @@ _figma
 Схема.png
 # Yandex embeddings of the catalog (scripts/embed_catalog.py)
 db/*.npz
+
+# Local benchmark inputs, generated workbooks and raw API results
+audit-results/
+outputs/

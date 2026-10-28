@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 
 import confidence
+import database
 import embedder
 import extractor
 import parser
@@ -28,6 +29,9 @@ TMP = Path(tempfile.mkdtemp(prefix="ktru-test-"))
 @pytest.fixture(autouse=True)
 def no_llm_key(monkeypatch):
     monkeypatch.setattr(extractor, "PROVIDERS", [])  # no neural network: rules only
+    import job_queue
+
+    monkeypatch.setattr(job_queue, "publish", lambda job_id: True)
 
 
 # Spec files of the old project; the parser tests are skipped without it
@@ -369,12 +373,17 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
     monkeypatch.setenv("CATALOG_PATH", str(TMP / "catalog.jsonl.gz"))
     monkeypatch.setenv("CACHE_DIR", str(TMP / "cache"))
     monkeypatch.setenv("UPLOAD_DIR", str(TMP / "uploads"))
-    monkeypatch.setenv("WORKERS", "1")
     monkeypatch.setattr(search, "CATALOG_PATH", TMP / "catalog.jsonl.gz")
     monkeypatch.setattr(search, "VECTORS_PATH", str(VECTORS_FILE))
     monkeypatch.setattr(search, "CACHE_DIR", TMP / "cache")
     # reads the environment at import; another test may have imported it with other settings
+    importlib.reload(runtime)
+    importlib.reload(database)
     api = importlib.reload(importlib.import_module("api"))
+    import job_queue
+    import tasks
+
+    monkeypatch.setattr(job_queue, "publish", lambda job_id: tasks.process_job.run(str(job_id)))
     monkeypatch.setattr(embedder, "embed", lambda texts: None)  # no vectors: words only
     monkeypatch.setattr(embedder, "state", lambda: "down")
     spec = "Наименование;Кол-во\nБумага для офисной техники А4;10\n=HYPERLINK(1) ноутбук;1\n"
@@ -442,29 +451,10 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
         xlsx = client.get(f"/api/jobs/{job_id}/export", params={"format": "xlsx"})
         assert xlsx.content.startswith(b"PK")
         assert "spec_ktru.xlsx" in xlsx.headers["content-disposition"]
-        api.set_job(uuid.UUID(job_id), status="processing")
+        job_store.set_job(uuid.UUID(job_id), status="processing")
         assert client.get(f"/api/jobs/{job_id}/export").status_code == 409
-        api.set_job(uuid.UUID(job_id), status="done")
+        job_store.set_job(uuid.UUID(job_id), status="done")
         assert client.get("/api/jobs/not-a-uuid").status_code == 404
-
-
-def test_worker_survives_database_errors(monkeypatch):
-    api = importlib.import_module("api")
-    calls = []
-
-    def broken_claim():
-        calls.append(1)
-        if len(calls) >= 2:
-            api.state.stop.set()
-        raise RuntimeError("database is restarting")
-
-    monkeypatch.setattr(api, "claim_job", broken_claim)
-    monkeypatch.setattr(api, "POLL_SECONDS", 0.01)
-    monkeypatch.setattr(api.state, "catalog", object())
-    api.state.stop.clear()
-    api.worker_loop()  # returns only because of stop, not because of the exception
-    assert len(calls) == 2
-    api.state.stop.clear()
 
 
 def test_search_numeric_range_picks_neighbour():
@@ -731,3 +721,7 @@ def test_units_decide_between_twin_codes():
     vectors = np.stack([unit([1, 0])] * 2)
     by_litre, by_kilo = twins.search(vectors, ["Кефир 2,5 %"] * 2, units=["l", "kg"])
     assert by_litre[0]["code"].endswith("05") and by_kilo[0]["code"].endswith("08")
+
+
+import job_store
+import runtime

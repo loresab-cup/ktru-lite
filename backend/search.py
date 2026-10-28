@@ -1,8 +1,8 @@
 """KTRU catalog in memory and the search of candidate codes.
 
-The dump (JSONL in gzip) is streamed once into an (n x 1024) float32 matrix; the matrix and
-the short metadata are cached in CACHE_DIR, so later starts take seconds.
-Search: exact cosine (queries @ matrix.T) -> 50 nearest -> + WORD_BONUS per shared word
+Catalog metadata and 256-dimensional Yandex vectors are loaded by catalog_data.py;
+characteristics.py handles quantities and unit conversion. This module ranks candidates.
+Search: exact pgvector inner product (NumPy cosine offline) -> 50 nearest -> word bonus
 (name + characteristic values: "А4", "80 г/м2" pick the code inside a group) -> top-5.
 Exact, not HNSW: on this catalog HNSW loses up to 14 % of the right codes.
 """
@@ -19,6 +19,25 @@ from pathlib import Path
 
 import numpy as np
 
+from catalog_data import catalog_vectors, load_data
+from characteristics import (
+    _WORD,
+    BRIEF_CHARS,
+    BRIEF_VALUES,
+    MAX_FIXED_VALUES,
+    brief_chars,
+    code_units,
+    fixed_characteristics,
+    in_base,
+    inside,
+    numeric_bounds,
+    query_bounds,
+    same_quantity,
+    unit_key,
+    unit_of,
+    with_unit,
+)
+
 logger = logging.getLogger(__name__)
 
 CATALOG_PATH = Path(os.getenv("CATALOG_PATH", "/catalog/ktru_catalog.jsonl.gz"))
@@ -33,7 +52,6 @@ QUERY_CHUNK = 128  # 128 x 81 509 float32 = 42 MB of similarities at a time
 WORDS_ONLY_BASE = 0.6  # without vectors the score stays low: nothing goes to auto
 MAX_CODE_WORDS = 400
 # Characteristics kept per code: candidates show 6 x 5 of them, a lookup of one code all
-BRIEF_CHARS, BRIEF_VALUES = 20, 40
 CACHE_VERSION = 10  # bump when the cached metadata changes
 # Neighbour codes of one group often differ only by a range: "> 1.25" vs "<= 1.25".
 # A bound of the row equal to a bound of the code adds NUMERIC_BONUS, so does a plain value with
@@ -52,7 +70,6 @@ NUMERIC_CLASH = 0.01
 FIXED_BONUS = 0.02
 FIXED_CLASH = 0.04
 FIXED_FLAG = 0.03
-MAX_FIXED_VALUES = 30
 # A template («шаблон») lists every value of its group, so it matches any row as well as the
 # right specific code. In a real specification the specific code is chosen (12 of 12 there):
 # a template is a little lower - less than one shared word, so it wins only when no specific
@@ -90,61 +107,13 @@ UNIT_BONUS = 0.01
 COLUMN_UNIT_BONUS = 0.03
 
 # Lowercased unit -> key; full names by prefix (longer first), short forms exactly
-_UNIT_PREFIXES = (
-    ("квадратный метр", "m2"),
-    ("кубический метр", "m3"),
-    ("кубический дециметр", "l"),
-    ("миллилитр", "ml"),
-    ("литр", "l"),
-    ("килограмм", "kg"),
-    ("грамм", "g"),
-    ("тонн", "t"),
-    ("штук", "pcs"),
-    ("упаков", "pack"),
-    ("комплект", "set"),
-    ("пар", "pair"),
-    ("человеко-час", "manhour"),
-    ("условн", "unit"),
-    ("метр", "m"),
-)
-_UNIT_SHORT = {
-    "кг": "kg",
-    "г": "g",
-    "гр": "g",
-    "т": "t",
-    "л": "l",
-    "мл": "ml",
-    "дм3": "l",
-    "шт": "pcs",
-    "упак": "pack",
-    "уп": "pack",
-    "компл": "set",
-    "к-т": "set",
-    "пара": "pair",
-    "м": "m",
-    "м2": "m2",
-    "м3": "m3",
-    "чел.-ч": "manhour",
-    "чел.-час": "manhour",
-    "усл. ед": "unit",
-    "усл.ед": "unit",
-}
 
 # Latin letters that look like Cyrillic ones: "A4" and "А4" must be the same word
 _LOOKALIKE = str.maketrans("aceopxkmhbty", "асеорхкмнвту")
 # A decimal number is one word: «2,5 процента» must not match the values «2» and «≥ 2»
 # «Нужно: ноутбук Lenovo…» - the name follows the request word (human_1000 has 132 such rows)
 REQUEST_PREFIX = re.compile(r"^\s*(нужн[оаы]?|требу[ею]тся|необходим[оаы]?)\s*:\s*", re.IGNORECASE)
-_WORD = re.compile(r"\d+(?:[.,]\d+)+|[a-zа-я0-9]+")
 _DECIMAL = re.compile(r"\d+(?:\.\d+)+")
-_NUM = r"(\d+(?:[.,]\d+)?)"
-_LOWER = re.compile(
-    rf"(?<!\w)(?:не\s+менее|не\s+меньше|(?<!не )более|(?<!не )больше|свыше|от|≥|>=|>)\s*{_NUM}"
-)
-_UPPER = re.compile(
-    rf"(?<!\w)(?:не\s+более|не\s+больше|(?<!не )менее|(?<!не )меньше|до|≤|<=|<)\s*{_NUM}"
-)
-_PLAIN = re.compile(rf"(?<![\w.,]){_NUM}")
 
 # Numbers are compared in one unit per quantity: «2 м» = «2000 Миллиметр», «0,1 кг» = «100 г».
 # The base is the most common unit of the quantity in the catalog (Миллиметр: 150 392 values,
@@ -154,49 +123,6 @@ _PLAIN = re.compile(rf"(?<![\w.,]){_NUM}")
 # quantities: a unit followed by «в», «на» or «/» is not converted.
 # The quantity keeps numbers of different things apart: «16 ГБ» of memory is not inside
 # «≥ 14 Штука» of processor cores, «15.6 Дюйм» is not inside a range of millimetres.
-_SCALE_PREFIXES = (
-    ("кубический сантиметр", 1.0, "volume"),
-    ("кубический дециметр", 1000.0, "volume"),
-    ("кубический метр", 1e6, "volume"),
-    ("миллиметр", 1.0, "length"),
-    ("сантиметр", 10.0, "length"),
-    ("километр", 1e6, "length"),
-    ("метр", 1000.0, "length"),
-    ("миллиграмм", 1e-6, "mass"),
-    ("килограмм", 1.0, "mass"),
-    ("грамм", 0.001, "mass"),
-    ("тонн", 1000.0, "mass"),
-    ("миллилитр", 1.0, "volume"),
-    ("литр", 1000.0, "volume"),
-    ("мегабайт", 1 / 1024, "bytes"),
-    ("гигабайт", 1.0, "bytes"),
-    ("терабайт", 1024.0, "bytes"),
-    ("штук", 1.0, "count"),
-    ("процент", 1.0, "percent"),
-    ("дюйм", 1.0, "inch"),
-    ("%", 1.0, "percent"),
-)
-_SCALE_SHORT = {
-    "мм": (1.0, "length"),
-    "см": (10.0, "length"),
-    "м": (1000.0, "length"),
-    "км": (1e6, "length"),
-    "мг": (1e-6, "mass"),
-    "г": (0.001, "mass"),
-    "гр": (0.001, "mass"),
-    "кг": (1.0, "mass"),
-    "т": (1000.0, "mass"),
-    "мл": (1.0, "volume"),
-    "см3": (1.0, "volume"),
-    "л": (1000.0, "volume"),
-    "дм3": (1000.0, "volume"),
-    "м3": (1e6, "volume"),
-    "мб": (1 / 1024, "bytes"),
-    "гб": (1.0, "bytes"),
-    "тб": (1024.0, "bytes"),
-    "шт": (1.0, "count"),
-}
-_COMPOUND = ("в ", "на ", "/")
 
 
 # Names of characteristics that customers write otherwise than the catalog: «жирность 2,5 %»
@@ -238,60 +164,6 @@ def same_product(name: str, catalog_name: str) -> bool:
     asked = _WORD.findall(name.lower().replace("ё", "е"))
     best = _WORD.findall(catalog_name.lower().replace("ё", "е"))
     return set(asked) == set(best) or best[: len(asked)] == asked
-
-
-def unit_of(text: str) -> tuple[float, str] | None:
-    """(factor to the base unit, quantity) for the unit at the start of lowercase text:
-    «м …» -> (1000, "length")."""
-    text = text.lstrip(" (").replace("³", "3")
-    found = next(((p, f, q) for p, f, q in _SCALE_PREFIXES if text.startswith(p)), None)
-    if found is None:
-        word = _WORD.match(text)
-        if not word or word.group() not in _SCALE_SHORT:
-            return None
-        found = (word.group(), *_SCALE_SHORT[word.group()])
-    rest = text[len(found[0]) :].lstrip("абвгдеёжзийклмнопрстуфхцчшщъыьэюя").lstrip(" .")
-    return None if rest.startswith(_COMPOUND) else found[1:]
-
-
-def in_base(number: str, unit_text: str) -> tuple[float, str | None]:
-    """«2», «м» -> (2000.0, "length"); rounded so that 0,1 кг and 100 г are equal floats.
-    A number without a known unit keeps its value and has no quantity."""
-    factor, quantity = unit_of(unit_text) or (1.0, None)
-    return round(float(number.replace(",", ".")) * factor, 9), quantity
-
-
-def same_quantity(a: str | None, b: str | None) -> bool:
-    """A number without a unit is compared with anything; two units must measure one thing."""
-    return a is None or b is None or a == b
-
-
-def query_bounds(text: str) -> tuple[set, set, set]:
-    """Lower and upper bounds and plain values with a unit in a row, as (value in base units,
-    quantity): "не менее 3 м и менее 4000 мм, вес 100 г" ->
-    {(3000, length)}, {(4000, length)}, {(0.1, mass)}."""
-    text = (text or "").lower().replace("ё", "е")
-    lower, upper, plain, bound_spans = set(), set(), set(), set()
-    for pattern, found in ((_LOWER, lower), (_UPPER, upper)):
-        for m in pattern.finditer(text):
-            found.add(in_base(m.group(1), text[m.end() : m.end() + 40]))
-            bound_spans.add(m.span(1))
-    for m in _PLAIN.finditer(text):
-        after = text[m.end() : m.end() + 40]
-        if m.span(1) not in bound_spans and unit_of(after) is not None:
-            plain.add(in_base(m.group(1), after))
-    return lower, upper, plain
-
-
-def unit_key(text: str) -> str | None:
-    """«Литр», «л», «кубический дециметр» -> "l"; unknown units -> None.
-
-    The EIS writes several names of one unit in a cell: «л; дм[3*]» - the first one counts."""
-    text = (text or "").split(";")[0]
-    text = " ".join(text.lower().replace("ё", "е").split()).strip(" .")
-    if text in _UNIT_SHORT:
-        return _UNIT_SHORT[text]
-    return next((key for prefix, key in _UNIT_PREFIXES if text.startswith(prefix)), None)
 
 
 def stems(text: str) -> set[str]:
@@ -530,6 +402,8 @@ class Catalog:
 
     def _nearest_by_vectors(self, queries: np.ndarray, include_inactive: bool) -> list[list]:
         limit = min(VECTOR_LIMIT, len(self.codes))
+        if getattr(self, "vector_store", None) is not None:
+            return self.vector_store.nearest(queries, include_inactive, limit)
         result = []
         for start in range(0, len(queries), QUERY_CHUNK):
             sims = queries[start : start + QUERY_CHUNK] @ self.vectors.T
@@ -714,73 +588,6 @@ class Catalog:
 # --- loading -------------------------------------------------------------------------------
 
 
-def fixed_characteristics(characteristics: list) -> list[list]:
-    """[[name, [values]]] of the characteristics the customer may not change."""
-    fixed = []
-    for characteristic in characteristics or []:
-        if (characteristic.get("kind") or "").startswith("Неизменяемая"):
-            values = [v.get("text") or "" for v in characteristic.get("values") or []]
-            fixed.append([characteristic.get("name") or "", values[:MAX_FIXED_VALUES]])
-    return fixed
-
-
-def code_units(units: list | None) -> list[str]:
-    """Unit keys of a code: ["Литр; кубический дециметр"] -> ["l"]."""
-    keys = {unit_key(part) for unit in units or [] for part in str(unit).split(";")}
-    return sorted(key for key in keys if key)
-
-
-def numeric_bounds(characteristics: list) -> list[list]:
-    """[[min, max, quantity, min is strict, max is strict], ...] of the numeric values in base
-    units: «≥ 2 и < 3 Метр» -> [2000, 3000, "length", False, True]; an exact value «1 Штука» is
-    [1, 1, "count", False, False]. None is an open side or a value without a known unit."""
-    ranges = []
-    for characteristic in characteristics or []:
-        for value in characteristic.get("values") or []:
-            low, high = value.get("min"), value.get("max")
-            if not isinstance(low, int | float) and not isinstance(high, int | float):
-                continue
-            unit = str(value.get("unit") or "").lower()
-            quantity = (unit_of(unit) or (1.0, None))[1]
-            sides = [
-                in_base(str(x), unit)[0] if isinstance(x, int | float) else None
-                for x in (low, high)
-            ]
-            strict = [value.get("min_op") == ">", value.get("max_op") == "<"]
-            ranges.append([*sides, quantity, *strict])
-    return ranges
-
-
-def inside(value: float, bounds: list) -> bool:
-    """A plain value of the row inside [min, max, quantity, min strict, max strict] of a code."""
-    low, high, _, low_strict, high_strict = bounds
-    above = low is None or value > low or (value == low and not low_strict)
-    below = high is None or value < high or (value == high and not high_strict)
-    return above and below
-
-
-def brief_chars(characteristics: list) -> tuple[list, list[str]]:
-    """[[name, [values], unit]] for the UI and all value texts for word matching.
-
-    One characteristic has one unit in the dump (2 exceptions of 330 743), so it is kept once."""
-    brief, texts = [], []
-    for characteristic in characteristics or []:
-        raw = [v for v in characteristic.get("values") or [] if v.get("text")]
-        values = [v["text"] for v in raw]
-        texts.extend(values)
-        if len(brief) < BRIEF_CHARS:
-            unit = next((str(v["unit"]) for v in raw if v.get("unit")), "")
-            brief.append(
-                [characteristic.get("name") or "", [v[:80] for v in values[:BRIEF_VALUES]], unit]
-            )
-    return brief, texts
-
-
-def with_unit(value: str, unit: str) -> str:
-    """«≥ 10 и < 15» + «Грамм» -> «≥ 10 и < 15 Грамм»; text values have no unit."""
-    return f"{value} {unit}" if unit else value
-
-
 def build(path: Path) -> dict:
     """Streams the dump into short lists; the vectors come from VECTORS_PATH."""
     meta: dict[str, list] = {
@@ -819,60 +626,40 @@ def build(path: Path) -> dict:
     return meta
 
 
-def catalog_vectors(path: Path, codes: list[str]) -> np.ndarray:
-    """Vectors of the file in the order of the catalog codes, L2-normalized.
-
-    A code of the catalog without a vector is an error: the file belongs to another dump."""
-    with np.load(path) as data:
-        stored = [str(c) for c in data["codes"]]
-        vectors = np.asarray(data["vectors"], dtype=np.float32)
-    if stored != codes:
-        index = {code: i for i, code in enumerate(stored)}
-        missing = [c for c in codes if c not in index]
-        if missing:
-            raise ValueError(f"{path}: no vectors for {len(missing)} codes, e.g. {missing[0]}")
-        vectors = vectors[[index[c] for c in codes]]
-    norms = np.linalg.norm(vectors, axis=1, keepdims=True)
-    return vectors / np.maximum(norms, 1e-12)
-
-
 def load_catalog(
     path: Path | None = None, cache_dir: Path | None = None, vectors_file: str | None = None
 ) -> Catalog:
-    path, cache_dir = path or CATALOG_PATH, cache_dir or CACHE_DIR
-    vectors_file = VECTORS_PATH if vectors_file is None else vectors_file
-    stat = path.stat()
-    key = f"v{CACHE_VERSION}-{stat.st_size}-{stat.st_mtime_ns}"
-    meta_path = cache_dir / f"catalog-{key}.json.gz"
-    if not Path(vectors_file).is_file():  # fails at once, not after the 20 s build
-        raise FileNotFoundError(f"no catalog vectors file {vectors_file}: see README")
-    if meta_path.exists():
-        with gzip.open(meta_path, "rt", encoding="utf-8") as file:
-            meta = json.load(file)
-        logger.info("catalog from cache: %s codes", len(meta["codes"]))
-    else:
-        meta = build(path)
-        logger.info("catalog built from the dump: %s codes", len(meta["codes"]))
-        try:
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            for old in cache_dir.glob("catalog-*"):
-                old.unlink()
-            with gzip.open(meta_path, "wt", encoding="utf-8", compresslevel=1) as file:
-                json.dump(meta, file, ensure_ascii=False)
-        except OSError:
-            logger.warning("catalog cache is not written to %s", cache_dir, exc_info=True)
-    vectors = catalog_vectors(Path(vectors_file), meta["codes"])
-    logger.info("catalog vectors from %s: %s numbers", vectors_file, vectors.shape[1])
+    """Load validated catalog data and construct the in-memory search index."""
+    vectors, meta = load_data(
+        path or CATALOG_PATH,
+        cache_dir or CACHE_DIR,
+        VECTORS_PATH if vectors_file is None else vectors_file,
+        build,
+        CACHE_VERSION,
+    )
     return Catalog(
         vectors=vectors,
-        codes=meta["codes"],
-        statuses=meta["statuses"],
-        names=meta["names"],
-        okpd2=meta["okpd2"],
         code_words=meta["words"],
-        chars=meta["chars"],
-        bounds=meta["bounds"],
-        fixed=meta["fixed"],
-        templates=meta["templates"],
-        units=meta["units"],
+        **{key: value for key, value in meta.items() if key != "words"},
     )
+
+
+__all__ = [
+    "BRIEF_CHARS",
+    "BRIEF_VALUES",
+    "MAX_FIXED_VALUES",
+    "Catalog",
+    "brief_chars",
+    "catalog_vectors",
+    "code_units",
+    "fixed_characteristics",
+    "in_base",
+    "inside",
+    "load_catalog",
+    "numeric_bounds",
+    "query_bounds",
+    "same_quantity",
+    "unit_key",
+    "unit_of",
+    "with_unit",
+]

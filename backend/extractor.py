@@ -1,6 +1,6 @@
 """Positions -> attributes: name, brand, model, characteristics, search_text.
 
-Neural networks from providers.py (YandexGPT keys and GigaChat through the OpenAI-compatible API) do the work;
+Neural networks from providers.py (YandexGPT keys through the OpenAI-compatible API) do the work;
 every value they return must be present in the source row (guard against invented values and
 prompt injection). No provider, the budget is over or every provider failed -> simple rules.
 A job never fails here.
@@ -94,6 +94,33 @@ def in_source(value: str, source: str) -> bool:
     return not value or norm(value) in norm(source)
 
 
+def product_name(name: str, brand: str, model: str, characteristics: list[dict]) -> str:
+    """Separate a copied product name from already identified attributes.
+
+    Only trim suffixes: never rewrite source words or turn a product into a heading.
+    A comma alone is not enough evidence: the suffix must contain an extracted value.
+    """
+    original = name
+    for value in (brand, model):
+        if value:
+            match = re.search(r"(?<!\w)" + re.escape(value) + r"(?!\w)", name, re.IGNORECASE)
+            if match and match.start() > 0:
+                name = name[:match.start()].rstrip(' ,;:.«»"')
+    for match in re.finditer(r"[,;]", name):
+        tail = name[match.end():]
+        if any(c.get("value") and in_source(c["value"], tail) for c in characteristics):
+            name = name[:match.start()].strip()
+            break
+    for characteristic in characteristics:
+        label = norm(characteristic.get("name", ""))
+        value = characteristic.get("value", "")
+        if value and any(word in label for word in ("формат", "размер", "резьб")):
+            match = re.search(r"\s+" + re.escape(value) + r"$", name, re.IGNORECASE)
+            if match:
+                name = name[:match.start()].strip()
+    return name or original
+
+
 def accept(proposed: dict, source: str) -> dict:
     """One answer object -> attributes; values that are not in the source row are dropped."""
     if not isinstance(proposed.get("name"), str):
@@ -127,9 +154,11 @@ def accept(proposed: dict, source: str) -> dict:
     search_text = " ".join(str(proposed.get("search_text") or "").split())[:MAX_SEARCH_TEXT]
     # An explicit "" means "not a product"; a name that is not in the row comes from rules
     proposed_name = str(proposed.get("name") or "").strip()
+    name = (checked("name") or fallback["name"]) if proposed_name else ""
+    brand = checked("brand")
     return {
-        "name": (checked("name") or fallback["name"]) if proposed_name else "",
-        "brand": checked("brand"),
+        "name": product_name(name, brand, model, characteristics),
+        "brand": brand,
         "model": model,
         "characteristics": characteristics,
         "search_text": search_text or source,
@@ -295,9 +324,9 @@ def llm_state() -> str:
 
 
 def usable(tried: set[str]) -> list[providers.Provider]:
-    """Providers a batch may go to now; GigaChat only when no other one is left for it."""
+    """Yandex providers a batch may go to now."""
     alive = [p for p in PROVIDERS if p.configured and not p.is_down() and p.name not in tried]
-    return [p for p in alive if p.kind != "gigachat"] or alive
+    return alive
 
 
 class Waiter:
@@ -314,11 +343,7 @@ _waiting_lock = threading.Lock()
 def take_provider(tried: set[str], deadline: float) -> providers.Provider | None:
     """A free request slot of the first provider in the list; waits while all are busy.
 
-    GigaChat is the last resort: it gets a batch only when no other provider is left for it, not
-    while the others are merely busy. A freed slot goes to the batch that has waited longest for
-    that provider: the pool has a worker for the GigaChat slot too, and without the queue the
-    worker that had just finished a batch took the slot again at once. On 1000 rows the sixth
-    batch (rows 101-120) waited until the very end and held back the progress at 100.
+    A freed slot goes to the batch that has waited longest for that provider.
     None - every provider is down or has already failed this batch, or the budget is over."""
     me = Waiter({p.name for p in usable(tried)})
     with _waiting_lock:

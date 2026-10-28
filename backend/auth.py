@@ -31,6 +31,10 @@ class LoginTaken(ValueError):
     """Another user already has this login."""
 
 
+class WrongPassword(ValueError):
+    """The current password did not authorize an account change."""
+
+
 class AuthBase(DeclarativeBase):
     pass
 
@@ -127,6 +131,57 @@ def remove_user(session: Session, login: str) -> None:
     session.execute(delete(LoginSession).where(LoginSession.user_id == user.id))
     session.delete(user)
     session.commit()
+
+
+def locked_user(session: Session, token: str) -> User | None:
+    """Lock an authenticated account and recheck a token after waiting for concurrent changes."""
+    found = user_by_token(session, token)
+    if found is None:
+        return None
+    user = session.scalar(
+        select(User)
+        .where(User.id == found.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    # A concurrent profile change may have revoked this token while the row lock was awaited.
+    active = session.scalar(
+        select(LoginSession.token_hash).where(
+            LoginSession.token_hash == _token_hash(token),
+            LoginSession.expires_at > datetime.now(UTC),
+        )
+    )
+    return user if active is not None else None
+
+
+def change_profile(
+    session: Session,
+    token: str,
+    current_password: str,
+    login: str | None,
+    password: str | None,
+    hours: float,
+) -> tuple[str, User] | None:
+    """Atomically change this account and rotate all sessions; never accept another user ID."""
+    user = locked_user(session, token)
+    if user is None:
+        return None
+    if not verify_password(current_password, user.password_hash):
+        raise WrongPassword("Текущий пароль неверен")
+    if login is None and password is None:
+        raise ValueError("Укажите новый логин или пароль")
+    if login is not None:
+        user.login = clean_login(login)
+    if password is not None:
+        check_password(password)
+        user.password_hash = hash_password(password)
+    try:
+        session.execute(delete(LoginSession).where(LoginSession.user_id == user.id))
+        fresh = start_session(session, user, hours)
+    except IntegrityError:
+        session.rollback()
+        raise LoginTaken("Этот логин уже занят") from None
+    return fresh, user
 
 
 def _user(session: Session, login: str) -> User:

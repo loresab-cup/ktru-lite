@@ -19,9 +19,9 @@ def chat_answer(content: str = ANSWER, finish: str = "stop") -> dict:
     return {"choices": [{"message": {"content": content}, "finish_reason": finish}]}
 
 
-def mock(monkeypatch, handler, gigachat: bool = False) -> None:
+def mock(monkeypatch, handler) -> None:
     client = httpx.Client(transport=httpx.MockTransport(handler))
-    monkeypatch.setattr(providers, "_gigachat_client" if gigachat else "_client", client)
+    monkeypatch.setattr(providers, "_client", client)
 
 
 def openai(parallel: int = 1, name: str = "x") -> Provider:
@@ -29,77 +29,6 @@ def openai(parallel: int = 1, name: str = "x") -> Provider:
 
 
 # --- HTTP ----------------------------------------------------------------------------------
-
-
-class FakeGigaChat:
-    """An OAuth server and a chat endpoint that may reject the first token."""
-
-    def __init__(self, reject_first_chat: bool = False):
-        self.tokens = 0
-        self.chats = []
-        self.reject = reject_first_chat
-
-    def __call__(self, request: httpx.Request) -> httpx.Response:
-        if str(request.url) == providers.AUTH_URL:
-            assert request.headers["Authorization"] == "Basic test-key"
-            assert request.headers["RqUID"]  # uuid4 is required by the OAuth endpoint
-            self.tokens += 1
-            body = {"access_token": f"token-{self.tokens}", "expires_at": 4_000_000_000_000}
-            return httpx.Response(200, json=body)
-        self.chats.append(request.headers["Authorization"])
-        if self.reject:
-            self.reject = False
-            return httpx.Response(401, json={"message": "expired"})
-        assert json.loads(request.content)["temperature"] > 0
-        return httpx.Response(200, json=chat_answer())
-
-
-@pytest.fixture
-def gigachat(monkeypatch):
-    monkeypatch.setattr(providers, "_token", {"value": "", "expires": 0.0})
-    return Provider("gigachat", "gigachat", "https://giga/v1", "test-key", "GigaChat-3-Ultra")
-
-
-def test_gigachat_token_is_cached_and_used(monkeypatch, gigachat):
-    fake = FakeGigaChat()
-    mock(monkeypatch, fake, gigachat=True)
-    deadline = time.monotonic() + 30
-    assert providers.chat(gigachat, "s", "[]", deadline) == ANSWER
-    assert providers.chat(gigachat, "s", "[]", deadline) == ANSWER
-    assert fake.tokens == 1 and fake.chats == ["Bearer token-1", "Bearer token-1"]
-
-
-def test_gigachat_renews_rejected_token(monkeypatch, gigachat):
-    fake = FakeGigaChat(reject_first_chat=True)
-    mock(monkeypatch, fake, gigachat=True)
-    assert providers.chat(gigachat, "s", "[]", time.monotonic() + 30) == ANSWER
-    assert fake.tokens == 2 and fake.chats == ["Bearer token-1", "Bearer token-2"]
-
-
-def test_oauth_lock_respects_job_budget(monkeypatch):
-    lock = threading.Lock()
-    lock.acquire()
-    monkeypatch.setattr(providers, "_token_lock", lock)
-    try:
-        with pytest.raises(TimeoutError):
-            providers.access_token("key", deadline=time.monotonic() + 0.02)
-    finally:
-        lock.release()
-
-
-def test_oauth_timeout_is_limited_by_remaining_budget(monkeypatch):
-    seen = []
-
-    def handler(request):
-        seen.append(request.extensions["timeout"]["read"])
-        raise httpx.ReadTimeout("synthetic timeout", request=request)
-
-    mock(monkeypatch, handler, gigachat=True)
-    monkeypatch.setattr(providers, "_token", {"value": "", "expires": 0.0})
-    with pytest.raises(TimeoutError):
-        providers.access_token("key", deadline=time.monotonic() + 0.2)
-    assert 0 < seen[0] <= 0.2 + 1e-6
-    assert not providers._token_lock.locked()
 
 
 @pytest.mark.parametrize("status", [429, 500, 503])
@@ -208,8 +137,7 @@ def test_load_from_env():
         "OTHER_API_KEY": "d",
         "OTHER_MODEL": "chat",
     }
-    giga, first = providers.load(env)  # "other" is no YandexGPT or GigaChat: not used
-    assert (giga.kind, giga.parallel, giga.configured) == ("gigachat", 1, True)
+    [first] = providers.load(env)  # Removed and unknown providers are ignored.
     assert (first.kind, first.parallel, first.model) == ("yandex", 4, "gpt://b1g/yandexgpt-5.1")
     assert "reasoning_effort" not in providers.body(first, "s", "u")
     assert not providers.load({"LLM_PROVIDERS": "yandex3"})[0].configured  # no key
@@ -226,7 +154,7 @@ def test_load_from_env():
     # a key without its folder cannot address a model
     assert not providers.load({"LLM_PROVIDERS": "yandex", "YANDEX_API_KEY": "k"})[0].configured
     names = [p.name for p in providers.load({})]
-    assert names == ["yandex", "yandex2", "yandex3", "yandex4", "yandex5", "gigachat"]
+    assert names == ["yandex", "yandex2", "yandex3", "yandex4", "yandex5"]
     # Another key needs only its own line: folder, model and limits come from YANDEX_*;
     # a key of another cloud brings its own folder, a full gpt:// URI is kept as it is
     shared = env | {
@@ -293,23 +221,6 @@ def test_failed_batch_moves_to_the_next_provider(monkeypatch):
     assert first.slots.acquire(blocking=False) and second.slots.acquire(blocking=False)
 
 
-def test_gigachat_is_used_only_when_yandex_cannot_answer(monkeypatch):
-    refused = httpx.HTTPStatusError("500", request=None, response=httpx.Response(500))
-    yandex = openai(name="yandex")
-    giga = Provider("gigachat", "gigachat", "https://giga/v1", "key", "GigaChat-3-Ultra")
-    monkeypatch.setattr(extractor, "PROVIDERS", [giga, yandex])  # even listed first
-    calls = []
-    monkeypatch.setattr(providers, "chat", fake_chat(log=calls))
-    [row] = extractor.extract_chunk(["Бумага"], time.monotonic() + 5)
-    assert row["provider"] == "yandex" and calls == ["yandex"]
-    yandex.slots.acquire()  # YandexGPT is only busy: the batch waits instead of going to GigaChat
-    assert extractor.take_provider(set(), time.monotonic() + 0.2) is None
-    yandex.slots.release()
-    monkeypatch.setattr(providers, "chat", fake_chat({"yandex": refused}))
-    [row] = extractor.extract_chunk(["Бумага"], time.monotonic() + 5)
-    assert row["provider"] == "gigachat"  # YandexGPT failed: GigaChat takes over
-
-
 def test_budget_end_gives_budget_reason(monkeypatch):
     monkeypatch.setattr(extractor, "PROVIDERS", [openai()])
     monkeypatch.setattr(providers, "chat", fake_chat({"x": TimeoutError("cut")}))
@@ -364,11 +275,9 @@ def test_a_freed_slot_goes_to_the_batch_that_waited_longest(monkeypatch):
     yandex.slots.release()
 
 
-def test_the_worker_of_the_gigachat_slot_does_not_hold_a_batch_back(monkeypatch):
-    """5 YandexGPT slots and a GigaChat one: 6 workers. The sixth batch used to wait until no
-    other batch was left, and the rows after it reached the table only at the end."""
+def test_extra_worker_does_not_hold_a_batch_back(monkeypatch):
+    """Waiting batches get a slot before a later batch can take it again."""
     yandex = openai(parallel=5, name="yandex")
-    giga = Provider("gigachat", "gigachat", "https://giga/v1", "key", "GigaChat-3-Ultra")
     finished = []
     inner = fake_chat()
 
@@ -377,7 +286,7 @@ def test_the_worker_of_the_gigachat_slot_does_not_hold_a_batch_back(monkeypatch)
         finished.append(json.loads(user)[0]["text"])
         return inner(p, system, user, *args)
 
-    monkeypatch.setattr(extractor, "PROVIDERS", [yandex, giga])
+    monkeypatch.setattr(extractor, "PROVIDERS", [yandex])
     monkeypatch.setattr(extractor, "_pool", ThreadPoolExecutor(6))
     monkeypatch.setattr(extractor, "SLOTS", 6)
     monkeypatch.setattr(extractor, "BATCH_SIZE", 1)

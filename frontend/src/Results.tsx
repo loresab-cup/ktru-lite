@@ -1,140 +1,41 @@
+import { useRowSelection } from './results/useRowSelection'
 import { Checkbox, Input, InputNumber, message, Select, Switch } from 'antd'
 import {
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
   CheckCheck,
-  ChevronDown,
   Eye,
   Search,
   SlidersHorizontal,
-  Undo2,
+  Undo2
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { api, ApiError, type ItemRow, type Job, type Sort } from './api'
+import { api, ApiError, type Job, type Sort } from './api'
 import { useHealth } from './health'
-import { Link } from './Link'
+import { useResultsPage } from './results/useResultsPage'
+import { ResultCard, SortCaption } from './results/ResultCard'
 import {
   forgetItem,
   lastItemOf,
   navigate,
   paths,
-  saveListView,
   savedListView,
+  saveListView,
   type ListView,
 } from './router'
-import { formatDate, T } from './texts'
-import { Confidence, EmptyState, Notice, Pager, Skeleton, StatusChip } from './ui'
+import { T } from './texts'
+import { EmptyState, Notice, Pager, Skeleton } from './ui'
 
-const PAGE_SIZE = 20
-const FILTERS = ['auto', 'needs_review', 'corrected', 'accepted'] as const
+
+
 const COLUMNS: { sort: Sort; label: string; className: string }[] = [
   { sort: 'code', label: T.results.columns.name, className: 'res-head-name' },
   { sort: 'confidence', label: T.results.columns.confidence, className: 'res-head-conf' },
   { sort: 'status', label: T.results.columns.status, className: 'res-head-status' },
 ]
 
-/** The caption of a column that sorts the list: click goes ascending, descending, off. */
-function SortCaption({ column, sort, order, onSort }: {
-  column: (typeof COLUMNS)[number]
-  sort: Sort | ''
-  order: 'asc' | 'desc'
-  onSort: (sort: Sort) => void
-}) {
-  const on = sort === column.sort
-  const Icon = !on ? ArrowUpDown : order === 'asc' ? ArrowUp : ArrowDown
-  return (
-    <button
-      type="button"
-      className={`res-sort ${column.className} ${on ? 'on' : ''}`}
-      aria-label={T.results.sort.by(column.label, on ? T.results.sort[order] : '')}
-      onClick={() => onSort(column.sort)}
-    >
-      {column.label}
-      <Icon size={14} aria-hidden="true" />
-    </button>
-  )
-}
+const PAGE_SIZE = 20
 
-/** One position: its row number, the code with its name, the confidence and the status.
- *  When positions are picked, a returnable one shows a check box in place of the number. */
-function ResultCard({ item, jobId, open, onToggle, pick }: {
-  item: ItemRow
-  jobId: string
-  open: boolean
-  onToggle: () => void
-  pick?: { checked: boolean; onChange: () => void }
-}) {
-  const to = paths.item(jobId, item.id)
-  const characteristics = item.attributes.characteristics ?? []
-  return (
-    <article className="res-card">
-      <div className="res-top">
-        {pick ? (
-          <span className="row-badge pick">
-            <Checkbox
-              checked={pick.checked}
-              onChange={pick.onChange}
-              aria-label={T.results.pick.row(item.row_number)}
-            />
-          </span>
-        ) : (
-          <span className="row-badge num" title={T.results.rowNumber(item.row_number)}>
-            <span className="sr-only">{T.results.row} </span>
-            {item.row_number}
-          </span>
-        )}
-        <div className="res-title">
-          <Link className={`res-code ${item.ktru_code ? '' : 'none'}`} to={to} data-item={item.id}>
-            {item.ktru_code ?? T.results.noCode}
-          </Link>
-          {item.ktru_name && (
-            <Link className="res-name sentence" to={to} tabIndex={-1}>
-              {item.ktru_name}
-            </Link>
-          )}
-          {item.status === 'needs_review' && item.attributes.review && (
-            <p className="review-reason">{item.attributes.review}</p>
-          )}
-          {item.attributes.remembered && (
-            <p className="remembered-note">
-              {T.results.remembered(formatDate(item.attributes.remembered))}
-            </p>
-          )}
-        </div>
-        <div className="res-conf">
-          <span className="cap-small">{T.results.confidence}</span>
-          <Confidence value={item.confidence} zone={item.zone} />
-        </div>
-        <div className="res-status">
-          <span className="cap-small">{T.results.status}</span>
-          <StatusChip status={item.status} />
-        </div>
-      </div>
-      <button type="button" className="res-more" aria-expanded={open} onClick={onToggle}>
-        {T.results.more}
-        <ChevronDown size={18} aria-hidden="true" className={open ? 'flip' : ''} />
-      </button>
-      {open && (
-        <div className="res-more-body">
-          {characteristics.length > 0 && (
-            <div className="chips">
-              {characteristics.map((c, i) => (
-                <span key={i} className="chip">
-                  {[c.name, [c.value, c.unit].filter(Boolean).join(' ')].filter(Boolean).join(': ')}
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="res-source">
-            <div className="cap">{T.results.sourceText}</div>
-            {item.raw_text}
-          </div>
-        </div>
-      )}
-    </article>
-  )
-}
+const FILTERS = ['auto', 'needs_review', 'corrected', 'accepted'] as const
+
 
 export function Results({ job, onChanged }: { job: Job; onChanged: () => void }) {
   // What the person set up in this list is kept: back from a position it opens the same page
@@ -145,12 +46,9 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
   const [page, setPage] = useState(saved?.page ?? 1)
   const [sort, setSort] = useState<Sort | ''>(saved?.sort ?? '')
   const [order, setOrder] = useState<ListView['order']>(saved?.order ?? 'asc')
-  const [data, setData] = useState<{ total: number; items: ItemRow[] } | null>(null)
   const [version, setVersion] = useState(0)
   const [showAll, setShowAll] = useState(false)
   const [flipped, setFlipped] = useState<Set<number>>(new Set()) // cards that differ from "show all"
-  const [picking, setPicking] = useState(false)
-  const [picked, setPicked] = useState<Set<number>>(new Set())
   const [threshold, setThreshold] = useState<number | null>(85) // null: the field is cleared
   const [toast, toastHolder] = message.useMessage()
   const health = useHealth()
@@ -173,37 +71,13 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
     order,
   ])
 
-  useEffect(() => {
-    let alive = true
-    api
-      .items(job.id, {
-        status,
-        q: query,
-        sort,
-        order,
-        limit: PAGE_SIZE,
-        offset: (page - 1) * PAGE_SIZE,
-      })
-      .then((next) => {
-        if (!alive) return
-        // The page is past the end (rows were returned to review, a filter shrank the list)
-        if (next.items.length === 0 && next.total > 0 && page > 1) {
-          setPage(Math.ceil(next.total / PAGE_SIZE))
-        } else {
-          setData(next)
-        }
-      })
-      .catch((e) => alive && toast.error(e instanceof ApiError ? e.message : T.errors.network))
-    return () => {
-      alive = false
-    }
-    // job.processed: new rows of a running job appear without touching what is open
-  }, [job.id, job.processed, status, query, sort, order, page, version, toast])
+  const data = useResultsPage({ jobId: job.id, processed: job.processed, status,
+    query, sort, order, page, version, pageSize: PAGE_SIZE, setPage, toast })
 
   // Back from a position: the focus goes to its row, so the keyboard does not start from the top
   const [returnTo] = useState(() => lastItemOf(job.id))
   useEffect(() => {
-    if (data === null || returnTo === null) return
+    if(data === null || returnTo === null) return
     const row = document.querySelector<HTMLElement>(`[data-item="${returnTo}"]`)
     row?.focus()
     row?.scrollIntoView({ block: 'center' })
@@ -211,13 +85,13 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
   }, [data, returnTo])
 
   const acceptAll = async () => {
-    if (threshold === null) return
+    if(threshold === null) return
     try {
       const { accepted } = await api.acceptAll(job.id, threshold)
       toast.success(T.results.accepted(accepted))
       setVersion((v) => v + 1)
       onChanged()
-    } catch (e) {
+    } catch(e) {
       toast.error(e instanceof ApiError ? e.message : T.errors.network)
     }
   }
@@ -233,8 +107,8 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
   const startReview = async () => {
     try {
       const first = await api.items(job.id, { status: 'needs_review,failed', limit: 1, offset: 0 })
-      if (first.items[0]) navigate(paths.item(job.id, first.items[0].id))
-    } catch (e) {
+      if(first.items[0]) navigate(paths.item(job.id, first.items[0].id))
+    } catch(e) {
       toast.error(e instanceof ApiError ? e.message : T.errors.network)
     }
   }
@@ -251,7 +125,7 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
   const toggle = (id: number) =>
     setFlipped((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
+      if(next.has(id)) next.delete(id)
       else next.add(id)
       return next
     })
@@ -263,10 +137,10 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
   const firstOrder = (column: Sort): ListView['order'] => (column === 'confidence' ? 'desc' : 'asc')
   /** A click on a caption: its first order, the opposite one, then no sorting. */
   const sortBy = (column: Sort) => {
-    if (sort !== column) {
+    if(sort !== column) {
       setSort(column)
       setOrder(firstOrder(column))
-    } else if (order === firstOrder(column)) {
+    } else if(order === firstOrder(column)) {
       setOrder(order === 'asc' ? 'desc' : 'asc')
     } else {
       setSort('')
@@ -280,21 +154,9 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
     ...Object.entries(T.results.sort.options).map(([value, label]) => ({ value, label })),
   ]
 
-  const returnable = (item: ItemRow) => item.status === 'accepted' || item.status === 'corrected'
-  const pageRows = (data?.items ?? []).filter(returnable)
-  const pageAllPicked = pageRows.length > 0 && pageRows.every((item) => picked.has(item.id))
+  const { picking, setPicking, picked, setPicked, pageRows, pageAllPicked,
+    pick, stopPicking, returnable } = useRowSelection(data?.items ?? [])
   const pickable = (counts?.accepted ?? 0) + (counts?.corrected ?? 0) > 0
-  const pick = (id: number) =>
-    setPicked((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  const stopPicking = () => {
-    setPicking(false)
-    setPicked(new Set())
-  }
   const revertMany = async (which: { ids: number[] } | { all_accepted: true }) => {
     try {
       const { reverted } = await api.revertMany(job.id, which)
@@ -302,7 +164,7 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
       stopPicking()
       setVersion((v) => v + 1)
       onChanged()
-    } catch (e) {
+    } catch(e) {
       toast.error(e instanceof ApiError ? e.message : T.errors.network)
     }
   }
@@ -476,8 +338,8 @@ export function Results({ job, onChanged }: { job: Job; onChanged: () => void })
             onChange={(e) =>
               setPicked((prev) => {
                 const next = new Set(prev)
-                for (const item of pageRows) {
-                  if (e.target.checked) next.add(item.id)
+                for(const item of pageRows) {
+                  if(e.target.checked) next.add(item.id)
                   else next.delete(item.id)
                 }
                 return next

@@ -2,7 +2,7 @@
 
 Каждый правит только файлы своей зоны. Нужна правка в чужой зоне — пишешь владельцу (issue или
 сообщение в чат команды), он делает сам или разрешает явно. Как всё устроено — в
-[README.md](README.md), разделы 4–6 и 9.
+[README.md](README.md) и [карте backend](docs/backend-structure.md).
 
 ## Роли
 
@@ -23,6 +23,7 @@
 | `backend/parser.py` | чтение xlsx/csv/docx/pdf/txt, поиск шапки, лимиты |
 | `backend/extractor.py` | запросы к нейросети, промпт, проверка значений по строке, правила |
 | `backend/embedder.py` | векторы Yandex AI Studio |
+| `backend/characteristics.py`, `backend/catalog_data.py` | характеристики и загрузка каталога |
 | `backend/search.py` | каталог в памяти, точный поиск, правила ранжирования |
 | `backend/auth.py`, `backend/users.py` | вход: пользователи, пароли, сессии; команда для учёток |
 | `db/` | дамп каталога (в git не хранится) |
@@ -42,18 +43,22 @@
 
 | Файлы | Что |
 |---|---|
-| `backend/api.py` | модели `Job`/`Item`, очередь и воркеры, все эндпоинты `/api`, выгрузка xlsx/csv |
+| `backend/api.py`, `backend/routes/` | сборка приложения и эндпоинты `/api` |
+| `backend/models.py`, `backend/database.py`, `backend/migrate.py`, `backend/migrations/` | база и миграции |
+| `backend/tasks.py`, `backend/job_queue.py`, `backend/job_store.py`, `backend/workers.py`, `backend/pipeline.py` | Celery, Redis, обработка и состояние заданий |
+| `backend/exporting.py`, `backend/decisions.py` | выгрузка и память решений |
 | `backend/requirements.txt` | зависимости backend (новая библиотека — после согласования с Кириллом) |
 | `backend/Dockerfile` | образ backend |
 | `frontend/src/api.ts` | **вместе с Лёшей**: Женя меняет типы, когда меняется API; Лёша — функции вызовов |
-| будущее | разделение `api.py` на `models.py`, `queue.py`, `export.py`, `routes.py`; миграции Alembic |
+| `backend/vector_store.py` | SQL-хранилище векторов; алгоритм поиска согласуется с Кириллом |
 
 ### Лёша — весь интерфейс
 
 | Файлы | Что |
 |---|---|
+| `frontend/src/item/`, `frontend/src/results/` | компоненты и hooks карточки позиции и списка |
 | `frontend/src/*.tsx` | экраны и компоненты: `App`, `UploadScreen`, `JobsScreen`, `JobScreen`, `Results`, `ItemScreen`, `JobCards`, `Link`, `ui`, `Art` |
-| `frontend/src/theme.css` | **все** цвета и вёрстка; в компонентах цветов нет |
+| `frontend/src/theme.css`, `frontend/src/styles/` | **все** цвета и вёрстка; в компонентах цветов нет |
 | `frontend/src/texts.ts` | **все** тексты интерфейса |
 | `frontend/src/api.ts` | функции вызовов (типы — вместе с Женей) |
 | `frontend/package.json`, `vite.config.ts`, `tsconfig*.json`, `.oxlintrc.json`, `index.html` | сборка фронта (новая UI-библиотека — только через Кирилла: правило «одна UI-библиотека») |
@@ -78,7 +83,7 @@
 | кандидат `{code, name, okpd2_code, status, score, cosine, shared_words, matched_characteristics, numeric_matches, characteristics}` | Кирилл → Егор, Женя, Лёша | `Catalog._rank` в `search.py`, тип `Candidate` в `api.ts` |
 | вердикт `{confidence, zone, needs_review, status, summary}` | Егор → Женя | `confidence.assess` |
 | JSON API (задание, позиция, ошибки) | Женя → Лёша | `api.py`, `api.ts`, Swagger `/api/docs` |
-| статусы позиции `auto / needs_review / corrected / accepted / failed` | Женя → все | `ITEM_STATUSES` в `api.py` |
+| статусы позиции `auto / needs_review / corrected / accepted / failed` | Женя → все | `ITEM_STATUSES` в `runtime.py` |
 
 ## Общие правила
 

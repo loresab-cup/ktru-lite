@@ -1,9 +1,11 @@
-import { Input, Segmented } from 'antd'
+import { Checkbox, Input, Segmented } from 'antd'
 import { LogIn, UserPlus } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { api, ApiError, type Me } from './api'
 import { EisMark } from './EisMark'
 import { T } from './texts'
+import { ConsentDocumentLink } from './ConsentSettings'
+import { LegalLinks } from './LegalScreen'
 
 type Mode = 'login' | 'register'
 
@@ -15,18 +17,27 @@ export function LoginScreen({ onDone }: { onDone: (me: Me) => void }) {
   const [repeat, setRepeat] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [privacyAccepted, setPrivacyAccepted] = useState(false)
+  const [privacyVersion, setPrivacyVersion] = useState('')
   const registering = mode === 'register'
+  useEffect(() => {
+    let alive = true
+    api.legal().then((info) => { if (alive) setPrivacyVersion(info.version) }).catch(() => { if (alive) setError(T.privacy.loadError) })
+    return () => { alive = false }
+  }, [])
 
   const switchTo = (next: Mode) => {
     setMode(next)
     setError('')
     setPassword('')
     setRepeat('')
+    setPrivacyAccepted(false)
   }
 
   const problem = (): string => {
     if (!login.trim() || !password) return T.login.empty
     if (registering && password !== repeat) return T.login.mismatch
+    if (registering && (!privacyAccepted || !privacyVersion)) return T.privacy.required
     return ''
   }
 
@@ -40,8 +51,9 @@ export function LoginScreen({ onDone }: { onDone: (me: Me) => void }) {
     setBusy(true)
     setError('')
     try {
-      const send = registering ? api.register : api.login
-      onDone(await send(login.trim(), password))
+      onDone(registering
+        ? await api.register(login.trim(), password, privacyVersion)
+        : await api.login(login.trim(), password))
     } catch (e) {
       setError(e instanceof ApiError ? e.message : T.errors.network)
       setPassword('')
@@ -102,15 +114,20 @@ export function LoginScreen({ onDone }: { onDone: (me: Me) => void }) {
             />
           </label>
         )}
+        {registering && <div className="consent-option">
+          <Checkbox checked={privacyAccepted} onChange={(event) => setPrivacyAccepted(event.target.checked)}>{T.privacy.labels.account}</Checkbox>
+          <ConsentDocumentLink purpose="account" />
+        </div>}
         {error && (
           <p className="login-error" role="alert">
             {error}
           </p>
         )}
-        <button type="submit" className="btn primary login-submit" disabled={busy}>
+        <button type="submit" className="btn primary login-submit" disabled={busy || (registering && (!privacyAccepted || !privacyVersion))}>
           {registering ? <UserPlus size={16} aria-hidden="true" /> : <LogIn size={16} aria-hidden="true" />}{' '}
           {busy ? T.login.busy : registering ? T.login.registerSubmit : T.login.submit}
         </button>
+        <LegalLinks />
       </form>
     </main>
   )

@@ -1,0 +1,308 @@
+/* --- home: upload and search --------------------------------------------------------------- */
+
+/* the blue band ends in the middle of the card: two flat colors, no gradient */
+.band {
+  padding: var(--s7) 0 var(--s6);
+  background: linear-gradient(var(--accent-soft) 0 330px, var(--bg) 330px);
+}
+
+.band .wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.lead {
+  max-width: 720px;
+  font-size: var(--text-lg);
+  line-height: 28px;
+  color: var(--ink-2);
+}
+
+.tour-start {
+  align-self: flex-start; /* a button, not a bar across the page */
+  margin-top: var(--s4);
+}
+
+/* The tour: a counter, a picture with the place to press marked, one line, the buttons */
+.tour .ant-modal-title {
+  font-size: var(--text-xl);
+  line-height: 32px;
+}
+
+.tour-count {
+  margin-bottom: var(--s3);
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+.tour-picture {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--field);
+}
+
+.tour-action {
+  margin-top: var(--s4);
+  font-size: var(--text-lg);
+  line-height: 26px;
+  color: var(--ink);
+}
+
+.tour-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s6);
+}
+
+@media (max-width: 600px) {
+  .tour-action {
+    font-size: var(--text);
+    line-height: 22px;
+  }
+
+  .tour-actions .grow {
+    display: none;
+  }
+
+  .tour-actions .btn {
+    flex: 1 1 40%;
+  }
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  padding: 28px;
+  margin-top: var(--s2);
+}
+
+.drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  min-height: 200px;
+  padding: var(--s6);
+  border: 1.5px dashed var(--accent-line);
+  border-radius: var(--radius);
+  background: var(--accent-softer);
+  cursor: pointer;
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+
+.drop.over {
+  border: 2px solid var(--accent);
+  background: var(--accent-soft);
+}
+
+.drop-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.drop.over .drop-icon {
+  background: var(--accent);
+  color: #fff;
+}
+
+.drop-title {
+  font-size: var(--text-xl);
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+
+.drop-hint {
+  margin-top: 6px;
+  color: var(--ink-3);
+}
+
+.drop-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.file-list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--s2);
+}
+
+.file-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.file-list li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 60px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.file-list li.busy {
+  opacity: 0.6;
+}
+
+.file-tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.file-tile.big {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+}
+
+.file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.file-size {
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+.file-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--s4);
+}
+
+/* search of the catalog */
+.catalog-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+.found-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s2) var(--s4);
+  margin-bottom: var(--s4); /* air between the head and the line over the first code */
+}
+
+.found-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s3);
+}
+
+/* the fold of a found code, as the fold of a card in the list of a specification */
+.found-more {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  height: 44px;
+  margin-top: var(--s4);
+  padding: 0 var(--s3);
+  border: 0;
+  border-top: 1px solid var(--line-soft);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.found-more:hover {
+  background: var(--field);
+}
+
+.found-more .flip {
+  transform: rotate(180deg);
+}
+
+.found-head .section-h {
+  font-size: var(--text-lg);
+  line-height: 26px;
+}
+
+.found-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.found-row {
+  padding: var(--s5) 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.found-row.has-fold {
+  padding-bottom: 0;
+}
+
+.found-body {
+  display: flex;
+  align-items: center;
+  gap: var(--s6);
+}
+
+.found-rest {
+  padding: var(--s1) var(--s3) var(--s5);
+}
+
+.found-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  flex: 1;
+  min-width: 0;
+}
+
+.found-top,
+.found-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.found-name {
+  gap: var(--s3);
+  font-weight: 500;
+}
+
+.found-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--s6) 0;
+}

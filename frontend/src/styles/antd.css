@@ -1,0 +1,165 @@
+/* --- antd, in the colors of the page ------------------------------------------------------------ */
+
+.ant-input-affix-wrapper,
+.ant-input,
+.ant-input-number {
+  border-radius: var(--radius-sm);
+}
+
+.big-input.ant-input-affix-wrapper {
+  height: 60px;
+  font-size: var(--text-lg);
+  border-radius: 14px;
+}
+
+.big-input .ant-input {
+  font-size: var(--text-lg);
+}
+
+.ant-btn {
+  height: var(--button);
+  padding: 0 var(--s5);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.ant-modal .ant-modal-content {
+  padding: 32px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lift);
+}
+
+.ant-modal .ant-modal-title {
+  font-size: var(--text-xl);
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+
+.ant-modal .ant-modal-footer,
+.ant-modal-confirm .ant-modal-confirm-btns {
+  margin-top: var(--s6);
+}
+
+.ant-modal-confirm .ant-modal-confirm-title {
+  font-size: var(--text-xl);
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+
+.ant-modal-confirm .ant-modal-confirm-content {
+  margin-top: var(--s2);
+  color: var(--ink-2);
+}
+
+/* confirm dialogs: a round icon over centred text, two equal buttons */
+.confirm-dialog .ant-modal-confirm-body {
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s4);
+  text-align: center;
+}
+
+.confirm-dialog .ant-modal-confirm-paragraph {
+  max-width: 100%;
+}
+
+.confirm-dialog .ant-modal-confirm-btns {
+  display: flex;
+  gap: var(--s3);
+}
+
+.confirm-dialog .ant-modal-confirm-btns .ant-btn {
+  flex: 1;
+  margin: 0;
+}
+
+.dialog-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+}
+
+.dialog-icon.red {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.dialog-icon.blue {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.ant-dropdown .ant-dropdown-menu,
+.ant-popover .ant-popover-inner {
+  padding: var(--s2);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lift);
+}
+
+.ant-dropdown .ant-dropdown-menu .ant-dropdown-menu-item {
+  min-width: 220px;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+/* a tooltip is a small white card with a hairline, like the other floating surfaces */
+.ant-tooltip {
+  --antd-arrow-background-color: var(--paper-raised);
+}
+
+.ant-tooltip .ant-tooltip-container {
+  /* antd gives it the min height of a control (48px): the text is centred in it, not pressed up */
+  display: flex;
+  align-items: center;
+  padding: var(--s2) var(--s4);
+  border-radius: var(--radius-sm);
+  background: var(--paper-raised);
+  color: var(--ink);
+  box-shadow: var(--shadow-lift);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* a message is a white card with a hairline, like the tooltips: dark text, a colored icon */
+.ant-message .ant-message-notice {
+  padding: 14px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-lift);
+}
+
+.ant-message .ant-message-notice-wrapper,
+.ant-message .ant-message-notice-title {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.ant-message .ant-message-notice-icon-success {
+  color: var(--green);
+}
+
+.toast-undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: var(--s3);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-2);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ant-checkbox .ant-checkbox-inner {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+}

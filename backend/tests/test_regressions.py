@@ -1,11 +1,9 @@
 """Regression tests for malformed providers, budgets and API responsiveness."""
 
-import importlib
 import inspect
 import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import asynccontextmanager
 
 import httpx
 import numpy as np
@@ -33,21 +31,8 @@ def test_prompt_keeps_a_name_for_services_and_works():
 
 
 @pytest.fixture
-def isolated_api(monkeypatch, tmp_path):
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'initial.db'}")
-    api = importlib.import_module("api")
-    engine = api.create_engine(f"sqlite:///{tmp_path / 'test.db'}")
-    api.Base.metadata.create_all(engine)
-    monkeypatch.setattr(api, "SessionLocal", api.sessionmaker(engine, expire_on_commit=False))
-    monkeypatch.setattr(api, "UPLOAD_DIR", tmp_path)
-
-    @asynccontextmanager
-    async def lifespan(_):
-        yield
-
-    monkeypatch.setattr(api.app.router, "lifespan_context", lifespan)
-    yield api
-    engine.dispose()
+def isolated_api(api_database):
+    return api_database
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), 0.0])
@@ -68,16 +53,16 @@ def test_invalid_vectors_fall_back_without_poisoning_cache(monkeypatch, value):
 
 @pytest.mark.parametrize("text", ["\n=1+1", "  =1+1", "\t=1+1", "\r@SUM(1)", " +1", "-1"])
 def test_export_escapes_obscured_formulas(isolated_api, text):
-    assert isolated_api.cell(text) == "'" + text
-    assert isolated_api.cell(123) == 123
-    assert isolated_api.cell("Бумага") == "Бумага"
+    assert exporting.cell(text) == "'" + text
+    assert exporting.cell(123) == 123
+    assert exporting.cell("Бумага") == "Бумага"
 
 
 def test_blocked_upload_does_not_block_health(isolated_api, monkeypatch):
     api = isolated_api
     monkeypatch.setattr(embedder, "state", lambda: "on")
     entered, release = threading.Event(), threading.Event()
-    factory = api.SessionLocal
+    factory = database.SessionLocal
 
     def slow_session():
         session = factory()
@@ -91,7 +76,7 @@ def test_blocked_upload_does_not_block_health(isolated_api, monkeypatch):
         session.commit = slow_commit
         return session
 
-    monkeypatch.setattr(api, "SessionLocal", slow_session)
+    monkeypatch.setattr(database, "SessionLocal", slow_session)
     with TestClient(api.app) as client, ThreadPoolExecutor(2) as pool:
         upload = pool.submit(client.post, "/api/jobs", files={"file": ("a.txt", "Бумага".encode())})
         assert entered.wait(3)
@@ -104,7 +89,7 @@ def test_blocked_upload_does_not_block_health(isolated_api, monkeypatch):
 
 
 def test_upload_route_uses_threadpool(isolated_api):
-    assert not inspect.iscoroutinefunction(isolated_api.create_job)
+    assert not inspect.iscoroutinefunction(routes.jobs.create_job)
 
 
 @pytest.mark.parametrize(
@@ -202,8 +187,8 @@ def test_job_fallback_count_handles_mixed_attribute_sources(isolated_api):
 
     api = isolated_api
     job_id = uuid.uuid4()
-    with api.SessionLocal() as session:
-        session.add(api.Job(id=job_id, filename="synthetic.csv"))
+    with database.SessionLocal() as session:
+        session.add(models.Job(id=job_id, filename="synthetic.csv"))
         session.flush()
         for number, attributes in enumerate(
             [
@@ -215,7 +200,7 @@ def test_job_fallback_count_handles_mixed_attribute_sources(isolated_api):
             ]
         ):
             session.add(
-                api.Item(
+                models.Item(
                     job_id=job_id,
                     row_number=number + 1,
                     raw_text="Бумага",
@@ -240,11 +225,11 @@ def seeded_job(api, rows):
     import uuid
 
     job_id = uuid.uuid4()
-    with api.SessionLocal() as session:
-        session.add(api.Job(id=job_id, filename="synthetic.csv"))
+    with database.SessionLocal() as session:
+        session.add(models.Job(id=job_id, filename="synthetic.csv"))
         session.flush()
         items = [
-            api.Item(
+            models.Item(
                 job_id=job_id,
                 row_number=number + 1,
                 raw_text="Бумага",
@@ -288,7 +273,7 @@ def test_list_is_sorted_by_code_confidence_and_status(isolated_api):
 
 def test_previous_code_comes_back_step_by_step(isolated_api, monkeypatch):
     api = isolated_api
-    monkeypatch.setattr(api.state, "catalog", FakeCatalog())
+    monkeypatch.setattr(runtime.state, "catalog", FakeCatalog())
     _, [item_id] = seeded_job(api, [("needs_review", "OLD", 50.0)])
     with TestClient(api.app) as client:
         assert client.post(f"/api/items/{item_id}/undo-code").status_code == 400
@@ -375,13 +360,13 @@ class ActiveCodes:
 
 def test_bulk_accept_skips_rows_that_are_not_products(isolated_api, monkeypatch):
     api = isolated_api
-    monkeypatch.setattr(api.state, "catalog", ActiveCodes())
-    job = api.Job(filename="spec.csv", status="done")
-    with api.SessionLocal() as session:
+    monkeypatch.setattr(runtime.state, "catalog", ActiveCodes())
+    job = models.Job(filename="spec.csv", status="done")
+    with database.SessionLocal() as session:
         session.add(job)
         session.flush()
         for number, name in ((1, "Бумага"), (2, "")):  # row 2: «Итого по разделу» and the like
-            item = api.Item(job_id=job.id, row_number=number, raw_text=name or "Раздел 1")
+            item = models.Item(job_id=job.id, row_number=number, raw_text=name or "Раздел 1")
             item.attributes = {"name": name}
             item.ktru_code, item.confidence, item.status = "17.12.14.129-00000002", 99.0, "auto"
             session.add(item)
@@ -391,14 +376,15 @@ def test_bulk_accept_skips_rows_that_are_not_products(isolated_api, monkeypatch)
 
 
 def test_cancelled_job_gets_no_failure_text(isolated_api):
-    api = isolated_api
-    job = api.Job(filename="spec.csv", status="cancelled")
-    with api.SessionLocal() as session:
+    job = models.Job(filename="spec.csv", status="cancelled")
+    with database.SessionLocal() as session:
         session.add(job)
         session.commit()
-    api.finish(job.id, "failed", "Файл задания не найден: загрузите его заново", {"read": 0.1})
-    with api.SessionLocal() as session:
-        stored = session.get(api.Job, job.id)
+    job_store.finish(
+        job.id, "failed", "Файл задания не найден: загрузите его заново", {"read": 0.1}
+    )
+    with database.SessionLocal() as session:
+        stored = session.get(models.Job, job.id)
         assert stored.status == "cancelled" and stored.error is None
         assert stored.finished_at is not None
 
@@ -414,11 +400,11 @@ def test_item_page_says_how_candidates_differ(isolated_api):
             "characteristics": [["Вид", ["Туалетное"]], ["Масса нетто", [mass]]],
         }
 
-    job = api.Job(filename="spec.csv", status="done")
-    with api.SessionLocal() as session:
+    job = models.Job(filename="spec.csv", status="done")
+    with database.SessionLocal() as session:
         session.add(job)
         session.flush()
-        item = api.Item(job_id=job.id, row_number=2, raw_text="Мыло 100 г", status="auto")
+        item = models.Item(job_id=job.id, row_number=2, raw_text="Мыло 100 г", status="auto")
         item.candidates = [soap("20.41.31.110-00000002", "< 90 Грамм"), soap("-07", "≥ 90 Грамм")]
         session.add(item)
         session.commit()
@@ -429,12 +415,21 @@ def test_item_page_says_how_candidates_differ(isolated_api):
 
 
 def test_a_unit_the_customer_wrote_is_not_replaced_by_a_guess(isolated_api):
-    api = isolated_api
     guessed = {"measure": "усл. ед"}
     minute = parser.Item(1, "Услуги телефонной связи", {"Ед. изм.": "Минута"})
-    assert api.unit_hints(minute, guessed) == (None, None)  # a unit we do not know
+    assert pipeline.unit_hints(minute, guessed) == (None, None)  # a unit we do not know
     litre = parser.Item(2, "Кефир", {"Ед. изм.": "л"})
-    assert api.unit_hints(litre, {"measure": "кг"}) == ("l", "kg")
+    assert pipeline.unit_hints(litre, {"measure": "кг"}) == ("l", "kg")
     blank = parser.Item(3, "Кефир", {"Ед. изм.": " "})
-    assert api.unit_hints(blank, {"measure": "л"}) == (None, "l")
-    assert api.unit_hints(parser.Item(4, "Кефир", {}), {"measure": "л"}) == (None, "l")
+    assert pipeline.unit_hints(blank, {"measure": "л"}) == (None, "l")
+    assert pipeline.unit_hints(parser.Item(4, "Кефир", {}), {"measure": "л"}) == (None, "l")
+
+
+import database
+import exporting
+import job_store
+import models
+import pipeline
+import routes
+import routes.jobs
+import runtime

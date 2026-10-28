@@ -1,0 +1,395 @@
+/* --- cards, buttons, small parts --------------------------------------------------------- */
+
+.card {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  height: var(--button);
+  padding: 0 var(--s5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper-raised);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+
+.btn:hover {
+  background: var(--field);
+}
+
+.btn.primary {
+  background: var(--primary-bg);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: none;
+}
+
+.btn.primary:hover {
+  background: var(--primary-hover);
+}
+
+.btn.soft {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.btn.ghost:hover {
+  background: var(--accent-soft);
+}
+
+.btn.danger {
+  color: var(--red);
+}
+
+.btn.danger:hover {
+  background: var(--red-soft);
+}
+
+.btn.small {
+  height: 36px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn[disabled]:hover {
+  background: var(--paper-raised);
+}
+
+.btn.primary[disabled]:hover {
+  background: var(--primary-bg);
+}
+
+.btn.soft[disabled] {
+  opacity: 1;
+}
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  background: var(--field);
+  color: var(--ink);
+}
+
+.icon-btn[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 3px 12px;
+  border-radius: 15px;
+  background: var(--field);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.chip.good {
+  background: var(--green-soft);
+  color: var(--green);
+  font-weight: 500;
+}
+
+/* a colored dot and the word; the dot color follows the status */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 15px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.status-auto {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* why a row waits for a person: under the code in the list and in the card */
+.review-reason {
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--radius-sm);
+  background: var(--amber-soft);
+  color: var(--amber);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.remembered-note {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.status-needs_review {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.status-needs_review .status-dot,
+.dot-needs_review {
+  background: var(--amber-dot);
+}
+
+.status-corrected {
+  background: var(--gray-soft);
+  color: var(--gray);
+}
+
+.status-corrected .status-dot,
+.dot-corrected {
+  background: var(--gray-dot);
+}
+
+.status-accepted {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.status-accepted .status-dot,
+.dot-accepted {
+  background: var(--green-dot);
+}
+
+.status-failed {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.status-failed .status-dot {
+  background: var(--red-dot);
+}
+
+.dot-auto {
+  background: var(--accent);
+}
+
+.conf {
+  font-size: var(--text-xl);
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.zone-high {
+  color: var(--high);
+}
+
+.zone-medium {
+  color: var(--medium);
+}
+
+.zone-low {
+  color: var(--low);
+}
+
+.code {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--accent);
+}
+
+.code.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+}
+
+.code.link:hover {
+  text-decoration: underline;
+}
+
+/* a colored strip on the page */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 22px;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.notice b {
+  display: block;
+  color: var(--ink);
+}
+
+.notice p {
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  margin-top: 2px;
+}
+
+.notice.warn {
+  background: var(--amber-soft);
+  border-color: var(--warn-line);
+  color: var(--amber);
+}
+
+.notice.error {
+  background: var(--red-soft);
+  border-color: var(--error-line);
+  color: var(--red);
+}
+
+.notice.ok {
+  background: var(--green-soft);
+  border-color: var(--ok-line);
+  color: var(--green);
+}
+
+.skeleton {
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, var(--skeleton) 0%, var(--skeleton-shine) 50%, var(--skeleton) 100%);
+  background-size: 200% 100%;
+  animation: shine 1.4s linear infinite;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s5);
+  padding: 56px var(--s6);
+  text-align: center;
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.empty-icon {
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.empty-icon.red {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.empty-title {
+  font-size: var(--text-xl);
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+
+.empty-hint {
+  max-width: 520px;
+  color: var(--ink-3);
+}
+
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s3);
+  padding-top: var(--s2);
+}
+
+/* rings */
+.ring-track {
+  stroke: var(--line-soft);
+}
+
+.ring-value {
+  stroke: var(--accent);
+}
+
+.ring-spin {
+  stroke: var(--accent);
+  transform-origin: 100px 100px;
+  animation: ring-turn 1.4s linear infinite;
+}
+
+.ring-text {
+  font-size: 44px;
+  font-weight: 600;
+  fill: var(--ink);
+}
+
+.ring-mini-text {
+  font-size: 12px;
+  font-weight: 600;
+  fill: var(--ink);
+}
+
+.ring-mini-text.tight {
+  font-size: 9.5px; /* "100%" has to fit inside the ring */
+  letter-spacing: -0.2px;
+}
+
+.mini-ring {
+  flex: none;
+}

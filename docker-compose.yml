@@ -1,73 +1,91 @@
-# One command: cp .env.example .env, fill the keys, docker compose up -d --build.
-# Needs db/ktru_catalog.jsonl.gz and db/ktru_vectors_yandex.npz (README, «Векторы каталога»).
 name: ktru-lite
-
+x-backend: &backend
+  image: ktru-lite-backend
+  build: ./backend
+  restart: unless-stopped
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ktru}:${POSTGRES_PASSWORD:-ktru}@db:5432/${POSTGRES_DB:-ktru}
+    CELERY_BROKER_URL: redis://redis:6379/0
+    CATALOG_VECTORS: /catalog/ktru_vectors_yandex.npz
+    YANDEX_EMBED_RPS: ${YANDEX_EMBED_RPS:-20}
+    LLM_PROVIDERS: ${LLM_PROVIDERS:-yandex,yandex2,yandex3,yandex4,yandex5}
+  volumes: ["./db:/catalog:ro", "cache:/cache", "uploads:/data/uploads"]
 services:
   frontend:
     build: ./frontend
     restart: unless-stopped
-    ports:
-      - "3000:8080"
-    depends_on:
-      - backend
-
+    ports: ["3000:8080"]
+    depends_on: [backend]
   backend:
-    build: ./backend
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:8000:8000"  # API docs for this machine only; users go through nginx
-    # Neural network settings: LLM_PROVIDERS, YANDEX*_*; GigaChat below
-    env_file:
-      - path: .env
-        required: false
-    environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ktru}:${POSTGRES_PASSWORD:-ktru}@db:5432/${POSTGRES_DB:-ktru}
-      # Embeddings: Yandex AI Studio (YANDEX_EMBED_API_KEY, YANDEX_EMBED_FOLDER_ID in .env);
-      # the catalog vectors of the same model are built by scripts/embed_catalog.py
-      CATALOG_VECTORS: /catalog/ktru_vectors_yandex.npz
-      # 10 is the documented quota; 20 passed without 429 on 28.10.2026 (1000 rows: search
-      # 105 s at 10). A 429 is retried, so a cloud with a real 10 is slower, not wrong.
-      YANDEX_EMBED_RPS: ${YANDEX_EMBED_RPS:-20}
-      LLM_PROVIDERS: ${LLM_PROVIDERS:-yandex,yandex2,yandex3,yandex4,yandex5,gigachat}
-      GIGACHAT_BASE_URL: ${GIGACHAT_BASE_URL:-https://api.giga.chat/v1}
-      GIGACHAT_CREDENTIALS: ${GIGACHAT_CREDENTIALS:-}
-      GIGACHAT_SCOPE: ${GIGACHAT_SCOPE:-GIGACHAT_API_PERS}
-      GIGACHAT_MODEL: ${GIGACHAT_MODEL:-GigaChat-3-Ultra}
-      GIGACHAT_AUTH_URL: ${GIGACHAT_AUTH_URL:-https://ngw.devices.sberbank.ru:9443/api/v2/oauth}
-      GIGACHAT_VERIFY_SSL: ${GIGACHAT_VERIFY_SSL:-false}
-      GIGACHAT_PARALLEL: ${GIGACHAT_PARALLEL:-1}
-      LEX_LIMIT: ${LEX_LIMIT:-20}
-    volumes:
-      - ./db:/catalog:ro
-      - cache:/cache
-      - uploads:/data/uploads
+    <<: *backend
+    ports: ["127.0.0.1:8000:8000"]
     depends_on:
-      db:
-        condition: service_healthy
+      db: {condition: service_healthy}
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/api/health')"]
+      test: ["CMD", "python", "-c", "import json,urllib.request as u; assert json.load(u.urlopen('http://localhost:8000/api/health'))['catalog']=='ready'"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
-
+  worker:
+    <<: *backend
+    command: ["celery", "-A", "tasks:app", "worker", "--pool=threads", "--concurrency=2", "--loglevel=INFO"]
+    depends_on:
+      backend: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "celery", "-A", "tasks:app", "inspect", "ping", "--timeout=5"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  scheduler:
+    <<: *backend
+    command: ["celery", "-A", "tasks:app", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat"]
+    depends_on:
+      redis: {condition: service_healthy}
+      backend: {condition: service_healthy}
+  acceptance:
+    <<: *backend
+    profiles: [acceptance]
+    restart: "no"
+    entrypoint: ["python", "acceptance.py"]
+    command: []
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ktru}:${POSTGRES_PASSWORD:-ktru}@db:5432/${POSTGRES_DB:-ktru}
+      ACCEPTANCE_API: http://backend:8000
+    volumes: ["./dataset:/acceptance-data:ro"]
+    depends_on:
+      backend: {condition: service_healthy}
+      worker: {condition: service_healthy}
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: ["redis_data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
   db:
-    image: postgres:16-alpine
-    user: postgres  # the server runs without root from the start
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ktru}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ktru}
       POSTGRES_DB: ${POSTGRES_DB:-ktru}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+    volumes: ["pgvector_data:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
-
 volumes:
-  pgdata:
+  pgdata: # Old data volume is preserved.
+  pgvector_data:
+  redis_data:
   cache:
   uploads:

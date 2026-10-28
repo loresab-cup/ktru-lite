@@ -1,0 +1,21 @@
+.profile-page { padding-bottom: var(--s8); }
+.profile-lead { margin-top: var(--s3); color: var(--ink-2); }
+.profile-account { display: flex; align-items: center; gap: var(--s4); padding: var(--s5); margin: var(--s6) 0; }
+.profile-account .icon { color: var(--accent); flex-shrink: 0; }
+.profile-account strong { display: block; font-size: var(--text-lg); overflow-wrap: anywhere; }
+.profile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s6); align-items: start; }
+.profile-form { display: flex; flex-direction: column; gap: var(--s4); padding: var(--s6); min-width: 0; }
+.profile-form h2 { display: flex; align-items: center; gap: var(--s3); margin: 0; font-size: var(--text-lg); }
+.profile-form .btn { align-self: flex-start; margin-top: var(--s2); }
+.profile-hint { color: var(--ink-2); font-size: var(--text-sm); margin: 0; }
+.profile-notice { padding: var(--s4); border: 1px solid var(--line); border-radius: var(--radius-sm); margin-bottom: var(--s5); }
+.profile-notice.error { color: var(--red); }
+.profile-notice.success { color: var(--green); }
+.profile-session { display: flex; align-items: flex-start; gap: var(--s2); color: var(--ink-2); font-size: var(--text-sm); margin-top: var(--s5); }
+.profile-session .icon { flex-shrink: 0; }
+.user-name:hover { color: var(--accent); }
+@media (max-width: 700px) {
+  .profile-grid { grid-template-columns: 1fr; gap: var(--s4); }
+  .profile-form { padding: var(--s5); }
+  .profile-form .btn { width: 100%; justify-content: center; }
+}

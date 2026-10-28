@@ -1,6 +1,7 @@
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
     PYTHONUNBUFFERED=1 \
     UPLOAD_DIR=/data/uploads \
     CACHE_DIR=/cache \
@@ -11,6 +12,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY *.py ./
+COPY routes ./routes
+COPY migrations ./migrations
+COPY alembic.ini ./
 # Volumes mounted on /data and /cache take this ownership on first creation
 RUN useradd --uid 10001 --create-home app \
     && mkdir -p /data/uploads /cache \

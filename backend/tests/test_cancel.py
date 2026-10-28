@@ -1,11 +1,9 @@
 """Stopping a job: the queue and waiting LLM requests are dropped, finished rows stay.
 Also deleting a job and undoing accept or a manual code."""
 
-import importlib
 import threading
 import time
 import uuid
-from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 
 import numpy as np
@@ -18,22 +16,8 @@ import search
 
 
 @pytest.fixture
-def api(monkeypatch, tmp_path):
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'initial.db'}")
-    module = importlib.import_module("api")
-    engine = module.create_engine(f"sqlite:///{tmp_path / 'test.db'}")
-    module.Base.metadata.create_all(engine)
-    monkeypatch.setattr(module, "SessionLocal", module.sessionmaker(engine, expire_on_commit=False))
-    monkeypatch.setattr(module, "UPLOAD_DIR", tmp_path)
-
-    @asynccontextmanager
-    async def lifespan(_):  # no workers: the test drives the job itself
-        yield
-
-    monkeypatch.setattr(module.app.router, "lifespan_context", lifespan)
-    monkeypatch.setattr(extractor, "PROVIDERS", [])  # rules only, no network
-    yield module
-    engine.dispose()
+def api(api_database):
+    return api_database
 
 
 def tiny_catalog() -> search.Catalog:
@@ -69,24 +53,24 @@ def test_cancel_queued_job_drops_file_and_allows_export(api, tmp_path):
 
 def test_finished_job_cannot_be_cancelled_and_done_never_overwrites_cancel(api):
     done, stopped = uuid.uuid4(), uuid.uuid4()
-    with api.SessionLocal() as session:
-        session.add(api.Job(id=done, filename="a.txt", status="done"))
-        session.add(api.Job(id=stopped, filename="b.txt", status="cancelled"))
+    with database.SessionLocal() as session:
+        session.add(models.Job(id=done, filename="a.txt", status="done"))
+        session.add(models.Job(id=stopped, filename="b.txt", status="cancelled"))
         session.commit()
     with TestClient(api.app) as client:
         assert client.post(f"/api/jobs/{done}/cancel").json()["status"] == "done"
-    api.finish(stopped, "done", None, {"total": 1.0})
-    with api.SessionLocal() as session:
-        job = session.get(api.Job, stopped)
+    job_store.finish(stopped, "done", None, {"total": 1.0})
+    with database.SessionLocal() as session:
+        job = session.get(models.Job, stopped)
         assert job.status == "cancelled" and job.stage_seconds == {"total": 1.0}
 
 
 def test_delete_job_removes_rows_and_file_but_not_a_running_job(api, tmp_path):
     done, running = uuid.uuid4(), uuid.uuid4()
-    with api.SessionLocal() as session:
-        session.add(api.Job(id=done, filename="a.txt", status="done"))
-        session.add(api.Job(id=running, filename="b.txt", status="processing"))
-        session.add(api.Item(job_id=done, row_number=1, raw_text="x", status="auto"))
+    with database.SessionLocal() as session:
+        session.add(models.Job(id=done, filename="a.txt", status="done"))
+        session.add(models.Job(id=running, filename="b.txt", status="processing"))
+        session.add(models.Item(job_id=done, row_number=1, raw_text="x", status="auto"))
         session.commit()
     (tmp_path / f"{done}.txt").write_text("x")
     with TestClient(api.app) as client:
@@ -95,35 +79,35 @@ def test_delete_job_removes_rows_and_file_but_not_a_running_job(api, tmp_path):
         assert client.get(f"/api/jobs/{done}").status_code == 404
         assert client.delete(f"/api/jobs/{done}").status_code == 404
         assert client.get(f"/api/jobs/{running}").status_code == 200
-    with api.SessionLocal() as session:
-        assert session.query(api.Item).count() == 0
+    with database.SessionLocal() as session:
+        assert session.query(models.Item).count() == 0
     assert not (tmp_path / f"{done}.txt").exists()
 
 
 def test_a_job_stopped_a_moment_ago_says_it_is_stopping(api):
     stopping = uuid.uuid4()
-    with api.SessionLocal() as session:
-        session.add(api.Job(id=stopping, filename="c.txt", status="cancelled"))
+    with database.SessionLocal() as session:
+        session.add(models.Job(id=stopping, filename="c.txt", status="cancelled"))
         session.commit()
-    api.state.cancels[stopping] = threading.Event()  # the worker has not finished its batch
+    runtime.state.cancels[stopping] = threading.Event()  # the worker has not finished its batch
     try:
         with TestClient(api.app) as client:
             answer = client.delete(f"/api/jobs/{stopping}")
             assert answer.status_code == 409 and "останавливается" in answer.json()["detail"]
     finally:
-        api.state.cancels.pop(stopping, None)
+        runtime.state.cancels.pop(stopping, None)
     with TestClient(api.app) as client:
         assert client.delete(f"/api/jobs/{stopping}").status_code == 204
 
 
 def test_revert_returns_the_proposed_code_and_status(api, monkeypatch):
-    monkeypatch.setattr(api.state, "catalog", tiny_catalog())
+    monkeypatch.setattr(runtime.state, "catalog", tiny_catalog())
     job_id = uuid.uuid4()
     proposed = {"ktru_code": "17.12.14.129-00000001", "ktru_name": "Бумага для офисной техники"}
-    with api.SessionLocal() as session:
-        session.add(api.Job(id=job_id, filename="a.txt", status="done"))
+    with database.SessionLocal() as session:
+        session.add(models.Job(id=job_id, filename="a.txt", status="done"))
         session.add_all(
-            api.Item(
+            models.Item(
                 job_id=job_id,
                 row_number=n,
                 raw_text="x",
@@ -138,7 +122,7 @@ def test_revert_returns_the_proposed_code_and_status(api, monkeypatch):
             for n in (1, 2)
         )
         session.commit()
-        first, second = (item.id for item in session.query(api.Item).order_by(api.Item.id))
+        first, second = (item.id for item in session.query(models.Item).order_by(models.Item.id))
     with TestClient(api.app) as client:
         assert client.post(f"/api/items/{first}/revert").json()["status"] == "needs_review"
         client.post(f"/api/items/{first}/accept")
@@ -158,15 +142,20 @@ def test_revert_returns_the_proposed_code_and_status(api, monkeypatch):
 def test_item_page_knows_its_neighbours(api):
     job_id, other = uuid.uuid4(), uuid.uuid4()
     statuses = ["auto", "accepted", "needs_review", "corrected", "needs_review"]
-    with api.SessionLocal() as session:
-        session.add_all([api.Job(id=job_id, filename="a.txt"), api.Job(id=other, filename="b.txt")])
+    with database.SessionLocal() as session:
         session.add_all(
-            api.Item(job_id=job_id, row_number=n, raw_text="x", status=status)
+            [models.Job(id=job_id, filename="a.txt"), models.Job(id=other, filename="b.txt")]
+        )
+        session.add_all(
+            models.Item(job_id=job_id, row_number=n, raw_text="x", status=status)
             for n, status in enumerate(statuses, 1)
         )
-        session.add(api.Item(job_id=other, row_number=1, raw_text="y", status="auto"))
+        session.add(models.Item(job_id=other, row_number=1, raw_text="y", status="auto"))
         session.commit()
-        ids = [i.id for i in session.query(api.Item).filter_by(job_id=job_id).order_by(api.Item.id)]
+        ids = [
+            i.id
+            for i in session.query(models.Item).filter_by(job_id=job_id).order_by(models.Item.id)
+        ]
     with TestClient(api.app) as client:
         first = client.get(f"/api/items/{ids[0]}").json()
         assert (first["position"], first["total"], first["prev_id"]) == (1, 5, None)
@@ -176,8 +165,8 @@ def test_item_page_knows_its_neighbours(api):
         assert middle["next_unreviewed_id"] == ids[4]  # the corrected row is skipped
         last = client.get(f"/api/items/{ids[4]}").json()
         assert (last["next_id"], last["next_unreviewed_id"]) == (None, ids[2])
-        with api.SessionLocal() as session:
-            for item in session.query(api.Item).filter_by(job_id=job_id):
+        with database.SessionLocal() as session:
+            for item in session.query(models.Item).filter_by(job_id=job_id):
                 item.status = "accepted"
             session.commit()
         assert client.get(f"/api/items/{ids[4]}").json()["next_unreviewed_id"] is None
@@ -186,10 +175,10 @@ def test_item_page_knows_its_neighbours(api):
 
 def test_item_list_can_leave_the_candidates_out(api):
     job_id = uuid.uuid4()
-    with api.SessionLocal() as session:
-        session.add(api.Job(id=job_id, filename="a.txt"))
+    with database.SessionLocal() as session:
+        session.add(models.Job(id=job_id, filename="a.txt"))
         session.add(
-            api.Item(
+            models.Item(
                 job_id=job_id, row_number=1, raw_text="x", status="auto", candidates=[{"c": 1}]
             )
         )
@@ -203,10 +192,12 @@ def test_item_list_can_leave_the_candidates_out(api):
 
 def test_job_list_has_the_counts_of_each_job(api):
     first, second = uuid.uuid4(), uuid.uuid4()
-    with api.SessionLocal() as session:
-        session.add_all([api.Job(id=first, filename="a.txt"), api.Job(id=second, filename="b.txt")])
+    with database.SessionLocal() as session:
         session.add_all(
-            api.Item(job_id=first, row_number=n, raw_text="x", status=status)
+            [models.Job(id=first, filename="a.txt"), models.Job(id=second, filename="b.txt")]
+        )
+        session.add_all(
+            models.Item(job_id=first, row_number=n, raw_text="x", status=status)
             for n, status in enumerate(["auto", "auto", "accepted"], 1)
         )
         session.commit()
@@ -228,9 +219,9 @@ def test_job_list_has_the_counts_of_each_job(api):
 def test_job_list_finds_by_name_and_sorts(api):
     start = datetime(2026, 10, 1, tzinfo=UTC)
     names = ["spec_1000.xlsx", "Spec_2000.xlsx", "beta.csv", "Alpha.txt"]  # uploaded in this order
-    with api.SessionLocal() as session:
+    with database.SessionLocal() as session:
         session.add_all(
-            api.Job(id=uuid.uuid4(), filename=name, created_at=start + timedelta(minutes=i))
+            models.Job(id=uuid.uuid4(), filename=name, created_at=start + timedelta(minutes=i))
             for i, name in enumerate(names)
         )
         session.commit()
@@ -256,34 +247,36 @@ def test_job_list_finds_by_name_and_sorts(api):
 
 
 def test_run_job_stops_between_batches_and_keeps_finished_rows(api, monkeypatch, tmp_path):
-    monkeypatch.setattr(api.state, "catalog", tiny_catalog())
+    monkeypatch.setattr(runtime.state, "catalog", tiny_catalog())
     monkeypatch.setattr(embedder, "embed", lambda texts: None)
     job_id = uuid.uuid4()
-    with api.SessionLocal() as session:
-        session.add(api.Job(id=job_id, filename="spec.txt", status="processing"))
+    with database.SessionLocal() as session:
+        session.add(models.Job(id=job_id, filename="spec.txt", status="processing"))
         session.commit()
     path = tmp_path / f"{job_id}.txt"
-    path.write_text("\n".join(f"Бумага А4 {i}" for i in range(api.BATCH * 3)), encoding="utf-8")
-    original = api.process_batch
+    path.write_text("\n".join(f"Бумага А4 {i}" for i in range(runtime.BATCH * 3)), encoding="utf-8")
+    original = pipeline.process_batch
 
     def first_batch_then_stop(job, batch, start, *args):
         original(job, batch, start, *args)
-        with api.SessionLocal() as session:  # the user presses "stop" after the first batch
-            session.execute(api.update(api.Job).where(api.Job.id == job).values(status="cancelled"))
+        with database.SessionLocal() as session:  # the user presses "stop" after the first batch
+            session.execute(
+                sqlalchemy.update(models.Job).where(models.Job.id == job).values(status="cancelled")
+            )
             session.commit()
 
-    monkeypatch.setattr(api, "process_batch", first_batch_then_stop)
-    api.run_job(job_id)
-    with api.SessionLocal() as session:
-        job = session.get(api.Job, job_id)
-        count = session.query(api.Item).filter(api.Item.job_id == job_id).count()
-    assert job.status == "cancelled" and job.processed == count == api.BATCH
+    monkeypatch.setattr(pipeline, "process_batch", first_batch_then_stop)
+    pipeline.run_job(job_id)
+    with database.SessionLocal() as session:
+        job = session.get(models.Job, job_id)
+        count = session.query(models.Item).filter(models.Item.job_id == job_id).count()
+    assert job.status == "cancelled" and job.processed == count == runtime.BATCH
     assert not path.exists()
-    assert job_id not in api.state.cancels
+    assert job_id not in runtime.state.cancels
 
 
 def test_vectors_of_the_next_batch_are_fetched_during_the_search(api, monkeypatch, tmp_path):
-    monkeypatch.setattr(api.state, "catalog", tiny_catalog())
+    monkeypatch.setattr(runtime.state, "catalog", tiny_catalog())
     second_embedded = threading.Event()
     calls = []
 
@@ -294,12 +287,12 @@ def test_vectors_of_the_next_batch_are_fetched_during_the_search(api, monkeypatc
 
     monkeypatch.setattr(embedder, "embed", embed)
     job_id = uuid.uuid4()
-    with api.SessionLocal() as session:
-        session.add(api.Job(id=job_id, filename="spec.txt", status="processing"))
+    with database.SessionLocal() as session:
+        session.add(models.Job(id=job_id, filename="spec.txt", status="processing"))
         session.commit()
     path = tmp_path / f"{job_id}.txt"
-    path.write_text("\n".join(f"Бумага А4 {i}" for i in range(api.BATCH * 2)), encoding="utf-8")
-    original = api.process_batch
+    path.write_text("\n".join(f"Бумага А4 {i}" for i in range(runtime.BATCH * 2)), encoding="utf-8")
+    original = pipeline.process_batch
     overlapped = []
 
     def slow_first_batch(job, batch, start, *args):
@@ -307,12 +300,12 @@ def test_vectors_of_the_next_batch_are_fetched_during_the_search(api, monkeypatc
             overlapped.append(second_embedded.wait(5))
         original(job, batch, start, *args)
 
-    monkeypatch.setattr(api, "process_batch", slow_first_batch)
-    api.run_job(job_id)
-    with api.SessionLocal() as session:
-        job = session.get(api.Job, job_id)
+    monkeypatch.setattr(pipeline, "process_batch", slow_first_batch)
+    pipeline.run_job(job_id)
+    with database.SessionLocal() as session:
+        job = session.get(models.Job, job_id)
     assert overlapped == [True]
-    assert job.status == "done" and job.processed == api.BATCH * 2
+    assert job.status == "done" and job.processed == runtime.BATCH * 2
     assert {"extract", "embed", "wait", "search", "save"} <= set(job.stage_seconds)
 
 
@@ -341,16 +334,16 @@ def test_rows_of_a_cancelled_chunk_are_not_extracted():
 
 
 def test_one_decision_goes_to_the_identical_rows_that_wait(api, monkeypatch):
-    monkeypatch.setattr(api.state, "catalog", tiny_catalog())
+    monkeypatch.setattr(runtime.state, "catalog", tiny_catalog())
     job_id = uuid.uuid4()
     proposed = {"ktru_code": "17.12.14.129-00000001", "ktru_name": "Бумага для офисной техники"}
     rows = [("Ноутбук 16 ГБ", "needs_review"), ("Ноутбук 16 ГБ", "needs_review")]
     rows += [("Ноутбук 16 ГБ", "auto"), ("Бумага А4", "needs_review")]
-    with api.SessionLocal() as session:
-        session.add(api.Job(id=job_id, filename="a.txt", status="done"))
+    with database.SessionLocal() as session:
+        session.add(models.Job(id=job_id, filename="a.txt", status="done"))
         for n, (text, status) in enumerate(rows, start=1):
             session.add(
-                api.Item(
+                models.Item(
                     job_id=job_id,
                     row_number=n,
                     raw_text=text,
@@ -362,7 +355,7 @@ def test_one_decision_goes_to_the_identical_rows_that_wait(api, monkeypatch):
                 )
             )
         session.commit()
-        ids = [item.id for item in session.query(api.Item).order_by(api.Item.id)]
+        ids = [item.id for item in session.query(models.Item).order_by(models.Item.id)]
     with TestClient(api.app) as client:
         assert client.get(f"/api/items/{ids[0]}").json()["same_pending"] == 1
         assert client.post(f"/api/items/{ids[0]}/apply-same").status_code == 400  # not decided
@@ -380,7 +373,7 @@ def test_one_decision_goes_to_the_identical_rows_that_wait(api, monkeypatch):
 
 
 def test_a_persons_code_goes_to_the_same_row_of_a_later_file(api, monkeypatch):
-    monkeypatch.setattr(api.state, "catalog", tiny_catalog())
+    monkeypatch.setattr(runtime.state, "catalog", tiny_catalog())
     job_id = uuid.uuid4()
     proposed = {"ktru_code": "17.12.14.129-00000001", "ktru_name": "Бумага для офисной техники"}
     found = [
@@ -392,10 +385,10 @@ def test_a_persons_code_goes_to_the_same_row_of_a_later_file(api, monkeypatch):
             "status": "ACTIVE",
         }
     ]
-    with api.SessionLocal() as session:
-        session.add(api.Job(id=job_id, filename="a.txt", status="done"))
+    with database.SessionLocal() as session:
+        session.add(models.Job(id=job_id, filename="a.txt", status="done"))
         session.add(
-            api.Item(
+            models.Item(
                 job_id=job_id,
                 row_number=1,
                 raw_text="Ноутбук  16 ГБ",
@@ -408,54 +401,67 @@ def test_a_persons_code_goes_to_the_same_row_of_a_later_file(api, monkeypatch):
             )
         )
         session.commit()
-        first = session.query(api.Item).one().id
-    later = api.parser.Item(5, "ноутбук 16 гб", {})
+        first = session.query(models.Item).one().id
+    later = parser.Item(5, "ноутбук 16 гб", {})
     with TestClient(api.app) as client:
         client.patch(f"/api/items/{first}", json={"ktru_code": "26.20.11.110-00000001"})
-        [decision] = api.recalled([later]).values()
-        item = api.build_item(uuid.uuid4(), later, {"name": "ноутбук"}, found, decision)
+        [decision] = decisions.recalled([later]).values()
+        item = pipeline.build_item(uuid.uuid4(), later, {"name": "ноутбук"}, found, decision)
         assert item.ktru_code == "26.20.11.110-00000001" and item.status == "auto"
         assert item.confidence is None and "решения человека" in item.summary
         assert "review" not in item.attributes
         client.post(f"/api/items/{first}/revert")  # back to review: the decision is taken back
-        assert api.recalled([later]) == {}
+        assert decisions.recalled([later]) == {}
         client.post(f"/api/items/{first}/accept")  # a person agreed with a doubtful row
-        assert api.recalled([later])[api.text_key(later.text)].ktru_code == proposed["ktru_code"]
+        assert (
+            decisions.recalled([later])[decisions.text_key(later.text)].ktru_code
+            == proposed["ktru_code"]
+        )
+        response = client.post(f"/api/jobs/{job_id}/revert", json={"all_accepted": True})
+        assert response.json() == {"reverted": 1}
+        assert decisions.recalled([later]) == {}
+        client.patch(f"/api/items/{first}", json={"ktru_code": "26.20.11.110-00000001"})
+        response = client.post(f"/api/jobs/{job_id}/revert", json={"ids": [first]})
+        assert response.json() == {"reverted": 1}
+        assert decisions.recalled([later]) == {}
+        client.post(f"/api/items/{first}/accept")
         assert client.delete(f"/api/jobs/{job_id}").status_code == 204
-        assert api.recalled([later]) == {}  # the job is gone, so are its decisions
-    monkeypatch.setattr(api, "REMEMBER", False)
-    assert api.recalled([later]) == {}
+        assert decisions.recalled([later]) == {}  # the job is gone, so are its decisions
+    monkeypatch.setattr(runtime, "REMEMBER", False)
+    assert decisions.recalled([later]) == {}
 
 
 def test_old_finished_jobs_are_cleaned_only_when_asked(api, monkeypatch, tmp_path):
     old, fresh, running = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
     long_ago = datetime.now(UTC) - timedelta(days=40)
-    with api.SessionLocal() as session:
-        session.add(api.Job(id=old, filename="a.txt", status="done", created_at=long_ago))
-        session.add(api.Job(id=fresh, filename="b.txt", status="done"))
-        session.add(api.Job(id=running, filename="c.txt", status="processing", created_at=long_ago))
-        session.add(api.Item(job_id=old, row_number=1, raw_text="x", status="auto"))
-        session.add(api.Decision(key="k", job_id=old, ktru_code="17.12.14.129-00000001"))
+    with database.SessionLocal() as session:
+        session.add(models.Job(id=old, filename="a.txt", status="done", created_at=long_ago))
+        session.add(models.Job(id=fresh, filename="b.txt", status="done"))
+        session.add(
+            models.Job(id=running, filename="c.txt", status="processing", created_at=long_ago)
+        )
+        session.add(models.Item(job_id=old, row_number=1, raw_text="x", status="auto"))
+        session.add(models.Decision(key="k", job_id=old, ktru_code="17.12.14.129-00000001"))
         session.commit()
     (tmp_path / f"{old}.txt").write_text("x")
-    assert api.clean_old_jobs() == 0  # JOBS_KEEP_DAYS=0 by default: nothing is deleted
-    monkeypatch.setattr(api, "KEEP_DAYS", 30.0)
-    assert api.clean_old_jobs() == 1
-    with api.SessionLocal() as session:
-        assert {job.id for job in session.query(api.Job)} == {fresh, running}
-        assert session.query(api.Item).count() == 0
-        assert session.query(api.Decision).count() == 1  # the memory of decisions stays
+    assert workers.clean_old_jobs() == 0  # JOBS_KEEP_DAYS=0 by default: nothing is deleted
+    monkeypatch.setattr(runtime, "KEEP_DAYS", 30.0)
+    assert workers.clean_old_jobs() == 1
+    with database.SessionLocal() as session:
+        assert {job.id for job in session.query(models.Job)} == {fresh, running}
+        assert session.query(models.Item).count() == 0
+        assert session.query(models.Decision).count() == 1  # the memory of decisions stays
     assert not (tmp_path / f"{old}.txt").exists()
 
 
 def test_a_failed_batch_stops_the_network_requests_of_the_job(api, monkeypatch, tmp_path):
-    monkeypatch.setattr(api.state, "catalog", tiny_catalog())
+    monkeypatch.setattr(runtime.state, "catalog", tiny_catalog())
     monkeypatch.setattr(embedder, "embed", lambda texts: None)
     stopped = []
     monkeypatch.setattr(extractor.JobExtractor, "cancel", lambda self: stopped.append(True))
     job_id = uuid.uuid4()
-    with api.SessionLocal() as session:
-        session.add(api.Job(id=job_id, filename="spec.txt", status="processing"))
+    with database.SessionLocal() as session:
+        session.add(models.Job(id=job_id, filename="spec.txt", status="processing"))
         session.commit()
     path = tmp_path / f"{job_id}.txt"
     path.write_text("Бумага А4\nНоутбук", encoding="utf-8")
@@ -463,8 +469,21 @@ def test_a_failed_batch_stops_the_network_requests_of_the_job(api, monkeypatch, 
     def broken(*args):
         raise RuntimeError("the database went away")
 
-    monkeypatch.setattr(api, "process_batch", broken)
-    api.run_job(job_id)
-    with api.SessionLocal() as session:
-        assert session.get(api.Job, job_id).status == "failed"
+    monkeypatch.setattr(pipeline, "process_batch", broken)
+    pipeline.run_job(job_id)
+    with database.SessionLocal() as session:
+        assert session.get(models.Job, job_id).status == "failed"
     assert stopped == [True]
+
+
+import sqlalchemy
+import sqlalchemy.orm
+
+import database
+import decisions
+import job_store
+import models
+import parser
+import pipeline
+import runtime
+import workers

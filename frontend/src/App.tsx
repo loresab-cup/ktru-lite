@@ -10,7 +10,10 @@ import { JobScreen } from './JobScreen'
 import { JobsScreen } from './JobsScreen'
 import { Link } from './Link'
 import { LoginScreen } from './LoginScreen'
-import { parseRoute, paths, usePath } from './router'
+import { ProfileScreen } from './ProfileScreen'
+import { clearAccountViews, navigate, parseRoute, paths, usePath } from './router'
+import { ConsentGate } from './ConsentSettings'
+import { CookieNotice, LegalLinks, LegalScreen } from './LegalScreen'
 import { T } from './texts'
 import { UploadScreen } from './UploadScreen'
 import { EmptyState } from './ui'
@@ -55,7 +58,7 @@ function useMe() {
         if (!alive) return
         setMe(error instanceof ApiError && error.status === 401 ? null : { login: '', is_admin: false })
       })
-    const loggedOut = () => setMe(null)
+    const loggedOut = () => { clearAccountViews(); setMe(null) }
     window.addEventListener(LOGGED_OUT, loggedOut)
     return () => {
       alive = false
@@ -69,10 +72,10 @@ function UserTools({ me, onLogout }: { me: Me; onLogout: () => void }) {
   if (!me.login) return null // the server runs without accounts
   return (
     <div className="user-tools">
-      <span className="user-name" title={T.login.user(me.login)}>
+      <Link to={paths.profile} className="user-name" title={T.profile.open}>
         <CircleUserRound size={18} aria-hidden="true" />
         <span className="user-login">{me.login}</span>
-      </span>
+      </Link>
       <button type="button" className="btn ghost small" onClick={onLogout}>
         <LogOut size={16} aria-hidden="true" /> {T.login.logout}
       </button>
@@ -218,7 +221,7 @@ export function App() {
     void api
       .logout()
       .catch(() => undefined) // the cookie is gone or the server is down: the login page anyway
-      .finally(() => setMe(null))
+      .finally(() => { clearAccountViews(); setMe(null) })
   }
 
   const page = () => {
@@ -230,6 +233,8 @@ export function App() {
         return <UploadScreen mode="search" />
       case 'jobs':
         return <JobsScreen />
+      case 'profile':
+        return me ? <ProfileScreen me={me} onDone={setMe} /> : null
       case 'job':
         return <JobScreen key={route.jobId} jobId={route.jobId} />
       case 'item':
@@ -245,11 +250,16 @@ export function App() {
       <LucideProvider className="icon" strokeWidth={1.75}>
         <AntApp component={false}>
           <HealthProvider>
-            {me === null && <LoginScreen onDone={setMe} />}
-            {me && (
+            {route.page === 'legal' && <LegalScreen document={route.document} />}
+            {route.page !== 'legal' && me === null && <LoginScreen onDone={(found) => {
+              clearAccountViews()
+              navigate(paths.home)
+              setMe(found)
+            }} />}
+            {route.page !== 'legal' && me && (
               <div className="site">
                 <Header page={route.page} me={me} onLogout={logout} />
-                <main>{page()}</main>
+                <main>{route.page === 'profile' ? page() : <ConsentGate login={me.login} needsFiles={route.page === 'home'}>{page()}</ConsentGate>}</main>
                 <footer className="site-foot" aria-labelledby="feedback-title">
                   <div className="wrap foot-in">
                     <h2 id="feedback-title" className="foot-title">
@@ -257,10 +267,12 @@ export function App() {
                     </h2>
                     <span>{T.feedback.name}</span>
                     <a href={`mailto:${T.feedback.email}`}>{T.feedback.email}</a>
+                    <LegalLinks compact />
                   </div>
                 </footer>
               </div>
             )}
+            <CookieNotice />
           </HealthProvider>
         </AntApp>
       </LucideProvider>

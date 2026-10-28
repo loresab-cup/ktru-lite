@@ -76,10 +76,24 @@ export function forgetItem() {
   lastItem = null
 }
 
+export function clearAccountViews() {
+  listViews.clear()
+  lastItem = null
+  try {
+    for (const key of Object.keys(sessionStorage)) {
+      if (key === 'ktru-jobs-view' || key.startsWith(VIEW_KEY)) sessionStorage.removeItem(key)
+    }
+  } catch { /* Storage is optional. */ }
+}
+
 export const paths = {
   home: '/',
   catalog: '/catalog',
   jobs: '/jobs',
+  profile: '/profile',
+  privacy: '/privacy',
+  cookies: '/cookies',
+  consent: (purpose: string) => `/consent/${purpose}`,
   job: (id: string) => `/jobs/${id}`,
   item: (jobId: string, itemId: number) => `/jobs/${jobId}/items/${itemId}`,
 }
@@ -88,6 +102,8 @@ export type Route =
   | { page: 'home' }
   | { page: 'catalog' }
   | { page: 'jobs' }
+  | { page: 'profile' }
+  | { page: 'legal'; document: 'privacy' | 'cookies' | 'account' | 'files' | 'improvement' }
   | { page: 'job'; jobId: string }
   | { page: 'item'; jobId: string; itemId: number }
   | { page: 'missing' }
@@ -97,6 +113,11 @@ export function parseRoute(path: string): Route {
   if (clean === '/') return { page: 'home' }
   if (clean === '/catalog') return { page: 'catalog' }
   if (clean === '/jobs') return { page: 'jobs' }
+  if (clean === '/profile') return { page: 'profile' }
+  if (clean === '/privacy') return { page: 'legal', document: 'privacy' }
+  if (clean === '/cookies') return { page: 'legal', document: 'cookies' }
+  const consent = clean.match(/^\/consent\/(account|files|improvement)$/)
+  if (consent) return { page: 'legal', document: consent[1] as 'account' | 'files' | 'improvement' }
   const item = clean.match(/^\/jobs\/([\w-]+)\/items\/(\d+)$/)
   if (item) return { page: 'item', jobId: item[1], itemId: Number(item[2]) }
   const job = clean.match(/^\/jobs\/([\w-]+)$/)

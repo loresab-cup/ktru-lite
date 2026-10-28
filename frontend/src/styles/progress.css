@@ -1,0 +1,142 @@
+/* --- a specification: progress ------------------------------------------------------------------ */
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 48px;
+  padding: 36px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-card);
+}
+
+.progress-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  justify-content: start;
+  gap: var(--s3) 56px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps li {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-weight: 500;
+}
+
+.steps li.wait {
+  color: var(--ink-3);
+}
+
+.step-dot {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  color: #fff;
+}
+
+.steps li.done .step-dot {
+  background: var(--green-dot);
+  border-color: var(--green-dot);
+}
+
+.steps li.active .step-dot {
+  border-color: var(--accent);
+  border-top-color: transparent;
+  animation: spin 1s linear infinite;
+}
+
+.counter {
+  color: var(--ink-2);
+}
+
+.counter b {
+  color: var(--ink);
+}
+
+.progress-note {
+  max-width: 560px;
+  font-size: var(--text-sm);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+
+/* round buttons fixed to the bottom of the window; the labels show on a phone only */
+.dock {
+  position: fixed;
+  right: 32px;
+  bottom: 32px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.round {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform var(--fast) var(--ease);
+}
+
+.round:hover {
+  transform: translateY(-1px);
+}
+
+.round.primary {
+  background: var(--primary-bg);
+  color: #fff;
+  box-shadow: var(--shadow-blue);
+}
+
+.round.primary:hover {
+  background: var(--primary-hover);
+}
+
+.round.danger {
+  background: var(--paper-raised);
+  border-color: var(--line);
+  color: var(--red);
+  box-shadow: var(--shadow-float);
+}
+
+.round.danger:hover {
+  background: var(--red-soft);
+}
+
+.dock-label {
+  display: none;
+}
+
+.menu-entry {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+
+.menu-entry small {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
