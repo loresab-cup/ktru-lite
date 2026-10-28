@@ -3007,3 +3007,8 @@ a {
   justify-content: space-between;
   gap: var(--s3);
 }
+
+.login-rule {
+  font-weight: 400;
+  color: var(--ink-3);
+}

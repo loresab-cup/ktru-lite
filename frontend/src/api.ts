@@ -90,7 +90,7 @@ export interface Health {
   codes: number
   llm: 'on' | 'off' | 'down'
   embeddings: 'on' | 'off' | 'down' | 'unknown'
-  auth?: 'on' | 'off' | 'no_users'
+  auth?: 'on' | 'off'
 }
 
 /** The logged-in user; an empty login when the server runs without accounts. */
@@ -199,6 +199,8 @@ export const api = {
   me: () => request<Me>('/api/auth/me'),
   login: (login: string, password: string) =>
     request<Me>('/api/auth/login', json('POST', { login, password })),
+  register: (login: string, password: string) =>
+    request<Me>('/api/auth/register', json('POST', { login, password })),
   logout: () => request<void>('/api/auth/logout', json('POST')),
   /** The newest jobs and how many there are in all. */
   jobs: async (limit = 8, q = '', sort: JobSort = 'new') => {
