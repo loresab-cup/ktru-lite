@@ -391,3 +391,24 @@ def test_a_persons_code_goes_to_the_same_row_of_a_later_file(api, monkeypatch):
         assert api.recalled([later]) == {}  # the job is gone, so are its decisions
     monkeypatch.setattr(api, "REMEMBER", False)
     assert api.recalled([later]) == {}
+
+
+def test_old_finished_jobs_are_cleaned_only_when_asked(api, monkeypatch, tmp_path):
+    old, fresh, running = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    long_ago = datetime.now(UTC) - timedelta(days=40)
+    with api.SessionLocal() as session:
+        session.add(api.Job(id=old, filename="a.txt", status="done", created_at=long_ago))
+        session.add(api.Job(id=fresh, filename="b.txt", status="done"))
+        session.add(api.Job(id=running, filename="c.txt", status="processing", created_at=long_ago))
+        session.add(api.Item(job_id=old, row_number=1, raw_text="x", status="auto"))
+        session.add(api.Decision(key="k", job_id=old, ktru_code="17.12.14.129-00000001"))
+        session.commit()
+    (tmp_path / f"{old}.txt").write_text("x")
+    assert api.clean_old_jobs() == 0  # JOBS_KEEP_DAYS=0 by default: nothing is deleted
+    monkeypatch.setattr(api, "KEEP_DAYS", 30.0)
+    assert api.clean_old_jobs() == 1
+    with api.SessionLocal() as session:
+        assert {job.id for job in session.query(api.Job)} == {fresh, running}
+        assert session.query(api.Item).count() == 0
+        assert session.query(api.Decision).count() == 1  # the memory of decisions stays
+    assert not (tmp_path / f"{old}.txt").exists()

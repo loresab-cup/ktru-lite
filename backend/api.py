@@ -15,7 +15,7 @@ import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import quote
@@ -55,6 +55,9 @@ logger = logging.getLogger("api")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg://ktru:ktru@db:5432/ktru")
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/data/uploads"))
 WORKERS = int(os.getenv("WORKERS", "2"))
+# Finished jobs older than this are deleted once an hour; 0 keeps them (the default)
+KEEP_DAYS = float(os.getenv("JOBS_KEEP_DAYS", "0"))
+CLEAN_EVERY = 3600.0
 JOB_TIME_LIMIT = 270.0  # seconds: 1000 rows must be done within 5 minutes, with a margin
 BATCH = 20  # small batches: finished rows reach the table while the rest are processed
 POLL_SECONDS = 1.0
@@ -464,6 +467,39 @@ def worker_loop() -> None:
         state.stop.wait(POLL_SECONDS)
 
 
+def clean_old_jobs() -> int:
+    """Deletes finished jobs older than KEEP_DAYS with their rows and files; the decisions of
+    people stay, they are the memory for later files. Returns how many jobs went."""
+    if KEEP_DAYS <= 0:
+        return 0
+    border = now() - timedelta(days=KEEP_DAYS)
+    with SessionLocal() as session:
+        old = session.scalars(
+            select(Job).where(
+                Job.status.in_(("done", "failed", "cancelled")), Job.created_at < border
+            )
+        ).all()
+        ids = [job.id for job in old]
+        if not ids:
+            return 0
+        session.execute(delete(Item).where(Item.job_id.in_(ids)))
+        session.execute(delete(Job).where(Job.id.in_(ids), Job.status != "processing"))
+        session.commit()
+    for job in old:
+        upload_path(job).unlink(missing_ok=True)
+    logger.info("deleted %s jobs older than %s days", len(ids), KEEP_DAYS)
+    return len(ids)
+
+
+def cleaner_loop() -> None:
+    while not state.stop.is_set():
+        try:
+            clean_old_jobs()
+        except Exception:  # the database restarts: try again next time
+            logger.exception("cleaning old jobs failed")
+        state.stop.wait(CLEAN_EVERY)
+
+
 def load_catalog() -> None:
     try:
         state.catalog = search.load_catalog()
@@ -495,6 +531,8 @@ async def lifespan(_: FastAPI):
     threading.Thread(target=load_catalog, daemon=True).start()
     for n in range(WORKERS):
         threading.Thread(target=worker_loop, name=f"worker-{n}", daemon=True).start()
+    if KEEP_DAYS > 0:
+        threading.Thread(target=cleaner_loop, name="cleaner", daemon=True).start()
     yield
     state.stop.set()
 
