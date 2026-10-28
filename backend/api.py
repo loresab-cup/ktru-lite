@@ -329,7 +329,7 @@ def process_items(
             ready = prepared[n].result()
             tick(stages, "wait", started)
             process_batch(job_id, batch, n * BATCH, ready, include_inactive, stages)
-    except extractor.Cancelled:
+    except Exception:  # stopped or failed: the batches not yet sent are not needed
         llm.cancel()
         raise
     finally:

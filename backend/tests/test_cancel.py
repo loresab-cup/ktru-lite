@@ -446,3 +446,25 @@ def test_old_finished_jobs_are_cleaned_only_when_asked(api, monkeypatch, tmp_pat
         assert session.query(api.Item).count() == 0
         assert session.query(api.Decision).count() == 1  # the memory of decisions stays
     assert not (tmp_path / f"{old}.txt").exists()
+
+
+def test_a_failed_batch_stops_the_network_requests_of_the_job(api, monkeypatch, tmp_path):
+    monkeypatch.setattr(api.state, "catalog", tiny_catalog())
+    monkeypatch.setattr(embedder, "embed", lambda texts: None)
+    stopped = []
+    monkeypatch.setattr(extractor.JobExtractor, "cancel", lambda self: stopped.append(True))
+    job_id = uuid.uuid4()
+    with api.SessionLocal() as session:
+        session.add(api.Job(id=job_id, filename="spec.txt", status="processing"))
+        session.commit()
+    path = tmp_path / f"{job_id}.txt"
+    path.write_text("Бумага А4\nНоутбук", encoding="utf-8")
+
+    def broken(*args):
+        raise RuntimeError("the database went away")
+
+    monkeypatch.setattr(api, "process_batch", broken)
+    api.run_job(job_id)
+    with api.SessionLocal() as session:
+        assert session.get(api.Job, job_id).status == "failed"
+    assert stopped == [True]
