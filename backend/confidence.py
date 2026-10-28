@@ -15,7 +15,7 @@ import math
 # high zone. The cosine hardly tells a right code from a wrong one (medians 0.706 and 0.689), the
 # margin does. Wrong in auto per 1000 rows 2 and 6-7, auto rows 823 and 795-797. The margin is
 # taken from the raw scores: with scores capped at 1.0 two neighbour codes that both passed 1.0
-# got margin 0 and the same confidence whatever the real gap (fit of 27.10.2026, bge-m3).
+# got margin 0 and the same confidence whatever the real gap (fit of 27.10.2026).
 W_SCORE, W_MARGIN, BIAS = 0.80, 167.2, -1.38
 MAX_MARGIN = 0.2  # a bigger gap says nothing more: the bonuses of one row add up past it
 

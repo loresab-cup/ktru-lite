@@ -1,4 +1,4 @@
-"""Yandex embeddings of every catalog code -> an .npz for CATALOG_VECTORS (EMBED_PROVIDER=yandex).
+"""Yandex embeddings of every catalog code -> db/ktru_vectors_yandex.npz (CATALOG_VECTORS).
 
 Runs inside the backend container: it has the key, httpx and the embedder module.
 
@@ -8,7 +8,7 @@ Runs inside the backend container: it has the key, httpx and the embedder module
     docker compose exec backend tail -3 /cache/embed.log
     docker compose cp backend:/cache/ktru_vectors_yandex.npz db/
 
-The text of a code is its embedding_text from the dump (the bge-m3 vectors were built from it),
+The text of a code is its embedding_text from the dump (the old vectors of the dump came from it),
 embedded by the doc model. Equal texts are sent once: about 77 600 requests, a bit over two
 hours at 10 a second. The quota is per cloud, so a key of another cloud adds its own: --accounts
 takes the names of env variables (key:folder), e.g.
@@ -78,8 +78,6 @@ def main() -> None:
     args.add_argument("--accounts", default=DEFAULT_ACCOUNTS)
     options = args.parse_args()
     accounts = accounts_from_env(options.accounts)
-    if embedder.DIM != 256:
-        sys.exit("run with EMBED_PROVIDER=yandex")
 
     codes, texts = catalog_texts(options.dump)
     unique = list(dict.fromkeys(texts))

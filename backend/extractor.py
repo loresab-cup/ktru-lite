@@ -31,7 +31,7 @@ PROVIDERS = providers.load()
 # minute or the requests at the same moment, not the rows. 20 rows still fit the answer limit.
 BATCH_SIZE = int(os.getenv("LLM_BATCH", "20"))
 # Seconds for all LLM requests of one job; the rows left after it get the rules. 240 s plus the
-# search (~25 s on a GPU) stays within the 5 minutes required for 1000 rows.
+# search stays within the 5 minutes required for 1000 rows.
 JOB_BUDGET = float(os.getenv("LLM_BUDGET", "240"))
 # After the network of a provider did not answer, it is skipped for a while instead of
 # waiting the whole budget again
