@@ -199,8 +199,13 @@ function Dock({ job, exportable }: { job: Job; exportable: boolean }) {
                 entry('csv', <FileText size={20} />, T.dock.exportCsv, T.dock.exportCsvHint),
               ],
               // A menu item, not a link inside it: works with the mouse and with Enter alike;
-              // the file is an attachment, so the page stays where it is
-              onClick: ({ key }) => window.location.assign(api.exportUrl(job.id, key as 'xlsx' | 'csv')),
+              // the file is an attachment, so the page stays where it is. The session is checked
+              // first: an expired one would open a bare 401 page instead of the login form
+              onClick: ({ key }) =>
+                void api
+                  .me()
+                  .then(() => window.location.assign(api.exportUrl(job.id, key as 'xlsx' | 'csv')))
+                  .catch((e) => message.error(e instanceof ApiError ? e.message : T.errors.network)),
             }}
           >
             <button type="button" className="round primary" aria-label={T.dock.exportTitle}>
