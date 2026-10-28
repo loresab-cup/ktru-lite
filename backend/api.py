@@ -2,7 +2,7 @@
 
 Queue = the jobs table: WORKERS background threads take a queued job with
 SELECT ... FOR UPDATE SKIP LOCKED and process it in batches of BATCH rows, updating `processed`.
-Pipeline of a batch: extractor (LLM or rules) -> embedder (bge-m3) -> search -> confidence.
+Pipeline of a batch: extractor (LLM or rules) -> embedder (Yandex) -> search -> confidence.
 """
 
 import csv
@@ -132,7 +132,7 @@ SessionLocal = sessionmaker(engine, expire_on_commit=False)
 
 class State:
     catalog: search.Catalog | None = None
-    catalog_error: bool = False
+    catalog_error: str = ""  # why the catalog is not loaded, for /api/health
     stop = threading.Event()
 
     def __init__(self) -> None:
@@ -338,7 +338,7 @@ def process_batch(
     queries = [f"{a['search_text']}. {row.text}" for a, row in zip(attributes, batch, strict=True)]
     hints = [unit_hints(row, a) for a, row in zip(attributes, batch, strict=True)]
     vectors = embedder.embed(queries)
-    if vectors is None:  # Ollama is down: the page warns that these rows were found by words
+    if vectors is None:  # no vectors: the page warns that these rows were found by words
         attributes = [a | {"words_only": True} for a in attributes]
     found = state.catalog.search(
         vectors,
@@ -504,13 +504,13 @@ def load_catalog() -> None:
         catalog = search.load_catalog()
         if catalog.vectors.shape[1] != embedder.DIM:
             raise ValueError(
-                f"catalog vectors have {catalog.vectors.shape[1]} numbers, EMBED_PROVIDER="
-                f"{embedder.PROVIDER} gives {embedder.DIM}: set CATALOG_VECTORS for it"
+                f"catalog vectors have {catalog.vectors.shape[1]} numbers, the Yandex embeddings "
+                f"{embedder.DIM}: the file belongs to another model"
             )
         state.catalog = catalog
-    except Exception:
+    except Exception as exc:
         logger.exception("catalog is not loaded")
-        state.catalog_error = True
+        state.catalog_error = str(exc)[:300] or type(exc).__name__
 
 
 def init_db() -> None:
@@ -666,7 +666,7 @@ def get_job(job_id: str):
                 .where(Item.job_id == job.id, Item.attributes[key].as_string().is_not(None))
             )
 
-        # fallback: the network did not give the attributes; words_only: Ollama was down
+        # fallback: the network did not give the attributes; words_only: no vectors
         return to_dict(job) | {
             "counts": counts,
             "fallback": flagged("fallback"),
@@ -1075,8 +1075,8 @@ def health():
         "catalog": catalog,
         "codes": len(state.catalog.codes) if state.catalog else 0,
         "llm": extractor.llm_state(),
+        "catalog_error": state.catalog_error,
         "embeddings": embedder.state(),
-        "embed_provider": embedder.PROVIDER,
         "providers": [  # names and limits only, never keys
             {"name": p.name, "model": p.model, "parallel": p.parallel, "down": p.is_down()}
             for p in extractor.PROVIDERS

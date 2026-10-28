@@ -5,10 +5,9 @@ when several are free. GigaChat is used only when none of the others can take th
 - yandex, yandex2...yandex5: YandexGPT in Yandex AI Studio, one API key of a service account each:
   X_API_KEY, X_FOLDER_ID, X_MODEL (yandexgpt-5.1 or a full gpt://... URI), X_PARALLEL, X_RPM,
   X_BASE_URL; yandex2...yandex5 take what they lack from YANDEX_*
-- gigachat: GIGACHAT_* (OAuth key -> token for 30 minutes)
-- any other name X: an OpenAI-compatible API with X_BASE_URL, X_API_KEY, X_MODEL, X_PARALLEL, X_RPM
-Optional X_REASONING_EFFORT (none, low, ...) for models that think before answering and
-X_MAX_TOKENS for the answer limit.
+- gigachat: GIGACHAT_* (OAuth key -> token for 30 minutes), the last resort
+Other names are skipped: no other neural network is used. Optional X_MAX_TOKENS for the answer
+limit.
 Every provider has its own limit of requests at the same moment (X_PARALLEL -> a semaphore)
 and, if X_RPM is set, of requests per minute.
 """
@@ -66,14 +65,11 @@ class Cancelled(Exception):
 @dataclass
 class Provider:
     name: str
-    kind: str  # gigachat | yandex | openai
+    kind: str  # gigachat | yandex
     base_url: str
     key: str
     model: str
     parallel: int = 1
-    reasoning: str = (
-        ""  # reasoning_effort for models that think before answering: "none" is fastest
-    )
     rpm: int = 0  # requests per minute the plan allows (free tiers: ~30); 0 - no limit
     folder: str = ""  # Yandex Cloud folder of the key: sent as OpenAI-Project
     max_tokens: int = MAX_TOKENS
@@ -123,7 +119,6 @@ def load(env=os.environ) -> list[Provider]:
     ):
         if not name:
             continue
-        p = name.upper()
         if name == "gigachat":
             result.append(
                 Provider(
@@ -138,17 +133,8 @@ def load(env=os.environ) -> list[Provider]:
         elif name.startswith("yandex"):
             result.append(yandex(env, name))
         else:
-            result.append(
-                Provider(
-                    name,
-                    "openai",
-                    setting(env, name, "BASE_URL"),
-                    setting(env, name, "API_KEY", shared=False).strip(),
-                    setting(env, name, "MODEL").strip(),
-                    int(setting(env, name, "PARALLEL", "1")),
-                )
-            )
-        result[-1].reasoning = env.get(f"{p}_REASONING_EFFORT", "").strip()
+            logger.warning("LLM_PROVIDERS: %s is not YandexGPT or GigaChat, skipped", name)
+            continue
         limit = YANDEX_MAX_TOKENS if result[-1].kind == "yandex" else str(MAX_TOKENS)
         result[-1].max_tokens = int(setting(env, name, "MAX_TOKENS", limit))
         result[-1].rpm = int(setting(env, name, "RPM", "0", shared=name != "gigachat") or 0)
@@ -237,8 +223,6 @@ def body(p: Provider, system: str, user: str) -> dict:
         "temperature": TEMPERATURE,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
     }
-    if p.reasoning:
-        result["reasoning_effort"] = p.reasoning
     return result
 
 
@@ -247,11 +231,8 @@ def post(p: Provider, payload: dict, deadline: float) -> httpx.Response:
     if p.kind == "gigachat":
         headers = {"Authorization": f"Bearer {access_token(p.key, deadline=deadline)}"}
         client = _gigachat_client
-    elif p.kind == "yandex":
-        headers = {"Authorization": f"Api-Key {p.key}", "OpenAI-Project": p.folder}
-        client = _client
     else:
-        headers = {"Authorization": f"Bearer {p.key}"}
+        headers = {"Authorization": f"Api-Key {p.key}", "OpenAI-Project": p.folder}
         client = _client
     p.wait_turn(deadline)
     timeout = min(REQUEST_TIMEOUT, max(1.0, deadline - time.monotonic()))

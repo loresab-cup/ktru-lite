@@ -25,7 +25,7 @@ def mock(monkeypatch, handler, gigachat: bool = False) -> None:
 
 
 def openai(parallel: int = 1, name: str = "x") -> Provider:
-    return Provider(name, "openai", "https://x/v1", "key", "model", parallel)
+    return Provider(name, "yandex", "https://x/v1", "key", "model", parallel)
 
 
 # --- HTTP ----------------------------------------------------------------------------------
@@ -162,7 +162,7 @@ def test_nothing_is_sent_after_cancel(monkeypatch):
     assert not sent
 
 
-def test_openai_request_and_cut_answer(monkeypatch):
+def test_request_and_cut_answer(monkeypatch):
     seen = []
 
     def handler(request):
@@ -170,12 +170,12 @@ def test_openai_request_and_cut_answer(monkeypatch):
         return httpx.Response(200, json=chat_answer(finish="stop" if len(seen) == 1 else "length"))
 
     mock(monkeypatch, handler)
-    p = Provider("other", "openai", "https://ai/v1", "secret", "chat-model", 2)
+    p = Provider("other", "yandex", "https://ai/v1", "secret", "chat-model", 2)
     assert providers.chat(p, "s", "u", time.monotonic() + 30) == ANSWER
     body = json.loads(seen[0].content)
     assert str(seen[0].url) == "https://ai/v1/chat/completions"
-    assert seen[0].headers["Authorization"] == "Bearer secret"
-    assert body["model"] == "chat-model" and "reasoning_effort" not in body
+    assert seen[0].headers["Authorization"] == "Api-Key secret"
+    assert body["model"] == "chat-model"
     with pytest.raises(ValueError):
         providers.chat(p, "s", "u", time.monotonic() + 30)
 
@@ -208,13 +208,10 @@ def test_load_from_env():
         "OTHER_API_KEY": "d",
         "OTHER_MODEL": "chat",
     }
-    giga, first, other = providers.load(env)
+    giga, first = providers.load(env)  # "other" is no YandexGPT or GigaChat: not used
     assert (giga.kind, giga.parallel, giga.configured) == ("gigachat", 1, True)
     assert (first.kind, first.parallel, first.model) == ("yandex", 4, "gpt://b1g/yandexgpt-5.1")
-    assert (other.kind, other.configured, other.max_tokens) == ("openai", True, 16384)
-    reasoning = providers.load({"LLM_PROVIDERS": "other", "OTHER_REASONING_EFFORT": "low"})[0]
-    assert providers.body(reasoning, "s", "u")["reasoning_effort"] == "low"
-    assert "reasoning_effort" not in providers.body(other, "s", "u")
+    assert "reasoning_effort" not in providers.body(first, "s", "u")
     assert not providers.load({"LLM_PROVIDERS": "yandex3"})[0].configured  # no key
     # the sample values of the guide left in .env are not a key
     sample = {
@@ -446,12 +443,12 @@ def test_refused_connection_is_retried_sooner_than_a_silent_network(monkeypatch)
 
 
 def test_rpm_spaces_requests_and_env_sets_it():
-    p = Provider("x", "openai", "http://x", "k", "m", parallel=4, rpm=600)  # 0.1 s apart
+    p = Provider("x", "yandex", "http://x", "k", "m", parallel=4, rpm=600)  # 0.1 s apart
     started = time.monotonic()
     for _ in range(4):
         p.wait_turn(time.monotonic() + 10)
     assert time.monotonic() - started >= 0.29
-    free = Provider("y", "openai", "http://y", "k", "m")
+    free = Provider("y", "yandex", "http://y", "k", "m")
     started = time.monotonic()
     free.wait_turn(time.monotonic() + 10)
     assert time.monotonic() - started < 0.05

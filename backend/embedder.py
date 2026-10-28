@@ -1,10 +1,8 @@
-"""Texts -> L2-normalized vectors: bge-m3 through Ollama (POST /api/embed) or, without a GPU,
-Yandex AI Studio text embeddings (EMBED_PROVIDER=yandex, 256 numbers, one text per request).
+"""Texts -> L2-normalized vectors of Yandex AI Studio (256 numbers, one text per request).
 
-The catalog must be embedded by the same model: the bge-m3 vectors are in the dump, the Yandex
-ones in CATALOG_VECTORS (scripts/embed_catalog.py builds them with the doc model; rows go to the
-query model). The service is down or answers garbage -> None: the search then works by words
-only. The last answer is kept as the state for /api/health, so the page can say that the search
+Rows go to the query model, the catalog was embedded by the doc model into CATALOG_VECTORS
+(scripts/embed_catalog.py). No key, the service is down or answers garbage -> None: the search
+then works by words only. The last answer is kept as the state for /api/health, so the page can say that the search
 is worse.
 """
 
@@ -19,9 +17,6 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434").rstrip("/")
-MODEL = os.getenv("EMBED_MODEL", "bge-m3")
-PROVIDER = os.getenv("EMBED_PROVIDER", "ollama").strip().lower()  # ollama | yandex
 YANDEX_URL = os.getenv(
     "YANDEX_EMBED_URL", "https://llm.api.cloud.yandex.net/foundationModels/v1/textEmbedding"
 )
@@ -33,13 +28,12 @@ YANDEX_DOC_MODEL = "text-search-doc"
 YANDEX_RPS = float(os.getenv("YANDEX_EMBED_RPS", "10"))
 YANDEX_RETRIES = 4  # 429 and 5xx: 0.5 + 1 + 2 + 4 s at most, then the batch goes by words
 YANDEX_MAX_CHARS = 4000  # the model reads at most 2048 tokens
-YANDEX = PROVIDER == "yandex"
-DIM = 256 if YANDEX else 1024
-# Yandex takes one text per request: small chunks let the pool keep several requests in flight
-BATCH_SIZE = 4 if YANDEX else 64
+DIM = 256
+# One text per request: small chunks let the pool keep several requests in flight
+BATCH_SIZE = 4
 PARALLEL = 4
 CACHE_LIMIT = 50_000
-# /api/health asks Ollama itself at most this often; the jobs report every answer meanwhile
+# /api/health asks the service itself at most this often; the jobs report every answer meanwhile
 CHECK_EVERY = 30.0
 PROBE_TIMEOUT = 5.0
 # A request that hung for the whole timeout: the next batches go by words at once for a while
@@ -62,9 +56,12 @@ def _mark(up: bool, hung: bool = False) -> None:
 
 
 def state() -> str:
-    """on / down / unknown; Ollama is asked again when the last answer is older than CHECK_EVERY.
+    """on / off / down / unknown; the service is asked again when the last answer is older than
+    CHECK_EVERY. off: no key, nothing is asked.
 
     Only one caller probes at a time, the others get the last known state at once."""
+    if not YANDEX_KEY or not YANDEX_FOLDER:
+        return "off"
     stale = time.monotonic() - _status["at"] > CHECK_EVERY
     if stale and _probe_lock.acquire(blocking=False):
         try:
@@ -78,13 +75,7 @@ def state() -> str:
 
 
 def _request(texts: list[str], timeout=httpx.USE_CLIENT_DEFAULT) -> np.ndarray:
-    if YANDEX:
-        return yandex_vectors(texts, YANDEX_QUERY_MODEL, timeout)
-    response = _client.post(
-        f"{OLLAMA_URL}/api/embed", json={"model": MODEL, "input": texts}, timeout=timeout
-    )
-    response.raise_for_status()
-    return _normalized(response.json()["embeddings"], len(texts))
+    return yandex_vectors(texts, YANDEX_QUERY_MODEL, timeout)
 
 
 def _wait_turn(folder: str) -> None:
@@ -153,7 +144,7 @@ def embed(texts: list[str]) -> np.ndarray | None:
         try:
             results = list(_pool.map(_request, chunks))
         except Exception as exc:  # noqa: BLE001 - any failure means "no vectors"
-            logger.warning("%s is unavailable, word search only: %s", PROVIDER, type(exc).__name__)
+            logger.warning("embeddings are unavailable, word search only: %s", type(exc).__name__)
             _mark(False, hung=isinstance(exc, httpx.TimeoutException))
             return None
         _mark(True)

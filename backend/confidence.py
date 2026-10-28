@@ -1,7 +1,6 @@
 """Top-5 candidates -> confidence %, zone, needs_review, item status and a short explanation."""
 
 import math
-import os
 
 # confidence = 1 / (1 + exp(-(W_SCORE * top1 + W_MARGIN * margin + BIAS)))
 #   top1   - score of the best candidate (cosine + word bonus), capped at 1.0;
@@ -11,21 +10,13 @@ import os
 # code is right) of every row and fit a logistic regression on the two features; its
 # coefficients go here. Then check the high zone: at least ~95 % of its codes must be right,
 # otherwise raise BIAS a little.
-# Fit of 27.10.2026 on 4 000 rows (the 1000-row organizers' file and its modified copy, with
-# the rules and with the neural networks). The margin used to be taken from the scores capped
-# at 1.0: two neighbour codes that both passed 1.0 had margin 0 and got 94 % whatever the real
-# gap, and 6 % of such rows had a wrong code. With the raw margin, on the training rows the
-# wrong codes in auto went 36-41 -> 9-11 per 1000 (auto rows 938-951 -> 811-837); on the
-# other rows (292 rows, its modified copy, the real file, the EIS form) 3-4 -> 0 wrong in auto,
-# log loss 0.128 -> 0.098. The price: about one row in nine more goes to a person.
-# Yandex embeddings (EMBED_PROVIDER=yandex) put the cosines on another scale, so they have their
-# own fit of 28.10.2026: replayed search on the saved LLM answers of three runs, fitted on the
-# 1000-row file and its copy of one run, BIAS lowered by 1.0 for the high zone. There the cosine
-# hardly tells a right code from a wrong one (medians 0.706 and 0.689), the margin does. Wrong
-# in auto per 1000 rows 2 and 6-7 (bge-m3 7 and 7), auto rows 823 and 795-797 (882 and 869).
-FITS = {"ollama": (8.8, 123.7, -7.78), "yandex": (0.80, 167.2, -1.38)}
-_provider = os.getenv("EMBED_PROVIDER", "ollama").strip().lower()
-W_SCORE, W_MARGIN, BIAS = FITS.get(_provider, FITS["ollama"])
+# Fit of 28.10.2026 for the Yandex embeddings: replayed search on the saved LLM answers of three
+# runs, fitted on the 1000-row file and its modified copy of one run, BIAS lowered by 1.0 for the
+# high zone. The cosine hardly tells a right code from a wrong one (medians 0.706 and 0.689), the
+# margin does. Wrong in auto per 1000 rows 2 and 6-7, auto rows 823 and 795-797. The margin is
+# taken from the raw scores: with scores capped at 1.0 two neighbour codes that both passed 1.0
+# got margin 0 and the same confidence whatever the real gap (fit of 27.10.2026, bge-m3).
+W_SCORE, W_MARGIN, BIAS = 0.80, 167.2, -1.38
 MAX_MARGIN = 0.2  # a bigger gap says nothing more: the bonuses of one row add up past it
 
 HIGH = 85.0  # >= HIGH: zone high, the code is set automatically

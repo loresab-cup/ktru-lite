@@ -7,7 +7,6 @@ Search: exact cosine (queries @ matrix.T) -> 50 nearest -> + WORD_BONUS per shar
 Exact, not HNSW: on this catalog HNSW loses up to 14 % of the right codes.
 """
 
-import base64
 import functools
 import gzip
 import json
@@ -24,10 +23,9 @@ logger = logging.getLogger(__name__)
 
 CATALOG_PATH = Path(os.getenv("CATALOG_PATH", "/catalog/ktru_catalog.jsonl.gz"))
 CACHE_DIR = Path(os.getenv("CACHE_DIR", "/cache"))
-# Vectors of another model (Yandex embeddings) for the codes of the dump: an .npz with "codes"
-# and "vectors" from scripts/embed_catalog.py; empty - the bge-m3 vectors of the dump itself
-VECTORS_PATH = os.getenv("CATALOG_VECTORS", "")
-DIM = 1024  # bge-m3 in the dump
+# Yandex embeddings of the codes of the dump: an .npz with "codes" and "vectors" built by
+# scripts/embed_catalog.py. The old vectors of the dump (embedding_b64) are not read.
+VECTORS_PATH = os.getenv("CATALOG_VECTORS", "/catalog/ktru_vectors_yandex.npz")
 VECTOR_LIMIT = 50
 WORD_BONUS = 0.02
 TOP_K = 5
@@ -36,7 +34,7 @@ WORDS_ONLY_BASE = 0.6  # without vectors the score stays low: nothing goes to au
 MAX_CODE_WORDS = 400
 # Characteristics kept per code: candidates show 6 x 5 of them, a lookup of one code all
 BRIEF_CHARS, BRIEF_VALUES = 20, 40
-CACHE_VERSION = 9  # bump when the cached metadata changes
+CACHE_VERSION = 10  # bump when the cached metadata changes
 # Neighbour codes of one group often differ only by a range: "> 1.25" vs "<= 1.25".
 # A bound of the row equal to a bound of the code adds NUMERIC_BONUS, so does a plain value with
 # a unit inside a range of the code («Вес: 100 г» and «≥ 90 и < 110 Грамм»); the same number on
@@ -770,9 +768,8 @@ def with_unit(value: str, unit: str) -> str:
     return f"{value} {unit}" if unit else value
 
 
-def build(path: Path) -> tuple[np.ndarray, dict]:
-    """Streams the dump: vectors into a growing matrix, the rest into short lists."""
-    vectors = np.empty((90_000, DIM), dtype=np.float32)
+def build(path: Path) -> dict:
+    """Streams the dump into short lists; the vectors come from VECTORS_PATH."""
     meta: dict[str, list] = {
         k: []
         for k in (
@@ -788,15 +785,12 @@ def build(path: Path) -> tuple[np.ndarray, dict]:
             "units",
         )
     }
-    n = 0
     with gzip.open(path, "rt", encoding="utf-8") as lines:
         for line in lines:
             record = json.loads(line)
+            # the vectors file has the codes that had a vector in the dump (embed_catalog.py)
             if not record.get("embedding_b64"):
                 continue
-            if n == len(vectors):
-                vectors = np.concatenate([vectors, np.empty((20_000, DIM), np.float32)])
-            vectors[n] = np.frombuffer(base64.b64decode(record["embedding_b64"]), dtype="<f4")
             chars, value_texts = brief_chars(record.get("characteristics"))
             code_words = list(words(" ".join([record.get("name") or "", *value_texts])))
             meta["codes"].append(record["code"])
@@ -809,11 +803,10 @@ def build(path: Path) -> tuple[np.ndarray, dict]:
             meta["fixed"].append(fixed_characteristics(record.get("characteristics")))
             meta["templates"].append(bool(record.get("is_template")))
             meta["units"].append(code_units(record.get("units")))
-            n += 1
-    return vectors[:n], meta  # a view: no second 334 MB copy
+    return meta
 
 
-def other_vectors(path: Path, codes: list[str]) -> np.ndarray:
+def catalog_vectors(path: Path, codes: list[str]) -> np.ndarray:
     """Vectors of the file in the order of the catalog codes, L2-normalized.
 
     A code of the catalog without a vector is an error: the file belongs to another dump."""
@@ -837,29 +830,26 @@ def load_catalog(
     vectors_file = VECTORS_PATH if vectors_file is None else vectors_file
     stat = path.stat()
     key = f"v{CACHE_VERSION}-{stat.st_size}-{stat.st_mtime_ns}"
-    vectors_path = cache_dir / f"catalog-{key}.npy"
     meta_path = cache_dir / f"catalog-{key}.json.gz"
-    if vectors_path.exists() and meta_path.exists():
-        # with vectors of another model the 334 MB of bge-m3 are not read into memory
-        vectors = np.load(vectors_path, mmap_mode="r" if vectors_file else None)
+    if not Path(vectors_file).is_file():  # fails at once, not after the 20 s build
+        raise FileNotFoundError(f"no catalog vectors file {vectors_file}: see README")
+    if meta_path.exists():
         with gzip.open(meta_path, "rt", encoding="utf-8") as file:
             meta = json.load(file)
         logger.info("catalog from cache: %s codes", len(meta["codes"]))
     else:
-        vectors, meta = build(path)
+        meta = build(path)
         logger.info("catalog built from the dump: %s codes", len(meta["codes"]))
         try:
             cache_dir.mkdir(parents=True, exist_ok=True)
             for old in cache_dir.glob("catalog-*"):
                 old.unlink()
-            np.save(vectors_path, vectors)
             with gzip.open(meta_path, "wt", encoding="utf-8", compresslevel=1) as file:
                 json.dump(meta, file, ensure_ascii=False)
         except OSError:
             logger.warning("catalog cache is not written to %s", cache_dir, exc_info=True)
-    if vectors_file:
-        vectors = other_vectors(Path(vectors_file), meta["codes"])
-        logger.info("catalog vectors from %s: %s numbers", vectors_file, vectors.shape[1])
+    vectors = catalog_vectors(Path(vectors_file), meta["codes"])
+    logger.info("catalog vectors from %s: %s numbers", vectors_file, vectors.shape[1])
     return Catalog(
         vectors=vectors,
         codes=meta["codes"],

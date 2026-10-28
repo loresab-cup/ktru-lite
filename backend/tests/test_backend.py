@@ -1,9 +1,8 @@
-"""Backend tests without network: LLM has no key (rules), Ollama is replaced.
+"""Backend tests without network: LLM has no key (rules), the embeddings are replaced.
 
 Run from backend/: python -m pytest -q tests
 """
 
-import base64
 import gzip
 import importlib
 import json
@@ -224,7 +223,7 @@ CODES = [
 
 
 def unit(vector: list[float]) -> np.ndarray:
-    array = np.zeros(search.DIM, dtype=np.float32)
+    array = np.zeros(embedder.DIM, dtype=np.float32)
     array[: len(vector)] = vector
     return array / np.linalg.norm(array)
 
@@ -240,22 +239,27 @@ def records() -> list[dict]:
             "name": name,
             "okpd2_code": code[:12],
             "characteristics": [{"name": "Формат", "values": [{"text": v} for v in values]}],
-            "embedding_b64": base64.b64encode(vector.astype("<f4").tobytes()).decode(),
+            "embedding_b64": "AAAA",  # the dump marks the codes that have a vector
         }
-        for (code, status, name, values), vector in zip(CODES, VECTORS, strict=True)
+        for code, status, name, values in CODES
     ]
 
 
+VECTORS_FILE = TMP / "vectors.npz"
+
+
 def write_catalog(path: Path) -> None:
+    """The dump and the vectors file next to it, as scripts/embed_catalog.py builds it."""
     with gzip.open(path, "wt", encoding="utf-8") as file:
         for record in records():
             file.write(json.dumps(record, ensure_ascii=False) + "\n")
+    np.savez(VECTORS_FILE, codes=np.asarray([c[0] for c in CODES]), vectors=np.stack(VECTORS))
 
 
 @pytest.fixture(scope="module")
 def catalog():
     write_catalog(TMP / "catalog.jsonl.gz")
-    return search.load_catalog(TMP / "catalog.jsonl.gz", TMP / "cache")
+    return search.load_catalog(TMP / "catalog.jsonl.gz", TMP / "cache", str(VECTORS_FILE))
 
 
 def test_search_word_bonus_picks_code_in_group(catalog):
@@ -267,8 +271,9 @@ def test_search_word_bonus_picks_code_in_group(catalog):
 
 
 def test_search_include_inactive_and_cache(catalog):
-    assert list((TMP / "cache").glob("catalog-*.npy"))  # second start reads the cache
-    again = search.load_catalog(TMP / "catalog.jsonl.gz", TMP / "cache")
+    assert list((TMP / "cache").glob("catalog-*.json.gz"))  # second start reads the cache
+    assert not list((TMP / "cache").glob("catalog-*.npy"))  # no vector matrix in the cache
+    again = search.load_catalog(TMP / "catalog.jsonl.gz", TMP / "cache", str(VECTORS_FILE))
     [found] = again.search(np.stack([unit([1, 0.1])]), ["бумага"], include_inactive=True)
     assert "TERMINATED" in {c["status"] for c in found}
 
@@ -366,9 +371,10 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
     monkeypatch.setenv("UPLOAD_DIR", str(TMP / "uploads"))
     monkeypatch.setenv("WORKERS", "1")
     monkeypatch.setattr(search, "CATALOG_PATH", TMP / "catalog.jsonl.gz")
+    monkeypatch.setattr(search, "VECTORS_PATH", str(VECTORS_FILE))
     monkeypatch.setattr(search, "CACHE_DIR", TMP / "cache")
     api = importlib.import_module("api")  # reads the environment at import
-    monkeypatch.setattr(embedder, "embed", lambda texts: None)  # Ollama is down: words only
+    monkeypatch.setattr(embedder, "embed", lambda texts: None)  # no vectors: words only
     monkeypatch.setattr(embedder, "state", lambda: "down")
     spec = "Наименование;Кол-во\nБумага для офисной техники А4;10\n=HYPERLINK(1) ноутбук;1\n"
     with TestClient(api.app) as client:

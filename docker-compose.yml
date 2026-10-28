@@ -1,4 +1,5 @@
-# One command: cp .env.example .env, fill GIGACHAT_CREDENTIALS, docker compose up --build
+# One command: cp .env.example .env, fill the keys, docker compose up -d --build.
+# Needs db/ktru_catalog.jsonl.gz and db/ktru_vectors_yandex.npz (README, «Векторы каталога»).
 name: ktru-lite
 
 services:
@@ -21,9 +22,12 @@ services:
         required: false
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ktru}:${POSTGRES_PASSWORD:-ktru}@db:5432/${POSTGRES_DB:-ktru}
-      # Embeddings: the ollama container (add docker-compose.gpu.yml for the GPU) or e.g.
-      # http://host.docker.internal:11434 for Ollama on the host with the same bge-m3
-      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      # Embeddings: Yandex AI Studio (YANDEX_EMBED_API_KEY, YANDEX_EMBED_FOLDER_ID in .env);
+      # the catalog vectors of the same model are built by scripts/embed_catalog.py
+      CATALOG_VECTORS: /catalog/ktru_vectors_yandex.npz
+      # 10 is the documented quota; 20 passed without 429 on 28.10.2026 (1000 rows: search
+      # 105 s at 10). A 429 is retried, so a cloud with a real 10 is slower, not wrong.
+      YANDEX_EMBED_RPS: ${YANDEX_EMBED_RPS:-20}
       LLM_PROVIDERS: ${LLM_PROVIDERS:-yandex,yandex2,yandex3,yandex4,yandex5,gigachat}
       GIGACHAT_BASE_URL: ${GIGACHAT_BASE_URL:-https://api.giga.chat/v1}
       GIGACHAT_CREDENTIALS: ${GIGACHAT_CREDENTIALS:-}
@@ -39,8 +43,6 @@ services:
       - uploads:/data/uploads
     depends_on:
       db:
-        condition: service_healthy
-      ollama:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/api/health')"]
@@ -62,25 +64,6 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
-      timeout: 5s
-      retries: 10
-
-  # bge-m3 is pulled while the image is built: later starts work without internet
-  ollama:
-    build:
-      context: ./backend  # nothing is copied; a small folder keeps the build context tiny
-      dockerfile_inline: |
-        FROM ollama/ollama:0.40.3
-        RUN useradd --uid 10002 --create-home ollama && mkdir /models && chown ollama /models
-        USER ollama
-        ENV HOME=/home/ollama OLLAMA_MODELS=/models OLLAMA_KEEP_ALIVE=24h OLLAMA_NUM_PARALLEL=4
-        RUN (ollama serve > /tmp/serve.log 2>&1 &) \
-            && for i in $$(seq 1 60); do ollama list > /dev/null 2>&1 && break; sleep 1; done \
-            && ollama pull bge-m3
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 10s
       timeout: 5s
       retries: 10
 

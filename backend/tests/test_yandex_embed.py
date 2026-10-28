@@ -1,8 +1,6 @@
-"""Yandex embeddings instead of bge-m3: requests, retries and the catalog vectors file."""
+"""Yandex embeddings: requests, retries and the catalog vectors file."""
 
-import base64
 import gzip
-import importlib
 import json
 
 import httpx
@@ -16,7 +14,7 @@ import search
 
 @pytest.fixture
 def yandex(monkeypatch):
-    """embedder in the Yandex mode with a fake gateway; returns the list of request bodies."""
+    """embedder with a key and a fake gateway; returns the list of request bodies."""
     sent = []
     answers = []  # status codes to answer before a good one
 
@@ -31,8 +29,6 @@ def yandex(monkeypatch):
     monkeypatch.setattr(embedder, "_client", httpx.Client(transport=httpx.MockTransport(handler)))
     monkeypatch.setattr(embedder, "_cache", {})
     monkeypatch.setattr(embedder, "_status", {"up": None, "at": 0.0, "pause_until": 0.0})
-    monkeypatch.setattr(embedder, "YANDEX", True)
-    monkeypatch.setattr(embedder, "DIM", 256)
     monkeypatch.setattr(embedder, "YANDEX_KEY", "test-key")
     monkeypatch.setattr(embedder, "YANDEX_FOLDER", "b1gfolder")
     monkeypatch.setattr(embedder, "YANDEX_RPS", 1000.0)
@@ -83,9 +79,8 @@ def test_without_a_key_nothing_is_sent(yandex, monkeypatch):
 def catalog_dump(path, codes):
     with gzip.open(path, "wt", encoding="utf-8") as file:
         for code in codes:
-            vector = np.zeros(search.DIM, np.float32)
             record = {"code": code, "name": code, "characteristics": [], "units": []}
-            record["embedding_b64"] = base64.b64encode(vector.tobytes()).decode()
+            record["embedding_b64"] = "AAAA"  # the old vector: only its presence counts
             file.write(json.dumps(record) + "\n")
 
 
@@ -111,15 +106,20 @@ def test_vectors_of_another_dump_are_an_error(tmp_path):
         search.load_catalog(tmp_path / "dump.jsonl.gz", tmp_path / "cache", str(file))
 
 
-def test_yandex_mode_has_its_own_confidence_fit(monkeypatch):
-    monkeypatch.setenv("EMBED_PROVIDER", "yandex")
-    try:
-        importlib.reload(confidence)
-        assert (confidence.W_SCORE, confidence.W_MARGIN, confidence.BIAS) == (0.80, 167.2, -1.38)
-        # the cosine says little here: a clear margin goes to auto, a near tie does not
-        assert confidence.probability(0.70, 0.02) >= confidence.HIGH
-        assert confidence.probability(0.75, 0.002) < confidence.HIGH
-    finally:
-        monkeypatch.delenv("EMBED_PROVIDER")
-        importlib.reload(confidence)
-    assert confidence.W_SCORE == 8.8
+def test_no_vectors_file_is_a_clear_error(tmp_path):
+    catalog_dump(tmp_path / "dump.jsonl.gz", ["01.11.10.000-00000001"])
+    with pytest.raises(FileNotFoundError, match="no catalog vectors file"):
+        search.load_catalog(tmp_path / "dump.jsonl.gz", tmp_path / "cache", str(tmp_path / "x"))
+    assert not (tmp_path / "cache").exists()  # failed before the 20 s build
+
+
+def test_the_confidence_fit_is_the_yandex_one():
+    assert (confidence.W_SCORE, confidence.W_MARGIN, confidence.BIAS) == (0.80, 167.2, -1.38)
+    # the cosine says little here: a clear margin goes to auto, a near tie does not
+    assert confidence.probability(0.70, 0.02) >= confidence.HIGH
+    assert confidence.probability(0.75, 0.002) < confidence.HIGH
+
+
+def test_without_a_key_the_health_says_off(monkeypatch):
+    monkeypatch.setattr(embedder, "YANDEX_KEY", "")
+    assert embedder.state() == "off"

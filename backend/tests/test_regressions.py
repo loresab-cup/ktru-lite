@@ -55,11 +55,13 @@ def test_invalid_vectors_fall_back_without_poisoning_cache(monkeypatch, value):
     monkeypatch.setattr(embedder, "_cache", {})
     vector = np.full((1, embedder.DIM), value).tolist()
     # NaN/Inf are nonstandard JSON, but some gateways still serialize them.
-    payload = json.dumps({"embeddings": vector}).encode()
+    payload = json.dumps({"embedding": vector[0]}).encode()
     with httpx.Client(
         transport=httpx.MockTransport(lambda _: httpx.Response(200, content=payload))
     ) as client:
         monkeypatch.setattr(embedder, "_client", client)
+        monkeypatch.setattr(embedder, "YANDEX_KEY", "test-key")
+        monkeypatch.setattr(embedder, "YANDEX_FOLDER", "b1gfolder")
         assert embedder.embed(["Лампа"]) is None
     assert not embedder._cache
 
@@ -320,9 +322,12 @@ def test_accepted_rows_return_to_review_in_bulk(isolated_api):
         assert client.post("/api/jobs/not-a-uuid/revert", json={"ids": [1]}).status_code == 404
 
 
-def ollama(monkeypatch, handler) -> None:
+def embeddings_gateway(monkeypatch, handler) -> None:
     client = httpx.Client(transport=httpx.MockTransport(handler))
     monkeypatch.setattr(embedder, "_client", client)
+    monkeypatch.setattr(embedder, "YANDEX_KEY", "test-key")
+    monkeypatch.setattr(embedder, "YANDEX_FOLDER", "b1gfolder")
+    monkeypatch.setattr(embedder, "YANDEX_RPS", 1000.0)
     monkeypatch.setattr(embedder, "_cache", {})
     monkeypatch.setattr(embedder, "_status", {"up": None, "at": 0.0, "pause_until": 0.0})
 
@@ -333,25 +338,24 @@ def test_embeddings_state_follows_the_answers(monkeypatch):
     def handler(request):
         if not up["value"]:
             raise httpx.ConnectError("refused", request=request)
-        texts = json.loads(request.content)["input"]
-        return httpx.Response(200, json={"embeddings": [[1.0] * embedder.DIM] * len(texts)})
+        return httpx.Response(200, json={"embedding": [1.0] * embedder.DIM})
 
-    ollama(monkeypatch, handler)
-    assert embedder.state() == "down"  # the health probe asked Ollama itself
+    embeddings_gateway(monkeypatch, handler)
+    assert embedder.state() == "down"  # the health probe asked the service itself
     assert embedder.embed(["Лампа"]) is None
     up["value"] = True
     assert embedder.embed(["Лампа"]).shape == (1, embedder.DIM)
     assert embedder.state() == "on"  # the job's answer is fresh: no second probe
 
 
-def test_hung_ollama_is_not_waited_for_again(monkeypatch):
+def test_hung_embeddings_are_not_waited_for_again(monkeypatch):
     calls = []
 
     def handler(request):
         calls.append(request)
         raise httpx.ReadTimeout("no answer", request=request)
 
-    ollama(monkeypatch, handler)
+    embeddings_gateway(monkeypatch, handler)
     assert embedder.embed(["Лампа"]) is None
     assert embedder.embed(["Стол"]) is None  # paused: no second request
     assert len(calls) == 1 and embedder.state() == "down"
