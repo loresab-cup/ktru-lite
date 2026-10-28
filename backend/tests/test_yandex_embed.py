@@ -69,6 +69,23 @@ def test_a_bad_key_gives_words_only_without_retries(yandex):
     assert embedder._status["up"] is False
 
 
+@pytest.mark.parametrize("status", [401, 403])
+def test_a_refused_key_pauses_the_vectors(yandex, status):
+    sent, answers = yandex
+    answers.extend([status] * 10)
+    assert embedder.embed(["Лампа"]) is None
+    assert embedder.embed(["Стол"]) is None  # paused: no second request for every batch
+    assert len(sent) == 1
+    assert embedder._status["pause_until"] > embedder.time.monotonic() + 100
+
+
+def test_a_broken_answer_does_not_pause(yandex):
+    _, answers = yandex
+    answers.append(400)
+    assert embedder.embed(["Лампа"]) is None
+    assert embedder.embed(["Стол"]).shape == (1, 256)  # the next batch asks again
+
+
 def test_without_a_key_nothing_is_sent(yandex, monkeypatch):
     sent, _ = yandex
     monkeypatch.setattr(embedder, "YANDEX_KEY", "")

@@ -39,9 +39,14 @@ PROBE_TIMEOUT = 5.0
 # A request that hung for the whole timeout: the next batches go by words at once for a while
 # instead of each one waiting two minutes again. A refused connection fails at once, no pause.
 HANG_PAUSE = 30.0
+# A refused key (401, 403 - no role in the folder): every batch would ask again and fail the same
+# way, so the next batches go by words for a while; the health probe asks again after it
+REFUSED_PAUSE = 120.0
+# One short text per request answers in ~0.1-0.3 s; a request still silent after this has hung
+REQUEST_TIMEOUT = 20.0
 
 _pool = ThreadPoolExecutor(PARALLEL, thread_name_prefix="embed")
-_client = httpx.Client(timeout=httpx.Timeout(120.0, connect=3.0))
+_client = httpx.Client(timeout=httpx.Timeout(REQUEST_TIMEOUT, connect=3.0))
 _cache: dict[str, np.ndarray] = {}
 _lock = threading.Lock()
 _probe_lock = threading.Lock()
@@ -50,9 +55,18 @@ _rate_lock = threading.Lock()
 _next_slot: dict[str, float] = {}  # folder -> monotonic time of its next allowed request
 
 
-def _mark(up: bool, hung: bool = False) -> None:
+def _mark(up: bool, error: Exception | None = None) -> None:
     now = time.monotonic()
-    _status.update(up=up, at=now, pause_until=now + HANG_PAUSE if hung else 0.0)
+    _status.update(up=up, at=now, pause_until=now + _pause_for(error) if error else 0.0)
+
+
+def _pause_for(error: Exception) -> float:
+    """Seconds the batches go by words without asking; 0 for a refused connection or garbage."""
+    if isinstance(error, httpx.TimeoutException):
+        return HANG_PAUSE
+    if isinstance(error, httpx.HTTPStatusError) and error.response.status_code in (401, 403):
+        return REFUSED_PAUSE
+    return 0.0
 
 
 def state() -> str:
@@ -68,7 +82,7 @@ def state() -> str:
             _request(["проверка"], timeout=PROBE_TIMEOUT)
             _mark(True)
         except Exception as exc:  # noqa: BLE001 - any failure means "down"
-            _mark(False, hung=isinstance(exc, httpx.TimeoutException))
+            _mark(False, exc)
         finally:
             _probe_lock.release()
     return {None: "unknown", True: "on", False: "down"}[_status["up"]]
@@ -138,14 +152,16 @@ def embed(texts: list[str]) -> np.ndarray | None:
         found = {t: _cache[t] for t in texts if t in _cache}
     missing = list(dict.fromkeys(t for t in texts if t not in found))
     if missing:
+        if not YANDEX_KEY or not YANDEX_FOLDER:
+            return None  # no key: words only, /api/health says "off"
         if time.monotonic() < _status["pause_until"]:
-            return None  # hung a moment ago: not waiting for it again
+            return None  # hung or refused a moment ago: not asking again yet
         chunks = [missing[i : i + BATCH_SIZE] for i in range(0, len(missing), BATCH_SIZE)]
         try:
             results = list(_pool.map(_request, chunks))
         except Exception as exc:  # noqa: BLE001 - any failure means "no vectors"
             logger.warning("embeddings are unavailable, word search only: %s", type(exc).__name__)
-            _mark(False, hung=isinstance(exc, httpx.TimeoutException))
+            _mark(False, exc)
             return None
         _mark(True)
         for chunk, vectors in zip(chunks, results, strict=True):
