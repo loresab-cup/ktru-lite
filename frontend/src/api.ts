@@ -89,8 +89,7 @@ export interface Health {
   catalog: 'ready' | 'loading' | 'error'
   codes: number
   llm: 'on' | 'off' | 'down'
-  embeddings: 'on' | 'down' | 'unknown'
-  embed_provider?: 'ollama' | 'yandex'
+  embeddings: 'on' | 'off' | 'down' | 'unknown'
 }
 
 export interface AttributesInput {

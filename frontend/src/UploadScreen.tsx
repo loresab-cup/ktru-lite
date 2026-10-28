@@ -95,11 +95,19 @@ function ServiceNotices() {
           {T.app.banner.llmOffHint}
         </Notice>
       )}
+      {health.catalog === 'error' && (
+        <Notice kind="warn" title={T.app.banner.catalogError}>
+          {T.app.banner.catalogErrorHint}
+        </Notice>
+      )}
+      {health.embeddings === 'off' && (
+        <Notice kind="warn" title={T.app.banner.embeddingsOff}>
+          {T.app.banner.embeddingsOffHint}
+        </Notice>
+      )}
       {health.embeddings === 'down' && (
         <Notice kind="warn" title={T.app.banner.embeddingsDown}>
-          {health.embed_provider === 'yandex'
-            ? T.app.banner.embeddingsDownYandexHint
-            : T.app.banner.embeddingsDownHint}
+          {T.app.banner.embeddingsDownHint}
         </Notice>
       )}
       {health.llm === 'down' && (
