@@ -119,3 +119,12 @@ def test_anchor_finds_the_name_written_in_another_word_order(monkeypatch):
     assert anchored(c, [1.0, 0.0], text)[0]["name"] == "Микроскоп цифровой"
     # one word is not a name in another order: «Микроскоп» alone keeps the ranking
     assert anchored(c, [1.0, 0.0], "Микроскоп инвертированный")[0]["name"] == names[0]
+
+
+def test_anchor_skips_a_request_word_before_the_name(monkeypatch):
+    """human_1000, 28.10.2026: «Нужно: ноутбук Lenovo…» went to auto as «Интерактивный пол»."""
+    monkeypatch.setattr(search, "VECTOR_LIMIT", 1)
+    c = catalog(["Интерактивный пол", "Ноутбук"], [[1.0, 0.0], [0.6, 0.8]])
+    text = "Нужно: ноутбук Lenovo. разрешение Full HD, накопитель SSD"
+    assert anchored(c, [1.0, 0.0], text)[0]["name"] == "Ноутбук"
+    assert anchored(c, [1.0, 0.0], "ТРЕБУЕТСЯ: Ноутбук")[0]["name"] == "Ноутбук"

@@ -133,6 +133,8 @@ _UNIT_SHORT = {
 # Latin letters that look like Cyrillic ones: "A4" and "А4" must be the same word
 _LOOKALIKE = str.maketrans("aceopxkmhbty", "асеорхкмнвту")
 # A decimal number is one word: «2,5 процента» must not match the values «2» and «≥ 2»
+# «Нужно: ноутбук Lenovo…» - the name follows the request word (human_1000 has 132 such rows)
+REQUEST_PREFIX = re.compile(r"^\s*(нужн[оаы]?|требу[ею]тся|необходим[оаы]?)\s*:\s*", re.IGNORECASE)
 _WORD = re.compile(r"\d+(?:[.,]\d+)+|[a-zа-я0-9]+")
 _DECIMAL = re.compile(r"\d+(?:\.\d+)+")
 _NUM = r"(\d+(?:[.,]\d+)?)"
@@ -427,6 +429,7 @@ class Catalog:
         specific name that has all the words stays. The name comes from the row, not from the
         search hint of the LLM: «Изделия сухарные» must not become «Сухари». Measurements:
         docs/final-report-2026-10-28.md."""
+        anchor = REQUEST_PREFIX.sub("", anchor)
         if vector is None:
             return self._anchored_word(
                 anchor, text, found, vector, unit, column_unit, include_inactive
