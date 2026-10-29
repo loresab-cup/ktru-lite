@@ -227,7 +227,7 @@ export const T = {
     select: (name: string) => `Выбрать «${name}»`,
     selectAll: 'Выбрать все',
     selected: (n: number) => `Выбрано: ${n}`,
-    deleteSelected: (n: number) => `Удалить выбранные (${n})`,
+    deleteSelected: (n: number) => `Удалить (${n})`,
     deleteTitle: (n: number) =>
       `Удалить ${n} ${plural(n, 'спецификацию', 'спецификации', 'спецификаций')}?`,
     deleteBody: 'Выбранные спецификации исчезнут вместе с результатами. Выгрузите их заранее, если они нужны.',

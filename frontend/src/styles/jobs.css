@@ -135,12 +135,13 @@
   animation: shine 1.4s linear infinite, pulse 1.4s ease-in-out infinite;
 }
 
-/* search by file name and the order of the specifications, over the bar of the selection */
+/* one row: search by file name, the order, and the selection with its delete button */
 .jobs-tools {
   display: flex;
   flex-wrap: wrap;
+  align-items: stretch;
   gap: var(--s3);
-  margin-bottom: var(--s4);
+  margin-bottom: var(--s5);
 }
 
 .jobs-tools .grow {
@@ -159,15 +160,14 @@
   box-shadow: var(--shadow-card);
 }
 
-.bulk-bar {
+.jobs-select {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: var(--s4);
-  min-height: 64px;
-  padding: 0 var(--s6);
-  margin-bottom: var(--s5);
+  padding: 0 var(--s2) 0 var(--s4);
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: var(--paper-raised);
   box-shadow: var(--shadow-card);
 }

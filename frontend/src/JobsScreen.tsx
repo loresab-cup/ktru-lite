@@ -151,34 +151,33 @@ export function JobsScreen() {
               options={SORTS.map((value) => ({ value, label: T.jobs.sort[value] }))}
               aria-label={T.jobs.sortLabel}
             />
+            {jobs !== null && jobs.length > 0 && (
+              <div className="jobs-select">
+                <Checkbox
+                  checked={allChosen}
+                  indeterminate={chosen.length > 0 && !allChosen}
+                  disabled={removable.length === 0 || deleting}
+                  onChange={(e) => setSelected(e.target.checked ? new Set(removable) : new Set())}
+                >
+                  {T.jobs.selectAll}
+                </Checkbox>
+                <span className="sr-only" aria-live="polite">
+                  {T.jobs.selected(chosen.length)}
+                </span>
+                <button
+                  type="button"
+                  className="btn danger small"
+                  disabled={chosen.length === 0 || deleting}
+                  onClick={ask}
+                >
+                  <Trash2 size={16} aria-hidden="true" /> {T.jobs.deleteSelected(chosen.length)}
+                </button>
+              </div>
+            )}
           </div>
         )}
         {notFound && (
           <EmptyState icon={SearchX} title={T.jobs.nothingFound} hint={T.jobs.nothingFoundHint} />
-        )}
-        {jobs !== null && jobs.length > 0 && (
-          <div className="bulk-bar">
-            <Checkbox
-              checked={allChosen}
-              indeterminate={chosen.length > 0 && !allChosen}
-              disabled={removable.length === 0 || deleting}
-              onChange={(e) => setSelected(e.target.checked ? new Set(removable) : new Set())}
-            >
-              {T.jobs.selectAll}
-            </Checkbox>
-            <span className="muted num" aria-live="polite">
-              {T.jobs.selected(chosen.length)}
-            </span>
-            <span className="grow" />
-            <button
-              type="button"
-              className="btn danger small"
-              disabled={chosen.length === 0 || deleting}
-              onClick={ask}
-            >
-              <Trash2 size={16} aria-hidden="true" /> {T.jobs.deleteSelected(chosen.length)}
-            </button>
-          </div>
         )}
         {!empty && !notFound && (!error || (jobs?.length ?? 0) > 0) && (
           <JobCards jobs={jobs} percents={percents} selected={selected} onToggle={toggle} />

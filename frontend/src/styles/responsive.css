@@ -164,9 +164,10 @@
     top: 32px;
   }
 
-  .bulk-bar {
-    flex-wrap: wrap;
-    padding: var(--s3) var(--s4);
+  .jobs-select {
+    flex-basis: 100%;
+    justify-content: space-between;
+    min-height: 48px;
   }
 
   .progress {
