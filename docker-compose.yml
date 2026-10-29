@@ -19,11 +19,19 @@ services:
     restart: unless-stopped
     ports: ["3000:8080"]
     depends_on: [backend]
+  # One-shot: the two catalog files of db/ come from the repository's release when missing
+  catalog:
+    <<: *backend
+    restart: "no"
+    user: root  # writes into the ./db folder of the host
+    command: ["python", "fetch_catalog.py", "/catalog"]
+    volumes: ["./db:/catalog"]
   backend:
     <<: *backend
     ports: ["127.0.0.1:8000:8000"]
     depends_on:
       db: {condition: service_healthy}
+      catalog: {condition: service_completed_successfully}
     healthcheck:
       test: ["CMD", "python", "-c", "import json,urllib.request as u; assert json.load(u.urlopen('http://localhost:8000/api/health'))['catalog']=='ready'"]
       interval: 10s
