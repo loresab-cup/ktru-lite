@@ -250,6 +250,8 @@ def run_job(job_id: uuid.UUID) -> None:
     started = time.monotonic()
     with db.SessionLocal() as session:
         job = session.get(Job, job_id)
+        if job is None:  # deleted between the claim and the start
+            return
         path, include_inactive = upload_path(job), job.include_inactive
         # Redelivery may restart extraction, but must preserve a person's completed edits.
         session.execute(
@@ -277,6 +279,8 @@ def run_job(job_id: uuid.UUID) -> None:
         status, error = "failed", "Не удалось обработать файл, попробуйте ещё раз"
     # If this write fails (the database restarts), the file stays: after a restart the job is
     # queued again and processed from the start
-    finish(job_id, status, error, stages)
-    rt.state.cancels.pop(job_id, None)
+    try:
+        finish(job_id, status, error, stages)
+    finally:
+        rt.state.cancels.pop(job_id, None)
     path.unlink(missing_ok=True)

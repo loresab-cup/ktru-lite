@@ -22,7 +22,7 @@ import parser
 import privacy
 import runtime as rt
 from auth import User
-from job_store import upload_path
+from job_store import lock_key, upload_path
 from models import Decision, Item, Job, now
 from routes.common import get_or_404, like_pattern, to_dict
 
@@ -38,7 +38,7 @@ def create_job(
     if rt.AUTH_REQUIRED:
         with db.SessionLocal() as session:
             privacy.require_processing(session, owner)
-    filename = Path(file.filename or "file").name[:200]
+    filename = parser.clean(Path(file.filename or "file").name)[:200] or "file"
     data = file.file.read(parser.MAX_FILE_BYTES + 1)
     if len(data) > parser.MAX_FILE_BYTES:
         raise HTTPException(413, "Файл больше 10 МБ")
@@ -102,7 +102,7 @@ def list_jobs(
             .where(Item.job_id.in_([job.id for job in jobs]))
             .group_by(Item.job_id, Item.status)
         )
-        counts: dict = {job.id: {status: 0 for status in rt.ITEM_STATUSES} for job in jobs}
+        counts: dict = {job.id: dict.fromkeys(rt.ITEM_STATUSES, 0) for job in jobs}
         for job_id, status, count in rows:
             counts[job_id][status] = count
         return [to_dict(job) | {"counts": counts[job.id]} for job in jobs]
@@ -115,7 +115,7 @@ def get_job(job_id: str):
         rows = session.execute(
             select(Item.status, func.count()).where(Item.job_id == job.id).group_by(Item.status)
         )
-        counts = {status: 0 for status in rt.ITEM_STATUSES} | dict(rows.all())
+        counts = dict.fromkeys(rt.ITEM_STATUSES, 0) | dict(rows.all())
 
         def flagged(key: str) -> int:
             return session.scalar(
@@ -139,7 +139,7 @@ def delete_job(job_id: str):
         job = get_or_404(session, Job, job_id, "Задание")
         if session.get_bind().dialect.name == "postgresql":
             unlocked = session.scalar(
-                text("SELECT pg_try_advisory_xact_lock(:key)"), {"key": job.id.int % (2**63)}
+                text("SELECT pg_try_advisory_xact_lock(:key)"), {"key": lock_key(job.id)}
             )
             if not unlocked:
                 raise HTTPException(409, "Обработчик ещё останавливается: повторите удаление позже")
@@ -191,14 +191,15 @@ def list_items(
     sort: str = Query("", pattern="^(code|confidence|status)?$"),
     order: str = Query("asc", pattern="^(asc|desc)$"),
     limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
+    offset: int = Query(0, ge=0, le=parser.MAX_ITEMS),
     candidates: bool = True,  # the list of cards does not show them: ~10 KB less per row
 ):
     with db.SessionLocal() as session:
         job = get_or_404(session, Job, job_id, "Задание")
         query = select(Item).where(Item.job_id == job.id)
         if status:
-            query = query.where(Item.status.in_(status.split(",")))
+            wanted = [s for s in status.split(",") if s in rt.ITEM_STATUSES]
+            query = query.where(Item.status.in_(wanted))
         if q.strip():
             pattern = like_pattern(q.strip())
             query = query.where(

@@ -34,7 +34,7 @@ def state(session: Session, user_id: int) -> dict:
         .subquery()
     )
     events = session.scalars(select(Consent).join(latest, Consent.id == latest.c.last_id)).all()
-    result = {purpose: False for purpose in PURPOSES}
+    result = dict.fromkeys(PURPOSES, False)
     for event in events:
         result[event.purpose] = event.accepted and event.version == VERSION
     return {"version": VERSION, **result}

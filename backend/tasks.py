@@ -42,6 +42,41 @@ def prepare_worker(**kwargs):
         raise SystemExit("Worker catalog failed to load")
 
 
+def ensure_catalog() -> None:
+    from workers import load_catalog
+
+    with _catalog_lock:
+        if rt.state.catalog is None:
+            load_catalog()
+        if rt.state.catalog is None:
+            raise RuntimeError("Catalog is not ready")
+
+
+def watch_cancel(job_id: uuid.UUID, stop: threading.Event) -> None:
+    """The cancel button writes the status in the API process; this worker sees it here."""
+    from job_store import cancelled
+
+    while not stop.wait(0.5):
+        if cancelled(job_id):
+            event = rt.state.cancels.get(job_id)
+            if event:
+                event.set()
+            return
+
+
+def run_watched(job_id: uuid.UUID) -> None:
+    from pipeline import run_job
+
+    stop = threading.Event()
+    watcher = threading.Thread(target=watch_cancel, args=(job_id, stop), daemon=True)
+    watcher.start()
+    try:
+        run_job(job_id)
+    finally:
+        stop.set()
+        watcher.join(timeout=2)
+
+
 @app.task(
     name="ktru.process",
     autoretry_for=(OperationalError,),
@@ -49,52 +84,22 @@ def prepare_worker(**kwargs):
     retry_kwargs={"max_retries": 5},
 )
 def process_job(job_id):
-    from pipeline import run_job
-    from workers import load_catalog
+    from job_store import claim_job, lock_key
 
     job_id = uuid.UUID(str(job_id))
+    postgres = db.engine.dialect.name == "postgresql"
     with db.engine.connect() as guard:
-        locked = True
-        if db.engine.dialect.name == "postgresql":
-            locked = guard.scalar(
-                text("SELECT pg_try_advisory_lock(:key)"), {"key": job_id.int % (2**63)}
-            )
-        if not locked:
+        # One worker per job: a redelivered message finds the lock taken and does nothing
+        lock = {"key": lock_key(job_id)}
+        if postgres and not guard.scalar(text("SELECT pg_try_advisory_lock(:key)"), lock):
             return
         try:
-            with _catalog_lock:
-                if rt.state.catalog is None:
-                    load_catalog()
-                if rt.state.catalog is None:
-                    raise RuntimeError("Catalog is not ready")
-            from job_store import claim_job
-
-            claimed = claim_job(job_id, recover=True)
-            if claimed:
-                stop = threading.Event()
-
-                def watch_cancel():
-                    from job_store import cancelled
-
-                    while not stop.wait(0.5):
-                        if cancelled(job_id):
-                            event = rt.state.cancels.get(job_id)
-                            if event:
-                                event.set()
-                            return
-
-                watcher = threading.Thread(target=watch_cancel, daemon=True)
-                watcher.start()
-                try:
-                    run_job(job_id)
-                finally:
-                    stop.set()
-                    watcher.join(timeout=2)
+            ensure_catalog()
+            if claim_job(job_id, recover=True):
+                run_watched(job_id)
         finally:
-            if db.engine.dialect.name == "postgresql":
-                guard.execute(
-                    text("SELECT pg_advisory_unlock(:key)"), {"key": job_id.int % (2**63)}
-                )
+            if postgres:
+                guard.execute(text("SELECT pg_advisory_unlock(:key)"), lock)
 
 
 @app.task(name="ktru.dispatch")

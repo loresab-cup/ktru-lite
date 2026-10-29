@@ -13,6 +13,11 @@ import runtime as rt
 from models import Job, now
 
 
+def lock_key(job_id: uuid.UUID) -> int:
+    """The PostgreSQL advisory lock of a job: the worker holds it while it processes the job."""
+    return job_id.int % 2**63
+
+
 def upload_path(job: Job) -> Path:
     return rt.UPLOAD_DIR / f"{job.id}{Path(job.filename).suffix.lower()}"
 

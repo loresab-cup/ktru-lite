@@ -1,6 +1,7 @@
 """Position details, manual corrections, acceptance and undo."""
 
 import re
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -19,7 +20,7 @@ import runtime as rt
 from decisions import forget, remember
 from models import Item, Job
 from pipeline import apply_candidates
-from routes.common import get_or_404, require_catalog, to_dict
+from routes.common import ITEM_ID_MAX, Text, get_or_404, require_catalog, to_dict
 
 router = APIRouter()
 
@@ -175,16 +176,16 @@ def correct_item(item_id: int, body: Correction):
 
 class CharacteristicIn(BaseModel):
     model_config = {"str_strip_whitespace": True}
-    name: str = Field("", max_length=100)
-    value: str = Field(min_length=1, max_length=100)
-    unit: str = Field("", max_length=30)
+    name: Text = Field("", max_length=100)
+    value: Text = Field(min_length=1, max_length=100)
+    unit: Text = Field("", max_length=30)
 
 
 class AttributesIn(BaseModel):
     model_config = {"str_strip_whitespace": True}
-    name: str = Field(min_length=1, max_length=300)
-    brand: str = Field("", max_length=100)
-    model: str = Field("", max_length=100)
+    name: Text = Field(min_length=1, max_length=300)
+    brand: Text = Field("", max_length=100)
+    model: Text = Field("", max_length=100)
     characteristics: list[CharacteristicIn] = Field(default_factory=list, max_length=30)
 
 
@@ -296,7 +297,9 @@ def accept_job(job_id: str, min_confidence: float = Query(85.0, ge=0, le=100)):
 
 
 class RevertIn(BaseModel):
-    ids: list[int] = Field(default_factory=list, max_length=1000)
+    ids: list[Annotated[int, Field(ge=1, le=ITEM_ID_MAX)]] = Field(
+        default_factory=list, max_length=1000
+    )
     all_accepted: bool = False  # every accepted row of the job, not only the listed ones
 
 

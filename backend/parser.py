@@ -19,6 +19,8 @@ MAX_CELLS = 300_000
 MAX_PDF_PAGES = 200
 MAX_UNZIPPED_BYTES = 200 * 1024 * 1024  # zip bomb guard for xlsx and docx
 MAX_CELL_CHARS = 2000
+# Control characters a file may carry: PostgreSQL refuses NUL in text, Excel the rest
+CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 # Extension -> first bytes of a valid file (None = plain text, no signature)
 SIGNATURES = {".xlsx": b"PK", ".docx": b"PK", ".pdf": b"%PDF", ".csv": None, ".txt": None}
@@ -230,7 +232,8 @@ def without_repeated_headers(rows: list[list[str]]) -> list[list[str]]:
 
 
 def clean(value) -> str:
-    return " ".join(("" if value is None else str(value)).split())[:MAX_CELL_CHARS]
+    text = CONTROL.sub(" ", "" if value is None else str(value))
+    return " ".join(text.split())[:MAX_CELL_CHARS]
 
 
 def is_skipped(text: str) -> bool:

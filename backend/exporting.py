@@ -3,9 +3,14 @@
 import csv
 import io
 
+from parser import CONTROL
+
 
 def cell(value):
-    """Formula injection guard: a text starting with = + - @ gets a leading apostrophe."""
+    """Formula injection guard: a text starting with = + - @ gets a leading apostrophe.
+    Control characters go: openpyxl refuses them and the whole export would fail."""
+    if isinstance(value, str):
+        value = CONTROL.sub("", value)
     # Leading spaces or a line break do not hide a formula from a spreadsheet
     if isinstance(value, str) and (
         value[:1] in ("\t", "\r", "\n") or value.lstrip()[:1] in ("=", "+", "-", "@")

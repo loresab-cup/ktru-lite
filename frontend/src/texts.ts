@@ -573,7 +573,12 @@ export const T = {
   },
   errors: {
     network: 'Нет связи с сервером',
-    http: (status: number) => `Ошибка сервера (${status})`,
+    // nginx answers these itself with an HTML page, without the server's own text
+    http: (status: number) =>
+      status === 413 ? 'Файл больше 10 МБ'
+        : status === 429 ? 'Слишком много загрузок подряд: подождите минуту и повторите'
+          : status === 502 || status === 503 || status === 504 ? 'Сервер не отвечает: повторите через минуту'
+            : `Ошибка сервера (${status})`,
   },
 }
 

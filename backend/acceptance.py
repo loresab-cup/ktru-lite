@@ -252,7 +252,7 @@ def main():
                 _, items, result = run(
                     client, "acceptance-attributes.csv", buffer.getvalue().encode("utf-8-sig")
                 )
-                hits = {key: 0 for key in ("name", "brand", "model")}
+                hits = dict.fromkeys(("name", "brand", "model"), 0)
                 for row, expected in zip(items, brands, strict=True):
                     for key, value in zip(hits, expected, strict=True):
                         normalize = lambda v: " ".join(v.lower().replace("ё", "е").split())
