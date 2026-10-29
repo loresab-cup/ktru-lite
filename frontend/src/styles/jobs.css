@@ -151,6 +151,14 @@
   flex: 0 0 220px;
 }
 
+/* Search and sort are as quiet as the cards below them: a light line and the card shadow;
+   the accent line under the pointer and the focus ring stay as antd draws them */
+.jobs-tools .ant-input-affix-wrapper:not(:hover):not(:focus-within),
+.jobs-tools .ant-select:not(:hover):not(:focus-within):not(.ant-select-open) {
+  border-color: var(--line);
+  box-shadow: var(--shadow-card);
+}
+
 .bulk-bar {
   display: flex;
   align-items: center;
