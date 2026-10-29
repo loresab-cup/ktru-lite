@@ -1,7 +1,8 @@
 """Specification file -> list of positions (one Item per product row).
 
 Formats: xlsx (every sheet), csv (utf-8 / cp1251, ; , or tab), docx (tables, then paragraphs),
-pdf (text of up to 200 pages), txt (one position per line).
+pdf (tables of up to 200 pages, or its text lines when it has no tables), txt (one position
+per line).
 """
 
 import csv
@@ -47,6 +48,7 @@ EIS_QUANTITY = ("кол-во", "количество")
 NUMBERING = re.compile(r"^\s*\d{1,4}\s*[.)]\s+")
 
 logging.getLogger("pypdf").setLevel(logging.ERROR)  # broken fonts spam warnings
+logging.getLogger("pdfminer").setLevel(logging.ERROR)
 
 
 class ParseError(ValueError):
@@ -162,18 +164,63 @@ def read_docx(path: Path) -> list[Item]:
 
 
 def read_pdf(path: Path) -> list[Item]:
+    """A specification PDF is usually a table: a name of two lines in one cell is one position,
+    not two (a 59-page table of 291 rows gave 1344 «positions» line by line). Without tables
+    every text line is a position, as before; the lines come from pypdf, which reads fonts that
+    pdfminer (inside pdfplumber) sometimes cannot."""
+    import pdfplumber
     from pypdf import PdfReader
 
     try:
         reader = PdfReader(str(path))
         if len(reader.pages) > MAX_PDF_PAGES:
             raise ParseError(f"В PDF больше {MAX_PDF_PAGES} страниц")
-        lines = [line for page in reader.pages for line in (page.extract_text() or "").split("\n")]
+        rows = []
+        with pdfplumber.open(str(path)) as pdf:
+            for page in pdf.pages:
+                for number, table in enumerate(page.extract_tables()):
+                    page_rows = [[cell or "" for cell in row] for row in table if any(row)]
+                    if number == 0 and page_rows and continues(rows, page_rows[0]):
+                        rows[-1] = [f"{a} {b}".strip() for a, b in zip(rows[-1], page_rows.pop(0))]
+                    rows += page_rows
+                page.close()  # frees the parsed page: 200 pages stay small in memory
+        if not rows:
+            lines = [
+                line for page in reader.pages for line in (page.extract_text() or "").split("\n")
+            ]
     except ParseError:
         raise
     except Exception as exc:
         raise ParseError("PDF повреждён или защищён паролем") from exc
+    if sum(len(row) for row in rows) > MAX_CELLS:
+        raise ParseError("Слишком большая таблица в PDF")
+    if rows:
+        return parse_rows(without_repeated_headers(rows))
     return parse_lines(lines)
+
+
+def continues(rows: list[list[str]], first: list[str]) -> bool:
+    """Word splits a long row over a page break: its rest opens the next page without the number
+    of the first column. Such a row belongs to the last row of the previous page."""
+    return (
+        bool(rows)
+        and len(first) == len(rows[-1])
+        and len(first) > 1
+        and not first[0].strip()
+        and bool(rows[-1][0].strip())
+    )
+
+
+def without_repeated_headers(rows: list[list[str]]) -> list[list[str]]:
+    """A table that goes over many pages repeats its header on each of them."""
+    seen, kept = set(), []
+    for row in rows:
+        key = tuple(clean(cell) for cell in row)
+        if key in seen and any(is_header_cell(cell) for cell in key):
+            continue
+        seen.add(key)
+        kept.append(row)
+    return kept
 
 
 # --- rows and lines -> items ---------------------------------------------------------------
