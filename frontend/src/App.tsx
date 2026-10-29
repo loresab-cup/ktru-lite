@@ -286,7 +286,7 @@ export function App() {
                       {T.feedback.title}
                     </h2>
                     <span>{T.feedback.name}</span>
-                    <a href={`mailto:${T.feedback.email}`}>{T.feedback.email}</a>
+                    <span>{T.feedback.email}</span>
                     <LegalLinks compact />
                   </div>
                 </footer>

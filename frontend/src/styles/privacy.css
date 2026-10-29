@@ -5,7 +5,8 @@
 .legal-contact { padding: var(--s5); margin: var(--s5) 0; }
 .legal-links { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); font-size: var(--text-sm); }
 .legal-links a, .consent-document { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
-.site-foot .legal-summary { color: var(--ink-2); font-size: var(--text-sm); text-decoration: none; }
+/* the same text as the name and the address next to it; the accent only under the pointer */
+.site-foot .legal-summary { margin-left: auto; color: var(--ink-2); text-decoration: none; }
 .site-foot .legal-summary:hover, .site-foot .legal-summary:focus-visible { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 .legal-page > .legal-links { margin-top: var(--s7); padding-top: var(--s4); border-top: 1px solid var(--line); }
 .cookie-notice { position: fixed; z-index: 90; left: 50%; bottom: var(--s4); transform: translateX(-50%); width: min(1000px, calc(100% - 32px)); padding: var(--s5); display: flex; align-items: center; gap: var(--s5); box-shadow: var(--shadow); }
