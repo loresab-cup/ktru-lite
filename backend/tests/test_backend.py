@@ -111,6 +111,42 @@ def test_parser_eis_form_joins_characteristic_rows():
     assert [item.text.split()[0] for item in original] == ["Мыло", "Мыло", "Крем"]
 
 
+def test_parser_eis_form_reads_bound_columns_and_further_values(tmp_path):
+    """The new EIS form: a range in «>, >=» «Min» «<, <=» «Max», more values of one
+    characteristic on the rows below it with an empty characteristic name."""
+    from openpyxl import Workbook
+
+    book = Workbook()
+    sheet = book.active
+    sheet.append(["ОПИСАНИЕ ОБЪЕКТА ЗАКУПКИ"])
+    sheet.append(
+        ["№ п/п", "Наименование товара, работы, услуги", "Наименование характеристики"]
+        + ["Текстовое описание значения  характеристики", ">, >= ", "Min", "<, <=", "Max"]
+        + ["Конкретное значение", "Единица измерения характеристики", "Ед. изм. товара"]
+    )
+    sheet.append([1, "Бензин", "Экологический класс", "Не ниже К5", None, None, None, None])
+    sheet.append([None, None, "Октановое число", None, ">=", 92, "<", 95])
+    diluent_row = [2, "Разбавитель", "Разбавляемые жидкости", "Сыворотка крови"]
+    sheet.append(diluent_row + [None] * 6 + ["шт"])
+    sheet.append([None, None, None, "Плазма крови"])
+    sheet.append([None, None, None, "Цельная кровь,"])
+    sheet.append([None, None, "Объем", None, ">=", 5000, "<=", 20000, None, "миллилитр"])
+    sheet.append([None, None, "Количество флаконов", None, None, None, None, None, 6, "Штука"])
+    sheet.append([None, None, "Тест", None, None, 20, None, None])
+    sheet.append([None, None, "Предел", None, None, None, "<", 3])
+    path = tmp_path / "eis.xlsx"
+    book.save(path)
+
+    petrol, diluent = parser.parse_file(path)
+    assert petrol.text == "Бензин. Экологический класс: Не ниже К5; Октановое число: ≥ 92 и < 95"
+    assert diluent.row_number == 5
+    assert diluent.text == (
+        "Разбавитель. Разбавляемые жидкости: Сыворотка крови, Плазма крови, Цельная кровь; "
+        "Объем: ≥ 5000 и ≤ 20000 миллилитр; Количество флаконов: 6 Штука; Тест: ≥ 20; "
+        "Предел: < 3. Единица измерения: шт"
+    )
+
+
 def test_parser_rejects_wrong_signature(tmp_path):
     path = tmp_path / "fake.pdf"
     path.write_bytes(b"not a pdf at all")

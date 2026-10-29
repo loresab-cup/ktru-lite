@@ -45,6 +45,9 @@ EIS_VALUE = "значени"  # «Текстовое описание значе
 EIS_CHARACTERISTIC_UNIT = "единица измерения характеристики"
 EIS_ITEM_UNIT = ("ед. изм", "единица измерения товара")
 EIS_QUANTITY = ("кол-во", "количество")
+# The new form writes a range in four columns: «>, >=» «Min» «<, <=» «Max»
+EIS_BOUNDS = ((">, >=", "min_sign"), ("Min", "min"), ("<, <=", "max_sign"), ("Max", "max"))
+EIS_SIGNS = {">=": "≥", ">": ">", "<=": "≤", "<": "<"}
 NUMBERING = re.compile(r"^\s*\d{1,4}\s*[.)]\s+")
 
 logging.getLogger("pypdf").setLevel(logging.ERROR)  # broken fonts spam warnings
@@ -337,36 +340,56 @@ def eis_columns(header: list[str], body: list[list[str]]) -> dict:
         "characteristic_unit": first_column(header, (EIS_CHARACTERISTIC_UNIT,)),
         "unit": first_column(header, EIS_ITEM_UNIT),
         "quantity": first_column(header, EIS_QUANTITY),
+        **{key: header.index(title) if title in header else None for title, key in EIS_BOUNDS},
     }
 
 
-def eis_characteristic(row: list[str], columns: dict) -> str:
-    """One row of an EIS form -> «Вес: 100 Грамм»; empty if the row has no characteristic."""
+def eis_range(row: list[str], columns: dict) -> str:
+    """The bound columns of the new EIS form: «>=» 92 «<» 95 -> «≥ 92 и < 95»."""
+    bounds = []
+    for sign_key, value_key, default in (("min_sign", "min", "≥"), ("max_sign", "max", "≤")):
+        value = at(row, columns[value_key])
+        if value:
+            bounds.append(f"{EIS_SIGNS.get(at(row, columns[sign_key]), default)} {value}")
+    return " и ".join(bounds)
+
+
+def add_eis_characteristic(found: list[tuple[str, list[str]]], row: list[str], columns) -> None:
+    """One row of an EIS form -> («Вес», [«100 Грамм»]) in found. A row with a value but no
+    characteristic name is one more value of the characteristic above («Плазма крови»)."""
     name = at(row, columns["characteristic"]).strip(" :")
-    value = " ".join(at(row, i) for i in columns["values"] if at(row, i))
+    texts = [at(row, i) for i in columns["values"] if at(row, i)]
+    value = " ".join([*texts, eis_range(row, columns)]).strip(" ,;")
     unit = eis_unit(at(row, columns["characteristic_unit"]))
-    if not name or not value:
-        return name
-    return f"{name}: {value} {unit}".strip()
+    value = f"{value} {unit}".strip() if value else ""
+    if name:
+        found.append((name, [value] if value else []))
+    elif value and found:
+        found[-1][1].append(value)
+
+
+def eis_text(found: list[tuple[str, list[str]]]) -> list[str]:
+    return [f"{name}: {', '.join(values)}" if values else name for name, values in found]
 
 
 def parse_eis_rows(header: list[str], body: list[list[str]], first_row: int) -> list[Item]:
     """EIS form: rows without «№» and name are more characteristics of the product above."""
     columns = eis_columns(header, body)
     header_key = [cell.lower() for cell in header if cell]
-    positions: list[tuple[int, list[str], list[str]]] = []  # row number, row, characteristics
+    positions: list[tuple[int, list[str], list]] = []  # row number, row, characteristics
     for offset, row in enumerate(body):
         name = at(row, columns["name"])
         if not name:
-            described = eis_characteristic(row, columns)
-            if positions and described and not at(row, columns["number"]):
-                positions[-1][2].append(described)
+            if positions and not at(row, columns["number"]):
+                add_eis_characteristic(positions[-1][2], row, columns)
             continue
         if is_skipped(name) or [cell.lower() for cell in row if cell] == header_key:
             continue
-        described = eis_characteristic(row, columns)
-        positions.append((first_row + offset, row, [described] if described else []))
-    return [eis_item(number, row, found, header, columns) for number, row, found in positions]
+        positions.append((first_row + offset, row, []))
+        add_eis_characteristic(positions[-1][2], row, columns)
+    return [
+        eis_item(number, row, eis_text(found), header, columns) for number, row, found in positions
+    ]
 
 
 def eis_item(number: int, row: list[str], found: list[str], header: list[str], columns) -> Item:
