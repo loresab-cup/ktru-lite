@@ -5,14 +5,39 @@ import json
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import create_engine, func, select
+from sqlalchemy.orm import sessionmaker
 
+import app_lifecycle
 import auth
 import database as db
 import demo
 import privacy
 import runtime as rt
 from models import Item, Job
+
+
+@pytest.mark.parametrize("enabled,expected", [("1", 1000), ("0", 0)])
+def test_normal_startup_seeds_fresh_database_once(monkeypatch, tmp_path, enabled, expected):
+    engine = create_engine(f"sqlite:///{tmp_path / 'fresh.db'}")
+    sessions = sessionmaker(engine, expire_on_commit=False)
+    monkeypatch.setattr(db, "engine", engine)
+    monkeypatch.setattr(db, "SessionLocal", sessions)
+    monkeypatch.setattr(rt, "UPLOAD_DIR", tmp_path / "uploads")
+    monkeypatch.setenv("JURY_DATA", enabled)
+    monkeypatch.setenv("ADMIN_PASSWORD", "")
+    try:
+        app_lifecycle.init_db()
+        app_lifecycle.init_db()
+        with sessions() as session:
+            assert session.scalar(select(func.count()).select_from(Item)) == expected
+            assert session.scalar(select(func.count()).select_from(Job)) == (1 if expected else 0)
+            if expected:
+                user = session.scalar(select(auth.User).where(auth.User.login == "admin"))
+                assert user and auth.verify_password("admin", user.password_hash)
+                assert session.get(Job, demo.DEMO_ID).owner_id == user.id
+    finally:
+        engine.dispose()
 
 
 def test_demo_snapshot_rejects_changed_accuracy(tmp_path):

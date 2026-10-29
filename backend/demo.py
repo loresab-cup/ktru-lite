@@ -1,13 +1,15 @@
-"""Explicit local jury demo: admin/admin and a validated snapshot of an internal benchmark.
+"""Jury startup data: admin/admin and a validated snapshot of an internal benchmark.
 
-Run after normal startup: python demo.py --create
-No API calls, automatic startup account, password-policy changes or overwritten accounts.
+Loaded automatically at Docker startup with JURY_DATA=1; no external API calls.
+The optional command python demo.py --create imports the same snapshot manually.
 """
 
 import argparse
 import base64
 import gzip
 import json
+import logging
+import os
 import uuid
 from datetime import timedelta
 from pathlib import Path
@@ -21,7 +23,8 @@ from models import Item, Job, now
 
 SNAPSHOT = Path(__file__).with_name("demo_data") / "demo-1000.json.gz"
 DEMO_ID = uuid.uuid5(uuid.NAMESPACE_URL, "ktru-lite/jury-demo/1000-991/v1")
-DEMO_FILENAME = "Демо_1000_строк_991_из_1000.xlsx"
+DEMO_FILENAME = "Спецификация_1000_строк.xlsx"
+logger = logging.getLogger(__name__)
 
 
 def load_snapshot(path: Path = SNAPSHOT) -> dict:
@@ -52,7 +55,7 @@ def seed_demo(session, data: dict, upload_dir: Path) -> tuple[uuid.UUID, bool]:
     ):
         raise ValueError("Аккаунт admin уже существует с другими настройками: он не изменён")
     if user is None:
-        # Only this explicitly invoked demo permits the requested five-letter password.
+        # Only the jury startup account permits the requested five-letter password.
         # Registration and normal administrator creation retain their password policy.
         user = auth.User(login="admin", password_hash=auth.hash_password("admin"), is_admin=True)
         session.add(user)
@@ -61,6 +64,9 @@ def seed_demo(session, data: dict, upload_dir: Path) -> tuple[uuid.UUID, bool]:
     if existing is not None:
         if existing.owner_id != user.id:
             raise ValueError("Демонстрационное задание принадлежит другому владельцу")
+        if existing.filename == "Демо_1000_строк_991_из_1000.xlsx":
+            existing.filename = DEMO_FILENAME
+            session.commit()
         return existing.id, False
     finished = now()
     job = Job(
@@ -83,6 +89,21 @@ def seed_demo(session, data: dict, upload_dir: Path) -> tuple[uuid.UUID, bool]:
     target.write_bytes(base64.b64decode(data["input_base64"], validate=True))
     session.commit()
     return job.id, True
+
+
+def seed_on_startup() -> None:
+    """Compose enables jury data by default; existing accounts are never overwritten."""
+    if os.getenv("JURY_DATA", "0") != "1":
+        return
+    data = load_snapshot()
+    with db.SessionLocal() as session:
+        try:
+            job_id, created = seed_demo(session, data, rt.UPLOAD_DIR)
+        except ValueError as exc:
+            session.rollback()
+            logger.warning("jury data skipped: %s", exc)
+            return
+    logger.info("jury data %s: %s", "created" if created else "already present", job_id)
 
 
 def main() -> None:
