@@ -25,7 +25,8 @@ def evaluate(reference, split='all'):
         present = [r for r in results if r['expected'][key]]
         absent = [r for r in results if not r['expected'][key]]
         fields[key] = {'correct': sum(r['matches'][key] for r in results), 'total': len(results), 'accuracy': sum(r['matches'][key] for r in results) / len(results), 'present_correct': sum(r['matches'][key] for r in present), 'present_total': len(present), 'absent_correct': sum(r['matches'][key] for r in absent), 'absent_total': len(absent)}
-    return {'reference_sha256': hashlib.sha256(reference.read_bytes()).hexdigest(), 'split': split, 'seconds': round(time.monotonic()-started, 3), 'fields': fields, 'fallback': sum(bool(r['actual'].get('fallback')) for r in results), 'passed': all(f['accuracy'] >= .9 for f in fields.values()), 'results': results}
+    module = Path(extractor.__file__)
+    return {'reference_sha256': hashlib.sha256(reference.read_bytes()).hexdigest(), 'extractor_file': str(module), 'extractor_sha256': hashlib.sha256(module.read_bytes()).hexdigest(), 'split': split, 'seconds': round(time.monotonic()-started, 3), 'fields': fields, 'fallback': sum(bool(r['actual'].get('fallback')) for r in results), 'passed': all(f['accuracy'] >= .9 for f in fields.values()), 'results': results}
 
 
 if __name__ == '__main__':

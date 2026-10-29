@@ -1,0 +1,829 @@
+{
+  "reference_sha256": "31c849a26b89b8fac45707acf79ba5b43ac9f7361c7ef5a2877e6602546ed20b",
+  "extractor_file": "/app/extractor.py",
+  "extractor_sha256": "465daae0ec17ac40e280290613222dc40e9a0ee77d2b28af30e8352e1c93fe81",
+  "split": "holdout",
+  "seconds": 12.469,
+  "fields": {
+    "name": {
+      "correct": 21,
+      "total": 25,
+      "accuracy": 0.84,
+      "present_correct": 21,
+      "present_total": 25,
+      "absent_correct": 0,
+      "absent_total": 0
+    },
+    "brand": {
+      "correct": 25,
+      "total": 25,
+      "accuracy": 1.0,
+      "present_correct": 17,
+      "present_total": 17,
+      "absent_correct": 8,
+      "absent_total": 8
+    },
+    "model": {
+      "correct": 24,
+      "total": 25,
+      "accuracy": 0.96,
+      "present_correct": 12,
+      "present_total": 13,
+      "absent_correct": 12,
+      "absent_total": 12
+    }
+  },
+  "fallback": 0,
+  "passed": false,
+  "results": [
+    {
+      "row_number": 5,
+      "text": "Мышь беспроводная Logitech M185, серая, 10 штук",
+      "expected": {
+        "name": "Мышь беспроводная",
+        "brand": "Logitech",
+        "model": "M185"
+      },
+      "actual": {
+        "name": "Мышь беспроводная",
+        "brand": "Logitech",
+        "model": "M185",
+        "characteristics": [
+          {
+            "name": "цвет",
+            "value": "серая",
+            "unit": ""
+          }
+        ],
+        "search_text": "Мышь беспроводная цвет: серая",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 9,
+      "text": "Проектор Epson EB-X49, 3600 лм",
+      "expected": {
+        "name": "Проектор",
+        "brand": "Epson",
+        "model": "EB-X49"
+      },
+      "actual": {
+        "name": "Проектор",
+        "brand": "Epson",
+        "model": "EB-X49",
+        "characteristics": [
+          {
+            "name": "яркость",
+            "value": "3600",
+            "unit": "лм"
+          }
+        ],
+        "search_text": "Проектор яркость: 3600 лм",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 13,
+      "text": "Гарнитура Jabra Evolve 20, USB, проводная",
+      "expected": {
+        "name": "Гарнитура",
+        "brand": "Jabra",
+        "model": "Evolve 20"
+      },
+      "actual": {
+        "name": "Гарнитура",
+        "brand": "Jabra",
+        "model": "Evolve 20",
+        "characteristics": [
+          {
+            "name": "тип подключения",
+            "value": "USB",
+            "unit": ""
+          },
+          {
+            "name": "тип",
+            "value": "проводная",
+            "unit": ""
+          }
+        ],
+        "search_text": "Гарнитура тип подключения: USB тип: проводная",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 17,
+      "text": "Жёсткий диск Seagate BarraCuda, 2 ТБ, 3.5 дюйма",
+      "expected": {
+        "name": "Жёсткий диск",
+        "brand": "Seagate",
+        "model": "BarraCuda"
+      },
+      "actual": {
+        "name": "Жёсткий диск",
+        "brand": "Seagate",
+        "model": "BarraCuda",
+        "characteristics": [
+          {
+            "name": "объём",
+            "value": "2",
+            "unit": "ТБ"
+          },
+          {
+            "name": "размер",
+            "value": "3.5",
+            "unit": "дюйма"
+          }
+        ],
+        "search_text": "Жёсткий диск объём: 2 ТБ размер: 3.5 дюйма",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 21,
+      "text": "Телевизор LG 43UR78006LK, диагональ 43 дюйма",
+      "expected": {
+        "name": "Телевизор",
+        "brand": "LG",
+        "model": "43UR78006LK"
+      },
+      "actual": {
+        "name": "Телевизор",
+        "brand": "LG",
+        "model": "43UR78006LK",
+        "characteristics": [
+          {
+            "name": "диагональ",
+            "value": "43",
+            "unit": "дюйма"
+          }
+        ],
+        "search_text": "Телевизор диагональ: 43 дюйма",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 25,
+      "text": "Шлифмашина угловая DeWALT DWE4151, круг 125 мм",
+      "expected": {
+        "name": "Шлифмашина угловая",
+        "brand": "DeWALT",
+        "model": "DWE4151"
+      },
+      "actual": {
+        "name": "Шлифмашина угловая",
+        "brand": "DeWALT",
+        "model": "DWE4151",
+        "characteristics": [
+          {
+            "name": "диаметр круга",
+            "value": "125",
+            "unit": "мм"
+          }
+        ],
+        "search_text": "Шлифмашина угловая диаметр круга: 125 мм",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 29,
+      "text": "Мультиметр UNI-T UT61E, цифровой",
+      "expected": {
+        "name": "Мультиметр",
+        "brand": "UNI-T",
+        "model": "UT61E"
+      },
+      "actual": {
+        "name": "Мультиметр",
+        "brand": "UNI-T",
+        "model": "UT61E",
+        "characteristics": [
+          {
+            "name": "тип",
+            "value": "цифровой",
+            "unit": ""
+          }
+        ],
+        "search_text": "Мультиметр тип: цифровой",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 33,
+      "text": "Мойка высокого давления Karcher K 5, 145 бар",
+      "expected": {
+        "name": "Мойка высокого давления",
+        "brand": "Karcher",
+        "model": "K 5"
+      },
+      "actual": {
+        "name": "Мойка высокого давления",
+        "brand": "Karcher",
+        "model": "K 5",
+        "characteristics": [
+          {
+            "name": "давление",
+            "value": "145",
+            "unit": "бар"
+          }
+        ],
+        "search_text": "Мойка высокого давления давление: 145 бар",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 37,
+      "text": "Вентилятор напольный Ballu BFF-805, 45 Вт",
+      "expected": {
+        "name": "Вентилятор напольный",
+        "brand": "Ballu",
+        "model": "BFF-805"
+      },
+      "actual": {
+        "name": "Вентилятор напольный",
+        "brand": "Ballu",
+        "model": "BFF-805",
+        "characteristics": [
+          {
+            "name": "мощность",
+            "value": "45",
+            "unit": "Вт"
+          }
+        ],
+        "search_text": "Вентилятор напольный мощность: 45 Вт",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 41,
+      "text": "Кофемашина DeLonghi ECAM 22.110.B, автоматическая",
+      "expected": {
+        "name": "Кофемашина",
+        "brand": "DeLonghi",
+        "model": "ECAM 22.110.B"
+      },
+      "actual": {
+        "name": "Кофемашина",
+        "brand": "DeLonghi",
+        "model": "ECAM 22.110.B",
+        "characteristics": [
+          {
+            "name": "тип",
+            "value": "автоматическая",
+            "unit": ""
+          }
+        ],
+        "search_text": "Кофемашина тип: автоматическая",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 45,
+      "text": "Стетоскоп Littmann Classic III, чёрный",
+      "expected": {
+        "name": "Стетоскоп",
+        "brand": "Littmann",
+        "model": "Classic III"
+      },
+      "actual": {
+        "name": "Стетоскоп",
+        "brand": "Littmann",
+        "model": "Classic III",
+        "characteristics": [
+          {
+            "name": "цвет",
+            "value": "чёрный",
+            "unit": ""
+          }
+        ],
+        "search_text": "Стетоскоп цвет: чёрный",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 49,
+      "text": "Ручка шариковая BIC Cristal, синяя, 1 мм",
+      "expected": {
+        "name": "Ручка шариковая",
+        "brand": "BIC",
+        "model": "Cristal"
+      },
+      "actual": {
+        "name": "Ручка шариковая",
+        "brand": "BIC",
+        "model": "Cristal",
+        "characteristics": [
+          {
+            "name": "цвет",
+            "value": "синяя",
+            "unit": ""
+          },
+          {
+            "name": "толщина линии",
+            "value": "1",
+            "unit": "мм"
+          }
+        ],
+        "search_text": "Ручка шариковая цвет: синяя толщина линии: 1 мм",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 53,
+      "text": "Клей-карандаш ПИФАГОР, 21 г",
+      "expected": {
+        "name": "Клей-карандаш",
+        "brand": "ПИФАГОР",
+        "model": ""
+      },
+      "actual": {
+        "name": "Клей-карандаш",
+        "brand": "ПИФАГОР",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "вес",
+            "value": "21",
+            "unit": "г"
+          }
+        ],
+        "search_text": "Клей-карандаш вес: 21 г",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 57,
+      "text": "Мыло жидкое «Чистая линия», 250 мл, с дозатором",
+      "expected": {
+        "name": "Мыло жидкое",
+        "brand": "Чистая линия",
+        "model": ""
+      },
+      "actual": {
+        "name": "Мыло жидкое",
+        "brand": "Чистая линия",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "объём",
+            "value": "250",
+            "unit": "мл"
+          },
+          {
+            "name": "особенность",
+            "value": "с дозатором",
+            "unit": ""
+          }
+        ],
+        "search_text": "Мыло жидкое объём: 250 мл особенность: с дозатором",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 61,
+      "text": "Салфетки бумажные Zewa, белые, 100 шт",
+      "expected": {
+        "name": "Салфетки бумажные",
+        "brand": "Zewa",
+        "model": ""
+      },
+      "actual": {
+        "name": "Салфетки бумажные",
+        "brand": "Zewa",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "цвет",
+            "value": "белые",
+            "unit": ""
+          },
+          {
+            "name": "количество",
+            "value": "100",
+            "unit": "шт"
+          }
+        ],
+        "search_text": "Салфетки бумажные цвет: белые количество: 100 шт",
+        "measure": "упак",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 65,
+      "text": "Масло сливочное Экомилк, 82.5%, 180 г",
+      "expected": {
+        "name": "Масло сливочное",
+        "brand": "Экомилк",
+        "model": ""
+      },
+      "actual": {
+        "name": "Масло сливочное",
+        "brand": "Экомилк",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "жирность",
+            "value": "82.5",
+            "unit": "%"
+          },
+          {
+            "name": "вес",
+            "value": "180",
+            "unit": "г"
+          }
+        ],
+        "search_text": "Масло сливочное жирность: 82.5 % вес: 180 г",
+        "measure": "кг",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 69,
+      "text": "Макаронные изделия MAKFA, 450 г",
+      "expected": {
+        "name": "Макаронные изделия",
+        "brand": "MAKFA",
+        "model": ""
+      },
+      "actual": {
+        "name": "Макаронные изделия",
+        "brand": "MAKFA",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "вес",
+            "value": "450",
+            "unit": "г"
+          }
+        ],
+        "search_text": "Макаронные изделия вес: 450 г",
+        "measure": "кг",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 73,
+      "text": "Пакеты для мусора 120 л, чёрные, 10 штук в рулоне",
+      "expected": {
+        "name": "Пакеты для мусора",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Пакеты для мусора 120 л",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "объём",
+            "value": "120",
+            "unit": "л"
+          },
+          {
+            "name": "цвет",
+            "value": "чёрные",
+            "unit": ""
+          },
+          {
+            "name": "количество в рулоне",
+            "value": "10",
+            "unit": "шт"
+          }
+        ],
+        "search_text": "Пакеты для мусора объём: 120 л цвет: чёрные количество в рулоне: 10 шт",
+        "measure": "упак",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": false,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 77,
+      "text": "Бинт марлевый, стерильный, 5 м х 10 см",
+      "expected": {
+        "name": "Бинт марлевый",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Бинт марлевый",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "стерилизация",
+            "value": "стерильный",
+            "unit": ""
+          }
+        ],
+        "search_text": "Бинт марлевый стерилизация: стерильный размер: 5 х 10 м х см",
+        "measure": "упак",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 81,
+      "text": "Кабель силовой ВВГнг-LS 3х2.5, 100 м",
+      "expected": {
+        "name": "Кабель силовой",
+        "brand": "",
+        "model": "ВВГнг-LS"
+      },
+      "actual": {
+        "name": "Кабель силовой",
+        "brand": "",
+        "model": "ВВГнг-LS 3х2.5",
+        "characteristics": [
+          {
+            "name": "длина",
+            "value": "100",
+            "unit": "м"
+          }
+        ],
+        "search_text": "Кабель силовой длина: 100 м",
+        "measure": "м",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": false
+      }
+    },
+    {
+      "row_number": 85,
+      "text": "Труба полипропиленовая, диаметр 20 мм, длина 4 м",
+      "expected": {
+        "name": "Труба полипропиленовая",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Труба полипропиленовая",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "диаметр",
+            "value": "20",
+            "unit": "мм"
+          },
+          {
+            "name": "длина",
+            "value": "4",
+            "unit": "м"
+          }
+        ],
+        "search_text": "труба полипропиленовая диаметр: 20 мм длина: 4 м",
+        "measure": "м",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 89,
+      "text": "Краска водно-дисперсионная, белая, для стен, 14 кг",
+      "expected": {
+        "name": "Краска водно-дисперсионная",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Краска водно-дисперсионная, белая, для стен",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "вес",
+            "value": "14",
+            "unit": "кг"
+          }
+        ],
+        "search_text": "краска водно-дисперсионная белая для стен вес: 14 кг",
+        "measure": "кг",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": false,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 93,
+      "text": "Услуги уборки помещений, площадь 500 м2",
+      "expected": {
+        "name": "Услуги уборки помещений",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Услуги уборки помещений",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "площадь",
+            "value": "500",
+            "unit": "м2"
+          }
+        ],
+        "search_text": "услуги уборки помещений площадь: 500 м2",
+        "measure": "усл. ед",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 97,
+      "text": "Картридж для принтера HP LaserJet P1102, совместимый, без указания производителя",
+      "expected": {
+        "name": "Картридж для принтера",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Картридж для принтера HP LaserJet P1102, совместимый",
+        "brand": "",
+        "model": "",
+        "characteristics": [],
+        "search_text": "картридж для принтера совместимый",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": false,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 101,
+      "text": "Мешки для пылесоса Karcher WD 3, совместимые, 5 шт",
+      "expected": {
+        "name": "Мешки для пылесоса",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Мешки для пылесоса Karcher WD 3, совместимые",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "количество",
+            "value": "5",
+            "unit": "шт"
+          }
+        ],
+        "search_text": "мешки для пылесоса совместимые количество: 5 шт",
+        "measure": "упак",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": false,
+        "brand": true,
+        "model": true
+      }
+    }
+  ]
+}

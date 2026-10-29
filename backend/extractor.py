@@ -94,6 +94,13 @@ def in_source(value: str, source: str) -> bool:
     return not value or norm(value) in norm(source)
 
 
+# «Чехол для планшета Apple iPad Air»: the device an accessory fits is not part of its name; a
+# Latin word after «для <noun>» followed by more words (brand and model) starts that device
+_FOR_DEVICE = re.compile(r"(?<![^\W\d_])[Дд]ля\s+[а-яё-]+(?=\s+[A-Z][\w-]*\s+\S)")
+# a number with an optional unit at the end of a name: «Пакеты для мусора 120 л»
+_NUMERIC_TAIL = re.compile(r"\s+[\d.,×xх]+\s*[^\W\d]{0,6}\.?$")
+
+
 def product_name(name: str, brand: str, model: str, characteristics: list[dict]) -> str:
     """Separate a copied product name from already identified attributes.
 
@@ -105,11 +112,11 @@ def product_name(name: str, brand: str, model: str, characteristics: list[dict])
         if value:
             match = re.search(r"(?<!\w)" + re.escape(value) + r"(?!\w)", name, re.IGNORECASE)
             if match and match.start() > 0:
-                name = name[:match.start()].rstrip(' ,;:.«»"')
+                name = name[: match.start()].rstrip(' ,;:.«»"')
     for match in re.finditer(r"[,;]", name):
-        tail = name[match.end():]
+        tail = name[match.end() :]
         if any(c.get("value") and in_source(c["value"], tail) for c in characteristics):
-            name = name[:match.start()].strip()
+            name = name[: match.start()].strip()
             break
     for characteristic in characteristics:
         label = norm(characteristic.get("name", ""))
@@ -117,7 +124,14 @@ def product_name(name: str, brand: str, model: str, characteristics: list[dict])
         if value and any(word in label for word in ("формат", "размер", "резьб")):
             match = re.search(r"\s+" + re.escape(value) + r"$", name, re.IGNORECASE)
             if match:
-                name = name[:match.start()].strip()
+                name = name[: match.start()].strip()
+    device = _FOR_DEVICE.search(name)
+    if device:
+        name = name[: device.end()]
+    tail = _NUMERIC_TAIL.search(name)
+    # only a number the row's characteristics confirm, never digits of the name itself
+    if tail and any(c.get("value") and c["value"] in tail.group() for c in characteristics):
+        name = name[: tail.start()].strip()
     return name or original
 
 

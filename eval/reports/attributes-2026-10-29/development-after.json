@@ -1,0 +1,2540 @@
+{
+  "reference_sha256": "31c849a26b89b8fac45707acf79ba5b43ac9f7361c7ef5a2877e6602546ed20b",
+  "extractor_file": "/app/extractor.py",
+  "extractor_sha256": "cb542dd181c829debe61eb1ac375b308f0f72121456b09bf247cd892ee8fd451",
+  "split": "development",
+  "seconds": 12.542,
+  "fields": {
+    "name": {
+      "correct": 75,
+      "total": 75,
+      "accuracy": 1.0,
+      "present_correct": 75,
+      "present_total": 75,
+      "absent_correct": 0,
+      "absent_total": 0
+    },
+    "brand": {
+      "correct": 75,
+      "total": 75,
+      "accuracy": 1.0,
+      "present_correct": 53,
+      "present_total": 53,
+      "absent_correct": 22,
+      "absent_total": 22
+    },
+    "model": {
+      "correct": 75,
+      "total": 75,
+      "accuracy": 1.0,
+      "present_correct": 40,
+      "present_total": 40,
+      "absent_correct": 35,
+      "absent_total": 35
+    }
+  },
+  "fallback": 0,
+  "passed": true,
+  "results": [
+    {
+      "row_number": 2,
+      "text": "Ноутбук Lenovo ThinkPad T14, оперативная память 16 ГБ, SSD 512 ГБ",
+      "expected": {
+        "name": "Ноутбук",
+        "brand": "Lenovo",
+        "model": "ThinkPad T14"
+      },
+      "actual": {
+        "name": "Ноутбук",
+        "brand": "Lenovo",
+        "model": "ThinkPad T14",
+        "characteristics": [
+          {
+            "name": "оперативная память",
+            "value": "16",
+            "unit": "ГБ"
+          },
+          {
+            "name": "SSD",
+            "value": "512",
+            "unit": "ГБ"
+          }
+        ],
+        "search_text": "Ноутбук оперативная память: 16 ГБ SSD: 512 ГБ",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 3,
+      "text": "Принтер лазерный HP LaserJet Pro M404dn, чёрно-белый, А4",
+      "expected": {
+        "name": "Принтер лазерный",
+        "brand": "HP",
+        "model": "LaserJet Pro M404dn"
+      },
+      "actual": {
+        "name": "Принтер лазерный",
+        "brand": "HP",
+        "model": "LaserJet Pro M404dn",
+        "characteristics": [
+          {
+            "name": "тип",
+            "value": "лазерный",
+            "unit": ""
+          },
+          {
+            "name": "цвет",
+            "value": "чёрно-белый",
+            "unit": ""
+          },
+          {
+            "name": "формат",
+            "value": "А4",
+            "unit": ""
+          }
+        ],
+        "search_text": "Принтер лазерный цвет: чёрно-белый формат: А4",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 4,
+      "text": "Монитор Samsung S24R350 24 дюйма, HDMI, 1920x1080",
+      "expected": {
+        "name": "Монитор",
+        "brand": "Samsung",
+        "model": "S24R350"
+      },
+      "actual": {
+        "name": "Монитор",
+        "brand": "Samsung",
+        "model": "S24R350",
+        "characteristics": [
+          {
+            "name": "диагональ",
+            "value": "24",
+            "unit": "дюйма"
+          },
+          {
+            "name": "интерфейс",
+            "value": "HDMI",
+            "unit": ""
+          },
+          {
+            "name": "разрешение",
+            "value": "1920x1080",
+            "unit": ""
+          }
+        ],
+        "search_text": "Монитор диагональ: 24 дюйма разрешение: 1920x1080",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 6,
+      "text": "Клавиатура проводная A4Tech KV-300H, USB, русская раскладка",
+      "expected": {
+        "name": "Клавиатура проводная",
+        "brand": "A4Tech",
+        "model": "KV-300H"
+      },
+      "actual": {
+        "name": "Клавиатура проводная",
+        "brand": "A4Tech",
+        "model": "KV-300H",
+        "characteristics": [
+          {
+            "name": "тип",
+            "value": "проводная",
+            "unit": ""
+          },
+          {
+            "name": "интерфейс",
+            "value": "USB",
+            "unit": ""
+          },
+          {
+            "name": "раскладка",
+            "value": "русская",
+            "unit": ""
+          }
+        ],
+        "search_text": "Клавиатура тип: проводная раскладка: русская",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 7,
+      "text": "Маршрутизатор TP-Link Archer C6, Wi-Fi, четыре антенны",
+      "expected": {
+        "name": "Маршрутизатор",
+        "brand": "TP-Link",
+        "model": "Archer C6"
+      },
+      "actual": {
+        "name": "Маршрутизатор",
+        "brand": "TP-Link",
+        "model": "Archer C6",
+        "characteristics": [
+          {
+            "name": "технология",
+            "value": "Wi-Fi",
+            "unit": ""
+          }
+        ],
+        "search_text": "Маршрутизатор технология: Wi-Fi количество антенн: 4",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 8,
+      "text": "Коммутатор D-Link DGS-1210-28, 24 порта",
+      "expected": {
+        "name": "Коммутатор",
+        "brand": "D-Link",
+        "model": "DGS-1210-28"
+      },
+      "actual": {
+        "name": "Коммутатор",
+        "brand": "D-Link",
+        "model": "DGS-1210-28",
+        "characteristics": [
+          {
+            "name": "количество портов",
+            "value": "24",
+            "unit": ""
+          }
+        ],
+        "search_text": "Коммутатор количество портов: 24",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 10,
+      "text": "Сканер Canon CanoScan LiDE 400, планшетный",
+      "expected": {
+        "name": "Сканер",
+        "brand": "Canon",
+        "model": "CanoScan LiDE 400"
+      },
+      "actual": {
+        "name": "Сканер",
+        "brand": "Canon",
+        "model": "CanoScan LiDE 400",
+        "characteristics": [
+          {
+            "name": "тип",
+            "value": "планшетный",
+            "unit": ""
+          }
+        ],
+        "search_text": "Сканер тип: планшетный",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 11,
+      "text": "Планшет Apple iPad Air, память 64 ГБ",
+      "expected": {
+        "name": "Планшет",
+        "brand": "Apple",
+        "model": "iPad Air"
+      },
+      "actual": {
+        "name": "Планшет",
+        "brand": "Apple",
+        "model": "iPad Air",
+        "characteristics": [
+          {
+            "name": "память",
+            "value": "64",
+            "unit": "ГБ"
+          }
+        ],
+        "search_text": "Планшет память: 64 ГБ",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 12,
+      "text": "Телефон IP Yealink SIP-T31P, питание PoE",
+      "expected": {
+        "name": "Телефон IP",
+        "brand": "Yealink",
+        "model": "SIP-T31P"
+      },
+      "actual": {
+        "name": "Телефон IP",
+        "brand": "Yealink",
+        "model": "SIP-T31P",
+        "characteristics": [
+          {
+            "name": "питание",
+            "value": "PoE",
+            "unit": ""
+          }
+        ],
+        "search_text": "Телефон IP питание: PoE",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 14,
+      "text": "Веб-камера Logitech C920, Full HD",
+      "expected": {
+        "name": "Веб-камера",
+        "brand": "Logitech",
+        "model": "C920"
+      },
+      "actual": {
+        "name": "Веб-камера",
+        "brand": "Logitech",
+        "model": "C920",
+        "characteristics": [
+          {
+            "name": "разрешение",
+            "value": "Full HD",
+            "unit": ""
+          }
+        ],
+        "search_text": "Веб-камера разрешение: Full HD",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 15,
+      "text": "Накопитель SSD Kingston A400, 480 ГБ, SATA",
+      "expected": {
+        "name": "Накопитель SSD",
+        "brand": "Kingston",
+        "model": "A400"
+      },
+      "actual": {
+        "name": "Накопитель SSD",
+        "brand": "Kingston",
+        "model": "A400",
+        "characteristics": [
+          {
+            "name": "объём",
+            "value": "480",
+            "unit": "ГБ"
+          },
+          {
+            "name": "интерфейс",
+            "value": "SATA",
+            "unit": ""
+          }
+        ],
+        "search_text": "Накопитель SSD объём: 480 ГБ интерфейс: SATA",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 16,
+      "text": "Флеш-накопитель SanDisk Ultra Flair, 64 ГБ, USB 3.0",
+      "expected": {
+        "name": "Флеш-накопитель",
+        "brand": "SanDisk",
+        "model": "Ultra Flair"
+      },
+      "actual": {
+        "name": "Флеш-накопитель",
+        "brand": "SanDisk",
+        "model": "Ultra Flair",
+        "characteristics": [
+          {
+            "name": "объём",
+            "value": "64",
+            "unit": "ГБ"
+          },
+          {
+            "name": "интерфейс",
+            "value": "USB 3.0",
+            "unit": ""
+          }
+        ],
+        "search_text": "Флеш-накопитель объём: 64 ГБ интерфейс: USB 3.0",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 18,
+      "text": "ИБП APC Back-UPS BX950MI, 950 ВА",
+      "expected": {
+        "name": "ИБП",
+        "brand": "APC",
+        "model": "Back-UPS BX950MI"
+      },
+      "actual": {
+        "name": "ИБП",
+        "brand": "APC",
+        "model": "Back-UPS BX950MI",
+        "characteristics": [
+          {
+            "name": "мощность",
+            "value": "950",
+            "unit": "ВА"
+          }
+        ],
+        "search_text": "ИБП мощность: 950 ВА",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 19,
+      "text": "МФУ Brother DCP-L2540DNR, лазерное, А4",
+      "expected": {
+        "name": "МФУ",
+        "brand": "Brother",
+        "model": "DCP-L2540DNR"
+      },
+      "actual": {
+        "name": "МФУ",
+        "brand": "Brother",
+        "model": "DCP-L2540DNR",
+        "characteristics": [
+          {
+            "name": "тип",
+            "value": "лазерное",
+            "unit": ""
+          },
+          {
+            "name": "формат",
+            "value": "А4",
+            "unit": ""
+          }
+        ],
+        "search_text": "МФУ тип: лазерное формат: А4",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 20,
+      "text": "Смартфон Xiaomi Redmi Note 12, 128 ГБ, чёрный",
+      "expected": {
+        "name": "Смартфон",
+        "brand": "Xiaomi",
+        "model": "Redmi Note 12"
+      },
+      "actual": {
+        "name": "Смартфон",
+        "brand": "Xiaomi",
+        "model": "Redmi Note 12",
+        "characteristics": [
+          {
+            "name": "память",
+            "value": "128",
+            "unit": "ГБ"
+          },
+          {
+            "name": "цвет",
+            "value": "чёрный",
+            "unit": ""
+          }
+        ],
+        "search_text": "Смартфон память: 128 ГБ цвет: чёрный",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 22,
+      "text": "Дрель ударная Bosch GSB 13 RE, мощность 600 Вт",
+      "expected": {
+        "name": "Дрель ударная",
+        "brand": "Bosch",
+        "model": "GSB 13 RE"
+      },
+      "actual": {
+        "name": "Дрель ударная",
+        "brand": "Bosch",
+        "model": "GSB 13 RE",
+        "characteristics": [
+          {
+            "name": "мощность",
+            "value": "600",
+            "unit": "Вт"
+          }
+        ],
+        "search_text": "Дрель ударная мощность: 600 Вт",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 23,
+      "text": "Шуруповёрт Makita DF333DWYE, аккумуляторный",
+      "expected": {
+        "name": "Шуруповёрт",
+        "brand": "Makita",
+        "model": "DF333DWYE"
+      },
+      "actual": {
+        "name": "Шуруповёрт",
+        "brand": "Makita",
+        "model": "DF333DWYE",
+        "characteristics": [
+          {
+            "name": "тип",
+            "value": "аккумуляторный",
+            "unit": ""
+          }
+        ],
+        "search_text": "Шуруповёрт тип: аккумуляторный",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 24,
+      "text": "Перфоратор Интерскол П-26/800ЭР, 800 Вт",
+      "expected": {
+        "name": "Перфоратор",
+        "brand": "Интерскол",
+        "model": "П-26/800ЭР"
+      },
+      "actual": {
+        "name": "Перфоратор",
+        "brand": "Интерскол",
+        "model": "П-26/800ЭР",
+        "characteristics": [
+          {
+            "name": "мощность",
+            "value": "800",
+            "unit": "Вт"
+          }
+        ],
+        "search_text": "Перфоратор мощность: 800 Вт",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 26,
+      "text": "Лобзик электрический ЗУБР Л-570-65, 570 Вт",
+      "expected": {
+        "name": "Лобзик электрический",
+        "brand": "ЗУБР",
+        "model": "Л-570-65"
+      },
+      "actual": {
+        "name": "Лобзик электрический",
+        "brand": "ЗУБР",
+        "model": "Л-570-65",
+        "characteristics": [
+          {
+            "name": "мощность",
+            "value": "570",
+            "unit": "Вт"
+          }
+        ],
+        "search_text": "Лобзик электрический мощность: 570 Вт",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 27,
+      "text": "Пила дисковая Makita HS7601, диск 190 мм",
+      "expected": {
+        "name": "Пила дисковая",
+        "brand": "Makita",
+        "model": "HS7601"
+      },
+      "actual": {
+        "name": "Пила дисковая",
+        "brand": "Makita",
+        "model": "HS7601",
+        "characteristics": [
+          {
+            "name": "диаметр диска",
+            "value": "190",
+            "unit": "мм"
+          }
+        ],
+        "search_text": "Пила дисковая диаметр диска: 190 мм",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 28,
+      "text": "Фен строительный Bosch GHG 20-63, 2000 Вт",
+      "expected": {
+        "name": "Фен строительный",
+        "brand": "Bosch",
+        "model": "GHG 20-63"
+      },
+      "actual": {
+        "name": "Фен строительный",
+        "brand": "Bosch",
+        "model": "GHG 20-63",
+        "characteristics": [
+          {
+            "name": "мощность",
+            "value": "2000",
+            "unit": "Вт"
+          }
+        ],
+        "search_text": "Фен строительный мощность: 2000 Вт",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 30,
+      "text": "Дальномер лазерный ADA Cosmo 50, до 50 м",
+      "expected": {
+        "name": "Дальномер лазерный",
+        "brand": "ADA",
+        "model": "Cosmo 50"
+      },
+      "actual": {
+        "name": "Дальномер лазерный",
+        "brand": "ADA",
+        "model": "Cosmo 50",
+        "characteristics": [
+          {
+            "name": "максимальная дистанция измерения",
+            "value": "50",
+            "unit": "м"
+          }
+        ],
+        "search_text": "Дальномер лазерный максимальная дистанция измерения: 50 м",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 31,
+      "text": "Уровень лазерный Bosch GLL 2-10, дальность 10 м",
+      "expected": {
+        "name": "Уровень лазерный",
+        "brand": "Bosch",
+        "model": "GLL 2-10"
+      },
+      "actual": {
+        "name": "Уровень лазерный",
+        "brand": "Bosch",
+        "model": "GLL 2-10",
+        "characteristics": [
+          {
+            "name": "дальность",
+            "value": "10",
+            "unit": "м"
+          }
+        ],
+        "search_text": "Уровень лазерный дальность: 10 м",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 32,
+      "text": "Пылесос Karcher WD 3, бак 17 л",
+      "expected": {
+        "name": "Пылесос",
+        "brand": "Karcher",
+        "model": "WD 3"
+      },
+      "actual": {
+        "name": "Пылесос",
+        "brand": "Karcher",
+        "model": "WD 3",
+        "characteristics": [
+          {
+            "name": "объем бака",
+            "value": "17",
+            "unit": "л"
+          }
+        ],
+        "search_text": "Пылесос объем бака: 17 л",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 34,
+      "text": "Чайник электрический Philips HD9350, 1.7 л",
+      "expected": {
+        "name": "Чайник электрический",
+        "brand": "Philips",
+        "model": "HD9350"
+      },
+      "actual": {
+        "name": "Чайник электрический",
+        "brand": "Philips",
+        "model": "HD9350",
+        "characteristics": [
+          {
+            "name": "объем",
+            "value": "1.7",
+            "unit": "л"
+          }
+        ],
+        "search_text": "Чайник электрический объем: 1.7 л",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 35,
+      "text": "Печь микроволновая Samsung ME83KRW-1, 23 л",
+      "expected": {
+        "name": "Печь микроволновая",
+        "brand": "Samsung",
+        "model": "ME83KRW-1"
+      },
+      "actual": {
+        "name": "Печь микроволновая",
+        "brand": "Samsung",
+        "model": "ME83KRW-1",
+        "characteristics": [
+          {
+            "name": "объем",
+            "value": "23",
+            "unit": "л"
+          }
+        ],
+        "search_text": "Печь микроволновая объем: 23 л",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 36,
+      "text": "Холодильник Атлант ХМ 4010-022, двухкамерный",
+      "expected": {
+        "name": "Холодильник",
+        "brand": "Атлант",
+        "model": "ХМ 4010-022"
+      },
+      "actual": {
+        "name": "Холодильник",
+        "brand": "Атлант",
+        "model": "ХМ 4010-022",
+        "characteristics": [
+          {
+            "name": "тип",
+            "value": "двухкамерный",
+            "unit": ""
+          }
+        ],
+        "search_text": "Холодильник тип: двухкамерный",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 38,
+      "text": "Обогреватель масляный Electrolux EOH/M-9209, 9 секций",
+      "expected": {
+        "name": "Обогреватель масляный",
+        "brand": "Electrolux",
+        "model": "EOH/M-9209"
+      },
+      "actual": {
+        "name": "Обогреватель масляный",
+        "brand": "Electrolux",
+        "model": "EOH/M-9209",
+        "characteristics": [
+          {
+            "name": "количество секций",
+            "value": "9",
+            "unit": ""
+          }
+        ],
+        "search_text": "Обогреватель масляный количество секций: 9",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 39,
+      "text": "Весы кухонные REDMOND RS-724-E, до 5 кг",
+      "expected": {
+        "name": "Весы кухонные",
+        "brand": "REDMOND",
+        "model": "RS-724-E"
+      },
+      "actual": {
+        "name": "Весы кухонные",
+        "brand": "REDMOND",
+        "model": "RS-724-E",
+        "characteristics": [
+          {
+            "name": "максимальный вес",
+            "value": "5",
+            "unit": "кг"
+          }
+        ],
+        "search_text": "Весы кухонные максимальный вес: 5 кг",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 40,
+      "text": "Утюг Tefal FV1711, 1800 Вт",
+      "expected": {
+        "name": "Утюг",
+        "brand": "Tefal",
+        "model": "FV1711"
+      },
+      "actual": {
+        "name": "Утюг",
+        "brand": "Tefal",
+        "model": "FV1711",
+        "characteristics": [
+          {
+            "name": "мощность",
+            "value": "1800",
+            "unit": "Вт"
+          }
+        ],
+        "search_text": "Утюг мощность: 1800 Вт",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 42,
+      "text": "Тонометр Omron M2 Basic, автоматический",
+      "expected": {
+        "name": "Тонометр",
+        "brand": "Omron",
+        "model": "M2 Basic"
+      },
+      "actual": {
+        "name": "Тонометр",
+        "brand": "Omron",
+        "model": "M2 Basic",
+        "characteristics": [
+          {
+            "name": "тип",
+            "value": "автоматический",
+            "unit": ""
+          }
+        ],
+        "search_text": "Тонометр тип: автоматический",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 43,
+      "text": "Термометр электронный AND DT-501, медицинский",
+      "expected": {
+        "name": "Термометр электронный",
+        "brand": "AND",
+        "model": "DT-501"
+      },
+      "actual": {
+        "name": "Термометр электронный",
+        "brand": "AND",
+        "model": "DT-501",
+        "characteristics": [
+          {
+            "name": "назначение",
+            "value": "медицинский",
+            "unit": ""
+          }
+        ],
+        "search_text": "Термометр электронный назначение: медицинский",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 44,
+      "text": "Небулайзер Omron Comp Air NE-C28, компрессорный",
+      "expected": {
+        "name": "Небулайзер",
+        "brand": "Omron",
+        "model": "Comp Air NE-C28"
+      },
+      "actual": {
+        "name": "Небулайзер",
+        "brand": "Omron",
+        "model": "Comp Air NE-C28",
+        "characteristics": [
+          {
+            "name": "тип",
+            "value": "компрессорный",
+            "unit": ""
+          }
+        ],
+        "search_text": "Небулайзер тип: компрессорный",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 46,
+      "text": "Глюкометр Accu-Chek Active, комплект",
+      "expected": {
+        "name": "Глюкометр",
+        "brand": "Accu-Chek",
+        "model": "Active"
+      },
+      "actual": {
+        "name": "Глюкометр",
+        "brand": "Accu-Chek",
+        "model": "Active",
+        "characteristics": [
+          {
+            "name": "комплектация",
+            "value": "комплект",
+            "unit": ""
+          }
+        ],
+        "search_text": "Глюкометр комплектация: комплект",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 47,
+      "text": "Бумага офисная «Снегурочка», А4, 80 г/м2, пачка 500 листов",
+      "expected": {
+        "name": "Бумага офисная",
+        "brand": "Снегурочка",
+        "model": ""
+      },
+      "actual": {
+        "name": "Бумага офисная",
+        "brand": "Снегурочка",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "формат",
+            "value": "А4",
+            "unit": ""
+          },
+          {
+            "name": "плотность",
+            "value": "80",
+            "unit": "г/м2"
+          },
+          {
+            "name": "количество листов в пачке",
+            "value": "500",
+            "unit": ""
+          }
+        ],
+        "search_text": "Бумага офисная формат: А4 плотность: 80 г/м2 количество листов в пачке: 500",
+        "measure": "упак",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 48,
+      "text": "Бумага офисная SvetoCopy, А3, 80 г/м2",
+      "expected": {
+        "name": "Бумага офисная",
+        "brand": "SvetoCopy",
+        "model": ""
+      },
+      "actual": {
+        "name": "Бумага офисная",
+        "brand": "SvetoCopy",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "формат",
+            "value": "А3",
+            "unit": ""
+          },
+          {
+            "name": "плотность",
+            "value": "80",
+            "unit": "г/м2"
+          }
+        ],
+        "search_text": "Бумага офисная формат: А3 плотность: 80 г/м2",
+        "measure": "упак",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 50,
+      "text": "Карандаш чернографитный Koh-I-Noor 1500, HB",
+      "expected": {
+        "name": "Карандаш чернографитный",
+        "brand": "Koh-I-Noor",
+        "model": "1500"
+      },
+      "actual": {
+        "name": "Карандаш чернографитный",
+        "brand": "Koh-I-Noor",
+        "model": "1500",
+        "characteristics": [
+          {
+            "name": "твердость",
+            "value": "HB",
+            "unit": ""
+          }
+        ],
+        "search_text": "Карандаш чернографитный твердость: HB",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 51,
+      "text": "Маркер перманентный Edding 3000, чёрный",
+      "expected": {
+        "name": "Маркер перманентный",
+        "brand": "Edding",
+        "model": "3000"
+      },
+      "actual": {
+        "name": "Маркер перманентный",
+        "brand": "Edding",
+        "model": "3000",
+        "characteristics": [
+          {
+            "name": "цвет",
+            "value": "чёрный",
+            "unit": ""
+          }
+        ],
+        "search_text": "Маркер перманентный цвет: чёрный",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 52,
+      "text": "Степлер ErichKrause Elegance, до 20 листов",
+      "expected": {
+        "name": "Степлер",
+        "brand": "ErichKrause",
+        "model": "Elegance"
+      },
+      "actual": {
+        "name": "Степлер",
+        "brand": "ErichKrause",
+        "model": "Elegance",
+        "characteristics": [
+          {
+            "name": "максимальная толщина скрепляемых листов",
+            "value": "20",
+            "unit": "листов"
+          }
+        ],
+        "search_text": "Степлер максимальная толщина скрепляемых листов: 20 листов",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 54,
+      "text": "Папка-регистратор BRAUBERG, А4, корешок 75 мм",
+      "expected": {
+        "name": "Папка-регистратор",
+        "brand": "BRAUBERG",
+        "model": ""
+      },
+      "actual": {
+        "name": "Папка-регистратор",
+        "brand": "BRAUBERG",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "формат",
+            "value": "А4",
+            "unit": ""
+          },
+          {
+            "name": "ширина корешка",
+            "value": "75",
+            "unit": "мм"
+          }
+        ],
+        "search_text": "Папка-регистратор формат: А4 ширина корешка: 75 мм",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex2"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 55,
+      "text": "Ножницы канцелярские Attache, 180 мм",
+      "expected": {
+        "name": "Ножницы канцелярские",
+        "brand": "Attache",
+        "model": ""
+      },
+      "actual": {
+        "name": "Ножницы канцелярские",
+        "brand": "Attache",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "длина",
+            "value": "180",
+            "unit": "мм"
+          }
+        ],
+        "search_text": "Ножницы канцелярские длина: 180 мм",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 56,
+      "text": "Ластик Faber-Castell Dust-Free, белый",
+      "expected": {
+        "name": "Ластик",
+        "brand": "Faber-Castell",
+        "model": "Dust-Free"
+      },
+      "actual": {
+        "name": "Ластик",
+        "brand": "Faber-Castell",
+        "model": "Dust-Free",
+        "characteristics": [
+          {
+            "name": "цвет",
+            "value": "белый",
+            "unit": ""
+          }
+        ],
+        "search_text": "Ластик цвет: белый",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 58,
+      "text": "Средство для мытья посуды Fairy, 450 мл",
+      "expected": {
+        "name": "Средство для мытья посуды",
+        "brand": "Fairy",
+        "model": ""
+      },
+      "actual": {
+        "name": "Средство для мытья посуды",
+        "brand": "Fairy",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "объём",
+            "value": "450",
+            "unit": "мл"
+          }
+        ],
+        "search_text": "Средство для мытья посуды объём: 450 мл",
+        "measure": "л",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 59,
+      "text": "Порошок стиральный Persil, 3 кг, автомат",
+      "expected": {
+        "name": "Порошок стиральный",
+        "brand": "Persil",
+        "model": ""
+      },
+      "actual": {
+        "name": "Порошок стиральный",
+        "brand": "Persil",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "вес",
+            "value": "3",
+            "unit": "кг"
+          },
+          {
+            "name": "тип",
+            "value": "автомат",
+            "unit": ""
+          }
+        ],
+        "search_text": "Порошок стиральный вес: 3 кг тип: автомат",
+        "measure": "кг",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 60,
+      "text": "Средство для мытья полов Mr. Proper, 1 л",
+      "expected": {
+        "name": "Средство для мытья полов",
+        "brand": "Mr. Proper",
+        "model": ""
+      },
+      "actual": {
+        "name": "Средство для мытья полов",
+        "brand": "Mr. Proper",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "объём",
+            "value": "1",
+            "unit": "л"
+          }
+        ],
+        "search_text": "Средство для мытья полов объём: 1 л",
+        "measure": "л",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 62,
+      "text": "Бумага туалетная Veiro, 2 слоя, 8 рулонов",
+      "expected": {
+        "name": "Бумага туалетная",
+        "brand": "Veiro",
+        "model": ""
+      },
+      "actual": {
+        "name": "Бумага туалетная",
+        "brand": "Veiro",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "количество слоёв",
+            "value": "2",
+            "unit": ""
+          },
+          {
+            "name": "количество рулонов",
+            "value": "8",
+            "unit": ""
+          }
+        ],
+        "search_text": "Бумага туалетная количество слоёв: 2 количество рулонов: 8",
+        "measure": "упак",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 63,
+      "text": "Молоко питьевое Простоквашино, 3.2%, 930 мл",
+      "expected": {
+        "name": "Молоко питьевое",
+        "brand": "Простоквашино",
+        "model": ""
+      },
+      "actual": {
+        "name": "Молоко питьевое",
+        "brand": "Простоквашино",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "жирность",
+            "value": "3.2",
+            "unit": "%"
+          },
+          {
+            "name": "объём",
+            "value": "930",
+            "unit": "мл"
+          }
+        ],
+        "search_text": "Молоко питьевое жирность: 3.2 % объём: 930 мл",
+        "measure": "л",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 64,
+      "text": "Кефир Домик в деревне, 2.5%, 1 л",
+      "expected": {
+        "name": "Кефир",
+        "brand": "Домик в деревне",
+        "model": ""
+      },
+      "actual": {
+        "name": "Кефир",
+        "brand": "Домик в деревне",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "жирность",
+            "value": "2.5",
+            "unit": "%"
+          },
+          {
+            "name": "объём",
+            "value": "1",
+            "unit": "л"
+          }
+        ],
+        "search_text": "Кефир жирность: 2.5 % объём: 1 л",
+        "measure": "л",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 66,
+      "text": "Чай чёрный Greenfield Golden Ceylon, 25 пакетиков",
+      "expected": {
+        "name": "Чай чёрный",
+        "brand": "Greenfield",
+        "model": "Golden Ceylon"
+      },
+      "actual": {
+        "name": "Чай чёрный",
+        "brand": "Greenfield",
+        "model": "Golden Ceylon",
+        "characteristics": [
+          {
+            "name": "количество пакетиков",
+            "value": "25",
+            "unit": ""
+          }
+        ],
+        "search_text": "Чай чёрный количество пакетиков: 25",
+        "measure": "упак",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 67,
+      "text": "Кофе растворимый Nescafe Gold, 95 г",
+      "expected": {
+        "name": "Кофе растворимый",
+        "brand": "Nescafe",
+        "model": "Gold"
+      },
+      "actual": {
+        "name": "Кофе растворимый",
+        "brand": "Nescafe",
+        "model": "Gold",
+        "characteristics": [
+          {
+            "name": "вес",
+            "value": "95",
+            "unit": "г"
+          }
+        ],
+        "search_text": "Кофе растворимый вес: 95 г",
+        "measure": "кг",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 68,
+      "text": "Крупа гречневая Мистраль, 900 г",
+      "expected": {
+        "name": "Крупа гречневая",
+        "brand": "Мистраль",
+        "model": ""
+      },
+      "actual": {
+        "name": "Крупа гречневая",
+        "brand": "Мистраль",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "вес",
+            "value": "900",
+            "unit": "г"
+          }
+        ],
+        "search_text": "Крупа гречневая вес: 900 г",
+        "measure": "кг",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 70,
+      "text": "Вода питьевая Святой Источник, без газа, 1.5 л",
+      "expected": {
+        "name": "Вода питьевая",
+        "brand": "Святой Источник",
+        "model": ""
+      },
+      "actual": {
+        "name": "Вода питьевая",
+        "brand": "Святой Источник",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "газированность",
+            "value": "без газа",
+            "unit": ""
+          },
+          {
+            "name": "объём",
+            "value": "1.5",
+            "unit": "л"
+          }
+        ],
+        "search_text": "Вода питьевая газированность: без газа объём: 1.5 л",
+        "measure": "л",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 71,
+      "text": "Сок яблочный Добрый, 1 л",
+      "expected": {
+        "name": "Сок яблочный",
+        "brand": "Добрый",
+        "model": ""
+      },
+      "actual": {
+        "name": "Сок яблочный",
+        "brand": "Добрый",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "объём",
+            "value": "1",
+            "unit": "л"
+          }
+        ],
+        "search_text": "Сок яблочный объём: 1 л",
+        "measure": "л",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 72,
+      "text": "Бумага для принтера А4, 80 г/м2, белая, 500 листов",
+      "expected": {
+        "name": "Бумага для принтера",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Бумага для принтера",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "формат",
+            "value": "А4",
+            "unit": ""
+          },
+          {
+            "name": "плотность",
+            "value": "80",
+            "unit": "г/м2"
+          },
+          {
+            "name": "цвет",
+            "value": "белая",
+            "unit": ""
+          },
+          {
+            "name": "количество листов",
+            "value": "500",
+            "unit": ""
+          }
+        ],
+        "search_text": "Бумага для принтера формат: А4 плотность: 80 г/м2 цвет: белая количество листов: 500",
+        "measure": "упак",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 74,
+      "text": "Перчатки нитриловые, неопудренные, размер M, 100 шт",
+      "expected": {
+        "name": "Перчатки нитриловые",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Перчатки нитриловые",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "покрытие",
+            "value": "неопудренные",
+            "unit": ""
+          },
+          {
+            "name": "размер",
+            "value": "M",
+            "unit": ""
+          },
+          {
+            "name": "количество",
+            "value": "100",
+            "unit": "шт"
+          }
+        ],
+        "search_text": "Перчатки нитриловые покрытие: неопудренные размер: M количество: 100 шт",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 75,
+      "text": "Маска медицинская, трёхслойная, одноразовая, 50 шт",
+      "expected": {
+        "name": "Маска медицинская",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Маска медицинская",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "количество слоёв",
+            "value": "трёхслойная",
+            "unit": ""
+          },
+          {
+            "name": "тип",
+            "value": "одноразовая",
+            "unit": ""
+          },
+          {
+            "name": "количество",
+            "value": "50",
+            "unit": "шт"
+          }
+        ],
+        "search_text": "Маска медицинская количество слоёв: трёхслойная тип: одноразовая количество: 50 шт",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 76,
+      "text": "Шприц инъекционный, 5 мл, одноразовый, с иглой",
+      "expected": {
+        "name": "Шприц инъекционный",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Шприц инъекционный",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "объём",
+            "value": "5",
+            "unit": "мл"
+          },
+          {
+            "name": "тип",
+            "value": "одноразовый",
+            "unit": ""
+          },
+          {
+            "name": "комплектация",
+            "value": "с иглой",
+            "unit": ""
+          }
+        ],
+        "search_text": "Шприц инъекционный объём: 5 мл тип: одноразовый комплектация: с иглой",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 78,
+      "text": "Стол письменный, 1200х600х750 мм, ЛДСП",
+      "expected": {
+        "name": "Стол письменный",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Стол письменный",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "размеры",
+            "value": "1200х600х750",
+            "unit": "мм"
+          },
+          {
+            "name": "материал",
+            "value": "ЛДСП",
+            "unit": ""
+          }
+        ],
+        "search_text": "Стол письменный размеры: 1200х600х750 мм материал: ЛДСП",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 79,
+      "text": "Стул офисный, металлический каркас, ткань серая",
+      "expected": {
+        "name": "Стул офисный",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Стул офисный",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "каркас",
+            "value": "металлический",
+            "unit": ""
+          },
+          {
+            "name": "цвет ткани",
+            "value": "серая",
+            "unit": ""
+          }
+        ],
+        "search_text": "Стул офисный каркас: металлический цвет ткани: серая",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 80,
+      "text": "Шкаф для документов, 800х400х1800 мм, две двери",
+      "expected": {
+        "name": "Шкаф для документов",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Шкаф для документов",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "размеры",
+            "value": "800х400х1800",
+            "unit": "мм"
+          },
+          {
+            "name": "количество дверей",
+            "value": "две",
+            "unit": ""
+          }
+        ],
+        "search_text": "Шкаф для документов размеры: 800х400х1800 мм количество дверей: две",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex3"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 82,
+      "text": "Лампа светодиодная, E27, 10 Вт, 4000 К",
+      "expected": {
+        "name": "Лампа светодиодная",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Лампа светодиодная",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "тип цоколя",
+            "value": "E27",
+            "unit": ""
+          },
+          {
+            "name": "мощность",
+            "value": "10",
+            "unit": "Вт"
+          },
+          {
+            "name": "цветовая температура",
+            "value": "4000",
+            "unit": "К"
+          }
+        ],
+        "search_text": "Лампа светодиодная тип цоколя: E27 мощность: 10 Вт цветовая температура: 4000 К",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex4"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 83,
+      "text": "Розетка электрическая, двойная, с заземлением, белая",
+      "expected": {
+        "name": "Розетка электрическая",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Розетка электрическая",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "количество гнёзд",
+            "value": "двойная",
+            "unit": ""
+          },
+          {
+            "name": "наличие заземления",
+            "value": "с заземлением",
+            "unit": ""
+          },
+          {
+            "name": "цвет",
+            "value": "белая",
+            "unit": ""
+          }
+        ],
+        "search_text": "Розетка электрическая количество гнёзд: двойная наличие заземления: с заземлением цвет: белая",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex4"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 84,
+      "text": "Выключатель одноклавишный, скрытая установка, 10 А",
+      "expected": {
+        "name": "Выключатель одноклавишный",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Выключатель одноклавишный",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "количество клавиш",
+            "value": "одноклавишный",
+            "unit": ""
+          },
+          {
+            "name": "тип установки",
+            "value": "скрытая",
+            "unit": ""
+          },
+          {
+            "name": "номинальный ток",
+            "value": "10",
+            "unit": "А"
+          }
+        ],
+        "search_text": "Выключатель количество клавиш: одноклавишный тип установки: скрытая номинальный ток: 10 А",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex4"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 86,
+      "text": "Кран шаровой, латунный, 1/2 дюйма, внутренняя резьба",
+      "expected": {
+        "name": "Кран шаровой",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Кран шаровой",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "материал",
+            "value": "латунный",
+            "unit": ""
+          },
+          {
+            "name": "диаметр",
+            "value": "1/2",
+            "unit": "дюйма"
+          },
+          {
+            "name": "тип резьбы",
+            "value": "внутренняя",
+            "unit": ""
+          }
+        ],
+        "search_text": "Кран шаровой материал: латунный диаметр: 1/2 дюйма тип резьбы: внутренняя",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex4"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 87,
+      "text": "Болт М8х40, оцинкованный, класс прочности 8.8",
+      "expected": {
+        "name": "Болт",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Болт",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "размер",
+            "value": "М8х40",
+            "unit": ""
+          },
+          {
+            "name": "покрытие",
+            "value": "оцинкованный",
+            "unit": ""
+          },
+          {
+            "name": "класс прочности",
+            "value": "8.8",
+            "unit": ""
+          }
+        ],
+        "search_text": "Болт размер: М8х40 покрытие: оцинкованный класс прочности: 8.8",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex4"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 88,
+      "text": "Гайка М8, оцинкованная, 100 шт",
+      "expected": {
+        "name": "Гайка",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Гайка",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "размер",
+            "value": "М8",
+            "unit": ""
+          },
+          {
+            "name": "покрытие",
+            "value": "оцинкованная",
+            "unit": ""
+          }
+        ],
+        "search_text": "Гайка размер: М8 покрытие: оцинкованная",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex4"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 90,
+      "text": "Грунтовка глубокого проникновения, 10 л",
+      "expected": {
+        "name": "Грунтовка глубокого проникновения",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Грунтовка глубокого проникновения",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "объём",
+            "value": "10",
+            "unit": "л"
+          }
+        ],
+        "search_text": "Грунтовка объём: 10 л",
+        "measure": "л",
+        "source": "llm",
+        "provider": "yandex4"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 91,
+      "text": "Лента клейкая упаковочная, прозрачная, 48 мм х 66 м",
+      "expected": {
+        "name": "Лента клейкая упаковочная",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Лента клейкая упаковочная",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "цвет",
+            "value": "прозрачная",
+            "unit": ""
+          },
+          {
+            "name": "ширина",
+            "value": "48",
+            "unit": "мм"
+          },
+          {
+            "name": "длина",
+            "value": "66",
+            "unit": "м"
+          }
+        ],
+        "search_text": "Лента клейкая цвет: прозрачная ширина: 48 мм длина: 66 м",
+        "measure": "упак",
+        "source": "llm",
+        "provider": "yandex4"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 92,
+      "text": "Услуги частной охраны, круглосуточно, 1 пост",
+      "expected": {
+        "name": "Услуги частной охраны",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Услуги частной охраны",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "режим работы",
+            "value": "круглосуточно",
+            "unit": ""
+          },
+          {
+            "name": "количество постов",
+            "value": "1",
+            "unit": "пост"
+          }
+        ],
+        "search_text": "Услуги частной охраны режим работы: круглосуточно количество постов: 1 пост",
+        "measure": "усл. ед",
+        "source": "llm",
+        "provider": "yandex4"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 94,
+      "text": "Работы по ремонту кровли, площадь 100 м2",
+      "expected": {
+        "name": "Работы по ремонту кровли",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Работы по ремонту кровли",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "площадь",
+            "value": "100",
+            "unit": "м2"
+          }
+        ],
+        "search_text": "Работы по ремонту кровли площадь: 100 м2",
+        "measure": "м2",
+        "source": "llm",
+        "provider": "yandex4"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 95,
+      "text": "Доставка питьевой воды, 19 л, 20 бутылей",
+      "expected": {
+        "name": "Доставка питьевой воды",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Доставка питьевой воды",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "объём бутыли",
+            "value": "19",
+            "unit": "л"
+          },
+          {
+            "name": "количество бутылей",
+            "value": "20",
+            "unit": ""
+          }
+        ],
+        "search_text": "Доставка питьевой воды объём бутыли: 19 л количество бутылей: 20 шт",
+        "measure": "бутыль",
+        "source": "llm",
+        "provider": "yandex4"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 96,
+      "text": "Техническое обслуживание кондиционеров, 12 единиц",
+      "expected": {
+        "name": "Техническое обслуживание кондиционеров",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Техническое обслуживание кондиционеров",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "количество единиц",
+            "value": "12",
+            "unit": "единиц"
+          }
+        ],
+        "search_text": "Техническое обслуживание кондиционеров количество единиц: 12 единиц",
+        "measure": "усл. ед",
+        "source": "llm",
+        "provider": "yandex4"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 98,
+      "text": "Чехол для планшета Apple iPad Air, силиконовый, производитель не указан",
+      "expected": {
+        "name": "Чехол для планшета",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Чехол для планшета",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "материал",
+            "value": "силиконовый",
+            "unit": ""
+          },
+          {
+            "name": "совместимость",
+            "value": "Apple iPad Air",
+            "unit": ""
+          }
+        ],
+        "search_text": "Чехол материал: силиконовый совместимость: Apple iPad Air",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex4"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 99,
+      "text": "Кабель для телефона Samsung Galaxy A54, USB-C, без бренда",
+      "expected": {
+        "name": "Кабель для телефона",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Кабель для телефона",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "совместимость",
+            "value": "Samsung Galaxy A54",
+            "unit": ""
+          },
+          {
+            "name": "тип разъёма",
+            "value": "USB-C",
+            "unit": ""
+          }
+        ],
+        "search_text": "Кабель совместимость: Samsung Galaxy A54 тип разъёма: USB-C",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex4"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    },
+    {
+      "row_number": 100,
+      "text": "Блок питания для ноутбука Lenovo ThinkPad T14, совместимый, 65 Вт",
+      "expected": {
+        "name": "Блок питания для ноутбука",
+        "brand": "",
+        "model": ""
+      },
+      "actual": {
+        "name": "Блок питания для ноутбука",
+        "brand": "",
+        "model": "",
+        "characteristics": [
+          {
+            "name": "совместимость",
+            "value": "Lenovo ThinkPad T14",
+            "unit": ""
+          },
+          {
+            "name": "мощность",
+            "value": "65",
+            "unit": "Вт"
+          }
+        ],
+        "search_text": "Блок питания совместимость: Lenovo ThinkPad T14 мощность: 65 Вт",
+        "measure": "шт",
+        "source": "llm",
+        "provider": "yandex4"
+      },
+      "matches": {
+        "name": true,
+        "brand": true,
+        "model": true
+      }
+    }
+  ]
+}
