@@ -1,0 +1,87 @@
+{
+  "case": 5,
+  "live": true,
+  "checks": {
+    "stack": {
+      "passed": true,
+      "catalog_codes": 81509,
+      "worker_available": true,
+      "pgvector_version": "0.8.7"
+    },
+    "pdf_51_pages": {
+      "job_id": "3577d8ac-15c7-4389-8be4-d14b52dcc3e3",
+      "status": "done",
+      "rows": 51,
+      "upload_seconds": 0.096,
+      "seconds": 7.218,
+      "fallback": 0,
+      "words_only": 0,
+      "passed": true
+    },
+    "attributes": {
+      "job_id": "526f866d-65a0-486d-9c50-b5f87cea10cf",
+      "status": "done",
+      "rows": 12,
+      "upload_seconds": 0.015,
+      "seconds": 5.603,
+      "fallback": 0,
+      "words_only": 0,
+      "hits": {
+        "name": 12,
+        "brand": 12,
+        "model": 12
+      },
+      "denominator": 12,
+      "passed": true
+    },
+    "classification": {
+      "job_id": "99fd2d43-bd48-4ab6-8da7-ec4c85059f3a",
+      "status": "done",
+      "rows": 1000,
+      "upload_seconds": 0.011,
+      "seconds": 200.617,
+      "fallback": 0,
+      "words_only": 0,
+      "exact": 990,
+      "passed": true
+    },
+    "performance": {
+      "seconds": 200.617,
+      "limit": 300,
+      "passed": true
+    },
+    "confidence": {
+      "automatic_proposals": 1000,
+      "remembered_human_decisions": 0,
+      "scored": 1000,
+      "unscored_or_invalid": 0,
+      "passed": true
+    },
+    "manual_correction": {
+      "row_number": 1,
+      "from": "26.20.11.110-00000165",
+      "to": "26.20.11.110-00000001",
+      "passed": true
+    },
+    "export_csv": {
+      "rows": 1000,
+      "corrected_code_in_file": true,
+      "passed": true
+    },
+    "export_xlsx": {
+      "rows": 1000,
+      "corrected_code_in_file": true,
+      "passed": true
+    },
+    "isolation": {
+      "job": 404,
+      "export": 404,
+      "listed": false,
+      "passed": true
+    }
+  },
+  "limitations": [
+    "Attribute set is 12 handcrafted examples; not an independent organizer benchmark. PDF is text, not a scanned document."
+  ],
+  "passed": true
+}
