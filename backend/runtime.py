@@ -19,6 +19,8 @@ REMEMBER = os.getenv("REMEMBER_DECISIONS", "1") != "0"
 # Accounts: every /api/ address except PUBLIC needs a login (AUTH_REQUIRED=0 - only for development)
 AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "1") != "0"
 SESSION_HOURS = float(os.getenv("SESSION_HOURS", "12"))
+# A guest's session (its cookie itself ends with the browser); then the worker removes its files
+GUEST_HOURS = float(os.getenv("GUEST_HOURS", "12"))
 COOKIE = "ktru_session"
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "0") == "1"  # 1 behind HTTPS
 PUBLIC = {
@@ -26,6 +28,7 @@ PUBLIC = {
     "/api/legal",
     "/api/auth/login",
     "/api/auth/register",
+    "/api/auth/guest",
     "/api/auth/logout",
     "/api/docs",
     "/api/openapi.json",

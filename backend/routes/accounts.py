@@ -15,6 +15,7 @@ throttle = auth.Throttle()  # wrong passwords
 
 
 registrations = auth.Throttle()  # new accounts from one address: MAX_FAILS, then a pause
+guests = auth.Throttle(limit=30)  # a class behind one address may open the site at once
 profile_attempts = auth.Throttle()
 
 
@@ -29,7 +30,7 @@ class LoginIn(BaseModel):
 
 
 def user_out(user: auth.User) -> dict:
-    return {"login": user.login, "is_admin": user.is_admin}
+    return {"login": user.login, "is_admin": user.is_admin, "is_guest": user.is_guest}
 
 
 @router.post("/api/auth/login")
@@ -39,6 +40,8 @@ def log_in(body: LoginIn, request: Request, response: Response):
         raise HTTPException(429, "Слишком много неудачных попыток: подождите минуту")
     with db.SessionLocal() as session:
         found = auth.log_in(session, body.login, body.password, rt.SESSION_HOURS)
+        if found is not None:
+            auth.adopt_guest(session, request.cookies.get(rt.COOKIE, ""), found[1])
     if found is None:
         throttle.failed(key)
         raise HTTPException(401, "Неверный логин или пароль")
@@ -66,6 +69,7 @@ def register(body: RegisterIn, request: Request, response: Response):
         try:
             found = auth.register(session, body.login, body.password, rt.SESSION_HOURS)
             privacy.record(session, found[1].id, "account", True, body.privacy_version)
+            auth.adopt_guest(session, request.cookies.get(rt.COOKIE, ""), found[1])
         except auth.LoginTaken as exc:
             raise HTTPException(409, str(exc)) from None
         except ValueError as exc:
@@ -74,11 +78,35 @@ def register(body: RegisterIn, request: Request, response: Response):
     return with_session(response, *found)
 
 
+class GuestIn(BaseModel):
+    privacy_version: str = Field(default="", max_length=32)
+    privacy_accepted: bool = False
+
+
+@router.post("/api/auth/guest", status_code=201)
+def guest(body: GuestIn, request: Request, response: Response):
+    """Work without an account after accepting the privacy policy; the files of the guest live
+    while the browser is open (the cookie has no expiry date)."""
+    key = ("guest", client_address(request))
+    if not body.privacy_accepted or body.privacy_version != privacy.VERSION:
+        raise HTTPException(400, "Примите политику конфиденциальности")
+    if guests.blocked(key):
+        raise HTTPException(
+            429, "С этого адреса только что открыли много сеансов: подождите минуту"
+        )
+    with db.SessionLocal() as session:
+        found = auth.start_guest(session, rt.GUEST_HOURS)
+        privacy.record(session, found[1].id, "account", True, body.privacy_version)
+    guests.failed(key)
+    return with_session(response, *found)
+
+
 def with_session(response: Response, token: str, user: auth.User) -> dict:
     response.set_cookie(
         rt.COOKIE,
         token,
-        max_age=int(rt.SESSION_HOURS * 3600),
+        # a guest's cookie ends with the browser, an account's with its session
+        max_age=None if user.is_guest else int(rt.SESSION_HOURS * 3600),
         httponly=True,
         samesite="lax",
         secure=rt.COOKIE_SECURE,
@@ -104,7 +132,7 @@ def log_out(request: Request, response: Response):
 def me(request: Request):
     user = getattr(request.state, "user", None)
     if user is None:  # rt.AUTH_REQUIRED=0: nobody logged in, everything is open
-        return {"login": "", "is_admin": False}
+        return {"login": "", "is_admin": False, "is_guest": False}
     return user_out(user)
 
 

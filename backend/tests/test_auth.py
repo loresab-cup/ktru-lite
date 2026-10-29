@@ -38,7 +38,11 @@ def test_api_is_closed_without_a_login_and_open_after(site):
         assert client.get("/api/auth/me").status_code == 401
         assert client.get("/api/health").json()["auth"] == "on"  # health stays public
         answer = log_in(client, login=" IVAN ")  # case and spaces of the login do not matter
-        assert answer.status_code == 200 and answer.json() == {"login": "ivan", "is_admin": False}
+        assert answer.status_code == 200 and answer.json() == {
+            "login": "ivan",
+            "is_admin": False,
+            "is_guest": False,
+        }
         cookie = answer.headers["set-cookie"].lower()
         assert "httponly" in cookie and "samesite=lax" in cookie
         assert client.get("/api/jobs").status_code == 200
@@ -122,7 +126,11 @@ def test_anyone_registers_and_is_logged_in_at_once(site):
     with TestClient(site.app) as client:
         assert client.get("/api/health").json()["auth"] == "on"
         answer = register(client, login=" Petya ")
-        assert answer.status_code == 201 and answer.json() == {"login": "petya", "is_admin": False}
+        assert answer.status_code == 201 and answer.json() == {
+            "login": "petya",
+            "is_admin": False,
+            "is_guest": False,
+        }
         assert "httponly" in answer.headers["set-cookie"].lower()
         assert client.get("/api/jobs").status_code == 200
         client.post("/api/auth/logout")
@@ -158,6 +166,7 @@ def test_profile_login_change_rotates_sessions_and_preserves_the_account(site):
         assert response.status_code == 200 and response.json() == {
             "login": "new.login",
             "is_admin": False,
+            "is_guest": False,
         }
         assert client.cookies[runtime.COOKIE] != old
         assert client.get("/api/auth/me").json()["login"] == "new.login"
@@ -182,7 +191,7 @@ def test_profile_password_change_rejects_the_old_password(site):
         assert other.get("/api/auth/me").status_code == 401
         assert log_in(other).status_code == 401
         assert log_in(other, password="new correct horse").status_code == 200
-        assert set(response.json()) == {"login", "is_admin"}
+        assert set(response.json()) == {"login", "is_admin", "is_guest"}
 
 
 def test_profile_wrong_password_and_taken_login_do_not_change_anything(site):
@@ -235,7 +244,11 @@ def test_profile_cannot_change_another_account_or_grant_admin(site):
             json={"current_password": "correct horse", "is_admin": True, "user_id": 99},
         )
         assert response.status_code == 422
-        assert client.get("/api/auth/me").json() == {"login": "ivan", "is_admin": False}
+        assert client.get("/api/auth/me").json() == {
+            "login": "ivan",
+            "is_admin": False,
+            "is_guest": False,
+        }
 
 
 def test_profile_wrong_password_is_throttled(site):

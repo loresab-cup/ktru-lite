@@ -3,6 +3,11 @@
 Anyone can register with a login and a password and is logged in at once. A session is a random token in an HttpOnly cookie; the database keeps only its SHA-256, so a
 leaked table does not let anyone in. The first admin comes from ADMIN_LOGIN and ADMIN_PASSWORD
 when there are no users yet; `python users.py` manages accounts from the command line.
+
+A visitor may also work without an account: a guest is a user with is_guest, no usable password
+and a cookie without an expiry date, so closing the browser ends the visit; the worker removes
+guests whose session is over (workers.clean_guests). Logging in or registering from a guest
+session moves the guest's specifications to the account (adopt_guest).
 """
 
 import base64
@@ -14,7 +19,7 @@ import threading
 import time
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import DateTime, ForeignKey, String, delete, func, select
+from sqlalchemy import DateTime, ForeignKey, String, delete, false, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
@@ -25,6 +30,8 @@ LOGIN_RE = re.compile(r"[a-z0-9._-]{3,32}")
 # Wrong passwords for one login from one address: after MAX_FAILS the login waits LOCK_SECONDS
 MAX_FAILS = 5
 LOCK_SECONDS = 60.0
+# ":" is not allowed in a login: nobody can register or log in under a guest's name
+GUEST_PREFIX = "guest:"
 
 
 class LoginTaken(ValueError):
@@ -45,6 +52,7 @@ class User(AuthBase):
     login: Mapped[str] = mapped_column(String(32), unique=True)
     password_hash: Mapped[str] = mapped_column(String(200))
     is_admin: Mapped[bool] = mapped_column(default=False)
+    is_guest: Mapped[bool] = mapped_column(default=False, server_default=false())
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
@@ -221,6 +229,28 @@ def register(session: Session, login: str, password: str, hours: float) -> tuple
     return start_session(session, user, hours), user
 
 
+def start_guest(session: Session, hours: float) -> tuple[str, User]:
+    """A new guest with a session; the password hash is of a secret nobody knows."""
+    user = User(login=GUEST_PREFIX + secrets.token_hex(8), password_hash=_DUMMY_HASH, is_guest=True)
+    session.add(user)
+    session.flush()
+    return start_session(session, user, hours), user
+
+
+def adopt_guest(session: Session, token: str, user: User) -> None:
+    """The guest of this session token logged in or registered: its specifications go to the
+    account and the guest is removed. Any other token is left alone."""
+    from models import Job  # models imports auth
+
+    guest = user_by_token(session, token)
+    if guest is None or not guest.is_guest or guest.id == user.id:
+        return
+    session.execute(update(Job).where(Job.owner_id == guest.id).values(owner_id=user.id))
+    session.execute(delete(LoginSession).where(LoginSession.user_id == guest.id))
+    session.delete(guest)
+    session.commit()
+
+
 def start_session(session: Session, user: User, hours: float) -> str:
     """A new session token; sessions that are over are removed here."""
     now = datetime.now(UTC)
@@ -260,21 +290,22 @@ def _aware(moment: datetime) -> datetime:
 
 
 class Throttle:
-    """Counts wrong passwords per (login, address); blocks after MAX_FAILS for LOCK_SECONDS."""
+    """Counts attempts per (login, address); blocks after `limit` (MAX_FAILS) for LOCK_SECONDS."""
 
-    def __init__(self) -> None:
+    def __init__(self, limit: int = MAX_FAILS) -> None:
+        self.limit = limit
         self._fails: dict[tuple[str, str], tuple[int, float]] = {}
         self._lock = threading.Lock()
 
     def blocked(self, key: tuple[str, str]) -> bool:
         with self._lock:
             count, until = self._fails.get(key, (0, 0.0))
-            return count >= MAX_FAILS and time.monotonic() < until
+            return count >= self.limit and time.monotonic() < until
 
     def failed(self, key: tuple[str, str]) -> None:
         with self._lock:
             count, until = self._fails.get(key, (0, 0.0))
-            if count >= MAX_FAILS and time.monotonic() >= until:
+            if count >= self.limit and time.monotonic() >= until:
                 count = 0  # the pause is over: a new round of attempts
             self._fails[key] = (count + 1, time.monotonic() + LOCK_SECONDS)
             if len(self._fails) > 10_000:  # many addresses: forget the pauses that are over

@@ -16,6 +16,16 @@
   padding: var(--s8) var(--s6);
 }
 
+/* three tabs: each as wide as its word, so «Регистрация» is not cut on a phone */
+.login-card .ant-segmented-block .ant-segmented-group .ant-segmented-item {
+  flex: 1 1 auto;
+  min-width: auto;
+}
+
+.login-card .ant-segmented-item-label {
+  padding-inline: var(--s2);
+}
+
 .login-brand {
   display: flex;
   align-items: center;

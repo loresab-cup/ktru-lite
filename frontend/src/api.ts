@@ -93,10 +93,12 @@ export interface Health {
   auth?: 'on' | 'off'
 }
 
-/** The logged-in user; an empty login when the server runs without accounts. */
+/** The logged-in user; an empty login when the server runs without accounts. A guest works
+ * without an account: its files live while the browser is open. */
 export interface Me {
   login: string
   is_admin: boolean
+  is_guest: boolean
 }
 
 export type ConsentPurpose = 'account' | 'files' | 'improvement'
@@ -166,7 +168,7 @@ async function send(url: string, init?: RequestInit): Promise<Response> {
   try {
     const response = await fetch(url, { ...init, signal: controller.signal })
     if (!response.ok) {
-      if (response.status === 401 && !['/api/auth/login', '/api/auth/register', '/api/auth/logout'].includes(url)) {
+      if (response.status === 401 && !['/api/auth/login', '/api/auth/register', '/api/auth/guest', '/api/auth/logout'].includes(url)) {
         window.dispatchEvent(new Event(LOGGED_OUT))
       }
       let detail = ''
@@ -213,6 +215,8 @@ const json = (method: string, body?: unknown): RequestInit => ({
 export const api = {
   health: () => request<Health>('/api/health'),
   me: () => request<Me>('/api/auth/me'),
+  guest: (privacy_version: string) =>
+    request<Me>('/api/auth/guest', json('POST', { privacy_version, privacy_accepted: true })),
   login: (login: string, password: string) =>
     request<Me>('/api/auth/login', json('POST', { login, password })),
   register: (login: string, password: string, privacy_version: string) =>

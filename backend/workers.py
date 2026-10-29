@@ -17,7 +17,7 @@ import embedder
 import job_store
 import runtime as rt
 import search
-from models import Item, Job, now
+from models import Decision, Item, Job, now
 
 logger = logging.getLogger("workers")
 
@@ -44,6 +44,40 @@ def clean_old_jobs() -> int:
         job_store.upload_path(job).unlink(missing_ok=True)
     logger.info("deleted %s jobs older than %s days", len(ids), rt.KEEP_DAYS)
     return len(ids)
+
+
+def clean_guests() -> int:
+    """Removes guests without a live session (logged out, or rt.GUEST_HOURS are over; a closed
+    browser has lost the cookie already) with their jobs, rows, decisions and files. A guest
+    whose job is being processed waits for the next run. Returns how many guests went."""
+    gone = 0
+    with db.SessionLocal() as session:
+        live = select(auth.LoginSession.user_id).where(auth.LoginSession.expires_at >= now())
+        guests = session.scalars(
+            select(auth.User).where(auth.User.is_guest, auth.User.id.not_in(live))
+        ).all()
+        for guest in guests:
+            jobs = session.scalars(select(Job).where(Job.owner_id == guest.id)).all()
+            if any(job.status == "processing" for job in jobs):
+                continue
+            ids = [job.id for job in jobs]
+            session.execute(delete(Item).where(Item.job_id.in_(ids)))
+            session.execute(delete(Decision).where(Decision.job_id.in_(ids)))
+            removed = session.execute(
+                delete(Job).where(Job.id.in_(ids), Job.status != "processing")
+            ).rowcount
+            if removed != len(ids):  # a worker took a queued job just now
+                session.rollback()
+                continue
+            session.execute(delete(auth.LoginSession).where(auth.LoginSession.user_id == guest.id))
+            session.delete(guest)
+            session.commit()
+            for job in jobs:
+                job_store.upload_path(job).unlink(missing_ok=True)
+            gone += 1
+    if gone:
+        logger.info("removed %s guests whose session is over", gone)
+    return gone
 
 
 def load_catalog() -> None:

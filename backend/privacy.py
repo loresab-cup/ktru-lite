@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from auth import AuthBase, User
 
-VERSION = "2026-10-29.1"
+VERSION = "2026-10-29.2"  # .2: work without an account (guests)
 PURPOSES = ("account", "files", "improvement")
 
 

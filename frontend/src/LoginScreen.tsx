@@ -1,17 +1,20 @@
 import { Checkbox, Input, Segmented } from 'antd'
-import { LogIn, UserPlus } from 'lucide-react'
+import { ArrowRight, LogIn, UserPlus } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { api, ApiError, type Me } from './api'
 import { EisMark } from './EisMark'
 import { T } from './texts'
 import { ConsentDocumentLink } from './ConsentSettings'
 import { LegalLinks } from './LegalScreen'
+import { paths } from './router'
 
-type Mode = 'login' | 'register'
+type Mode = 'guest' | 'login' | 'register'
 
-/** The only page without an account: log in, or register by login and password. */
-export function LoginScreen({ onDone }: { onDone: (me: Me) => void }) {
-  const [mode, setMode] = useState<Mode>('login')
+/** The first page of a visitor: work without an account after accepting the privacy policy,
+ * log in, or register. onBack is given to a guest who opened it from the header: the guest
+ * tab then returns to the site with the same files instead of starting a new guest. */
+export function LoginScreen({ onDone, onBack }: { onDone: (me: Me) => void; onBack?: () => void }) {
+  const [mode, setMode] = useState<Mode>(onBack ? 'login' : 'guest')
   const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
   const [repeat, setRepeat] = useState('')
@@ -20,6 +23,7 @@ export function LoginScreen({ onDone }: { onDone: (me: Me) => void }) {
   const [privacyAccepted, setPrivacyAccepted] = useState(false)
   const [privacyVersion, setPrivacyVersion] = useState('')
   const registering = mode === 'register'
+  const guest = mode === 'guest'
   useEffect(() => {
     let alive = true
     api.legal().then((info) => { if (alive) setPrivacyVersion(info.version) }).catch(() => { if (alive) setError(T.privacy.loadError) })
@@ -35,6 +39,7 @@ export function LoginScreen({ onDone }: { onDone: (me: Me) => void }) {
   }
 
   const problem = (): string => {
+    if (guest) return onBack || (privacyAccepted && privacyVersion) ? '' : T.login.guestRequired
     if (!login.trim() || !password) return T.login.empty
     if (registering && password !== repeat) return T.login.mismatch
     if (registering && (!privacyAccepted || !privacyVersion)) return T.privacy.required
@@ -48,10 +53,14 @@ export function LoginScreen({ onDone }: { onDone: (me: Me) => void }) {
       setError(found)
       return
     }
+    if (guest && onBack) {
+      onBack()
+      return
+    }
     setBusy(true)
     setError('')
     try {
-      onDone(registering
+      onDone(guest ? await api.guest(privacyVersion) : registering
         ? await api.register(login.trim(), password, privacyVersion)
         : await api.login(login.trim(), password))
     } catch (e) {
@@ -76,12 +85,18 @@ export function LoginScreen({ onDone }: { onDone: (me: Me) => void }) {
           value={mode}
           onChange={switchTo}
           options={[
+            { value: 'guest', label: T.login.guestTab },
             { value: 'login', label: T.login.loginTab },
             { value: 'register', label: T.login.registerTab },
           ]}
         />
-        <h1 className="login-title">{registering ? T.login.registerTitle : T.login.title}</h1>
-        <p className="login-hint">{registering ? T.login.registerHint : T.login.hint}</p>
+        <h1 className="login-title">{guest ? T.login.guestTitle : registering ? T.login.registerTitle : T.login.title}</h1>
+        <p className="login-hint">{guest ? (onBack ? T.login.guestBackHint : T.login.guestHint) : registering ? T.login.registerHint : T.login.hint}</p>
+        {guest && !onBack && <div className="consent-option">
+          <Checkbox checked={privacyAccepted} onChange={(event) => setPrivacyAccepted(event.target.checked)}>{T.login.guestAccept}</Checkbox>
+          <a className="consent-document" href={paths.privacy} target="_blank" rel="noopener noreferrer">{T.login.guestPolicy}</a>
+        </div>}
+        {!guest && <>
         <label className="login-field">
           {T.login.login}
           <Input
@@ -114,6 +129,7 @@ export function LoginScreen({ onDone }: { onDone: (me: Me) => void }) {
             />
           </label>
         )}
+        </>}
         {registering && <div className="consent-option">
           <Checkbox checked={privacyAccepted} onChange={(event) => setPrivacyAccepted(event.target.checked)}>{T.privacy.labels.account}</Checkbox>
           <ConsentDocumentLink purpose="account" />
@@ -123,9 +139,9 @@ export function LoginScreen({ onDone }: { onDone: (me: Me) => void }) {
             {error}
           </p>
         )}
-        <button type="submit" className="btn primary login-submit" disabled={busy || (registering && (!privacyAccepted || !privacyVersion))}>
-          {registering ? <UserPlus size={16} aria-hidden="true" /> : <LogIn size={16} aria-hidden="true" />}{' '}
-          {busy ? T.login.busy : registering ? T.login.registerSubmit : T.login.submit}
+        <button type="submit" className="btn primary login-submit" disabled={busy || ((registering || (guest && !onBack)) && (!privacyAccepted || !privacyVersion))}>
+          {guest ? <ArrowRight size={16} aria-hidden="true" /> : registering ? <UserPlus size={16} aria-hidden="true" /> : <LogIn size={16} aria-hidden="true" />}{' '}
+          {busy ? T.login.busy : guest ? (onBack ? T.login.guestBack : T.login.guestSubmit) : registering ? T.login.registerSubmit : T.login.submit}
         </button>
         <LegalLinks />
       </form>

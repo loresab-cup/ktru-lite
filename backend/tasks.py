@@ -119,9 +119,9 @@ def dispatch(recover=False):
 
 @app.task(name="ktru.cleanup")
 def cleanup():
-    from workers import clean_old_jobs
+    from workers import clean_guests, clean_old_jobs
 
-    return clean_old_jobs()
+    return {"jobs": clean_old_jobs(), "guests": clean_guests()}
 
 
 @worker_ready.connect

@@ -1,6 +1,6 @@
 import { App as AntApp, ConfigProvider } from 'antd'
 import ruRU from 'antd/locale/ru_RU'
-import { CircleUserRound, ExternalLink, LogOut, LucideProvider, Menu, ScanSearch, X } from 'lucide-react'
+import { CircleUserRound, ExternalLink, LogIn, LogOut, LucideProvider, Menu, ScanSearch, X } from 'lucide-react'
 import { useMemo, useEffect, useState, type ReactNode } from 'react'
 import { HealthContext, type HealthState } from './health'
 import { api, ApiError, LOGGED_OUT, type Me } from './api'
@@ -56,7 +56,7 @@ function useMe() {
       .catch((error) => {
         // no answer at all: show the site, its own notices say that the server is unreachable
         if (!alive) return
-        setMe(error instanceof ApiError && error.status === 401 ? null : { login: '', is_admin: false })
+        setMe(error instanceof ApiError && error.status === 401 ? null : { login: '', is_admin: false, is_guest: false })
       })
     const loggedOut = () => { clearAccountViews(); setMe(null) }
     window.addEventListener(LOGGED_OUT, loggedOut)
@@ -68,8 +68,19 @@ function useMe() {
   return [me, setMe] as const
 }
 
-function UserTools({ me, onLogout }: { me: Me; onLogout: () => void }) {
+function UserTools({ me, onLogout, onSignIn }: { me: Me; onLogout: () => void; onSignIn: () => void }) {
   if (!me.login) return null // the server runs without accounts
+  if (me.is_guest) return (
+    <div className="user-tools">
+      <span className="user-name" title={T.login.guestNameTitle}>
+        <CircleUserRound size={18} aria-hidden="true" />
+        <span className="user-login">{T.login.guestName}</span>
+      </span>
+      <button type="button" className="btn ghost small" onClick={onSignIn}>
+        <LogIn size={16} aria-hidden="true" /> {T.login.signIn}
+      </button>
+    </div>
+  )
   return (
     <div className="user-tools">
       <Link to={paths.profile} className="user-name" title={T.profile.open}>
@@ -142,10 +153,12 @@ function Header({
   page,
   me,
   onLogout,
+  onSignIn,
 }: {
   page: ReturnType<typeof parseRoute>['page']
   me: Me
   onLogout: () => void
+  onSignIn: () => void
 }) {
   const path = usePath()
   // The menu is open for the page it was opened on: a tap on an item changes the page and closes it
@@ -181,7 +194,7 @@ function Header({
           >
             {T.app.catalogLink} <ExternalLink size={14} aria-hidden="true" />
           </a>
-          <UserTools me={me} onLogout={onLogout} />
+          <UserTools me={me} onLogout={onLogout} onSignIn={onSignIn} />
         </div>
         <button
           type="button"
@@ -204,7 +217,7 @@ function Header({
             ))}
           </nav>
           <div className="wrap mobile-tools">
-            <UserTools me={me} onLogout={onLogout} />
+            <UserTools me={me} onLogout={onLogout} onSignIn={onSignIn} />
           </div>
         </div>
       )}
@@ -217,6 +230,8 @@ export function App() {
   const route = parseRoute(path)
   const config = useMemo(() => readTokens(), [])
   const [me, setMe] = useMe()
+  // a guest opened the login page from the header; the guest session stays until the login
+  const [signIn, setSignIn] = useState(false)
   const logout = () => {
     void api
       .logout()
@@ -234,7 +249,7 @@ export function App() {
       case 'jobs':
         return <JobsScreen />
       case 'profile':
-        return me ? <ProfileScreen me={me} onDone={setMe} /> : null
+        return me && !me.is_guest ? <ProfileScreen me={me} onDone={setMe} /> : <Missing />
       case 'job':
         return <JobScreen key={route.jobId} jobId={route.jobId} />
       case 'item':
@@ -251,14 +266,19 @@ export function App() {
         <AntApp component={false}>
           <HealthProvider>
             {route.page === 'legal' && <LegalScreen document={route.document} />}
-            {route.page !== 'legal' && me === null && <LoginScreen onDone={(found) => {
-              clearAccountViews()
-              navigate(paths.home)
-              setMe(found)
-            }} />}
-            {route.page !== 'legal' && me && (
+            {route.page !== 'legal' && (me === null || (me?.is_guest && signIn)) && <LoginScreen
+              onBack={me ? () => setSignIn(false) : undefined}
+              onDone={(found) => {
+                clearAccountViews()
+                // a guest who logged in keeps the place; a new visitor starts on the home page
+                if (!me) navigate(paths.home)
+                setSignIn(false)
+                setMe(found)
+              }}
+            />}
+            {route.page !== 'legal' && me && !(me.is_guest && signIn) && (
               <div className="site">
-                <Header page={route.page} me={me} onLogout={logout} />
+                <Header page={route.page} me={me} onLogout={logout} onSignIn={() => setSignIn(true)} />
                 <main>{route.page === 'profile' ? page() : <ConsentGate login={me.login} needsFiles={route.page === 'home'}>{page()}</ConsentGate>}</main>
                 <footer className="site-foot" aria-labelledby="feedback-title">
                   <div className="wrap foot-in">

@@ -45,7 +45,7 @@ def test_fresh_and_repeated_upgrade_matches_models(database):
     upgrade_database(database)
     upgrade_database(database)
     with database.connect() as c:
-        assert c.scalar(text("select version_num from alembic_version")) == "0004"
+        assert c.scalar(text("select version_num from alembic_version")) == "0005"
         assert (
             compare_metadata(
                 MigrationContext.configure(c), [Base.metadata, AuthBase.metadata, vector_metadata]
