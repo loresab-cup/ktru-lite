@@ -105,6 +105,71 @@ def run(client, name, data, timeout=600):
     )
 
 
+def manual_correction(client, items):
+    """Another existing code (the second candidate) goes in by hand and is still there when the
+    position is read again."""
+    item = next(i for i in items if len(i.get("candidates") or []) > 1)
+    other = next(c["code"] for c in item["candidates"] if c["code"] != item["ktru_code"])
+    changed = client.patch("/api/items/" + str(item["id"]), json={"ktru_code": other})
+    changed.raise_for_status()
+    again = client.get("/api/items/" + str(item["id"])).json()
+    return {
+        "row_number": item["row_number"],
+        "from": item["ktru_code"],
+        "to": other,
+        "passed": changed.json()["status"] == "corrected"
+        and again["ktru_code"] == other
+        and again["status"] == "corrected",
+    }
+
+
+def export_table(fmt, content):
+    if fmt == "csv":
+        return list(csv.reader(io.StringIO(content.decode("utf-8-sig")), delimiter=";"))
+    from openpyxl import load_workbook
+
+    sheet = load_workbook(io.BytesIO(content), read_only=True).active
+    return [["" if v is None else str(v) for v in row] for row in sheet.iter_rows(values_only=True)]
+
+
+def check_export(client, job_id, fmt, corrected):
+    """The file has every row and the code the person set, not just HTTP 200."""
+    response = client.get("/api/jobs/" + job_id + "/export", params={"format": fmt})
+    response.raise_for_status()
+    table = export_table(fmt, response.content)
+    header, rows = table[0], table[1:]
+    line, code = header.index("Строка"), header.index("Код КТРУ")
+    by_row = {str(r[line]): r[code] for r in rows}
+    return {
+        "rows": len(rows),
+        "corrected_code_in_file": by_row.get(str(corrected["row_number"])) == corrected["to"],
+        "passed": len(rows) == 1000 and by_row.get(str(corrected["row_number"])) == corrected["to"],
+    }
+
+
+def check_isolation(api, job_id):
+    """Another account sees neither the job nor its export."""
+    login = "accept-other-" + secrets.token_hex(4)
+    with SessionLocal() as s:
+        token = auth.start_session(s, auth.create_user(s, login, secrets.token_urlsafe(24)), 1)
+    try:
+        with httpx.Client(base_url=api, timeout=60) as other:
+            other.cookies.set("ktru_session", token)
+            answers = {
+                "job": other.get("/api/jobs/" + job_id).status_code,
+                "export": other.get("/api/jobs/" + job_id + "/export").status_code,
+                "listed": job_id in {j["id"] for j in other.get("/api/jobs").json()},
+            }
+    finally:
+        with SessionLocal() as s:
+            auth.remove_user(s, login)
+    return answers | {
+        "passed": answers["job"] in (403, 404)
+        and answers["export"] in (403, 404)
+        and not answers["listed"]
+    }
+
+
 def main():
     args = argparse.ArgumentParser(description=__doc__)
     args.add_argument("--live", action="store_true")
@@ -227,23 +292,16 @@ def main():
                     "limit": 300,
                     "passed": result["seconds"] < 300,
                 }
-                item = items[0]
-                changed = client.patch(
-                    "/api/items/" + str(item["id"]), json={"ktru_code": item["ktru_code"]}
-                )
-                changed.raise_for_status()
-                report["checks"]["manual_correction"] = {
-                    "passed": changed.json()["status"] == "corrected"
-                    and changed.json()["confidence"] is None
-                }
                 report["checks"]["confidence"] = check_confidence(items)
+                corrected = manual_correction(client, items)
+                report["checks"]["manual_correction"] = corrected
                 for fmt in ["csv", "xlsx"]:
-                    response = client.get(
-                        "/api/jobs/" + result["job_id"] + "/export", params={"format": fmt}
+                    report["checks"]["export_" + fmt] = check_export(
+                        client, result["job_id"], fmt, corrected
                     )
-                    report["checks"]["export_" + fmt] = {
-                        "passed": response.status_code == 200 and bool(response.content)
-                    }
+                report["checks"]["isolation"] = check_isolation(
+                    os.getenv("ACCEPTANCE_API", "http://backend:8000"), result["job_id"]
+                )
                 report["limitations"].append(
                     "Attribute set is 12 handcrafted examples; not an independent organizer benchmark. PDF is text, not a scanned document."
                 )
