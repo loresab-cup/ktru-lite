@@ -1,3 +1,4 @@
+import { ArrowLeft } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api, type LegalInfo } from './api'
 import { Link } from './Link'
@@ -28,7 +29,7 @@ export function LegalScreen({ document }: { document: LegalDocument }) {
   const sections = document === 'privacy' ? T.privacy.policySections : document === 'cookies' ? T.privacy.cookieSections : null
   const paragraphs = document === 'account' ? T.privacy.accountText : document === 'files' ? T.privacy.filesText : T.privacy.improvementText
   return <main className="wrap legal-page">
-    <Link to={paths.home}>{T.privacy.back}</Link>
+    <Link className="legal-back" to={paths.home}><ArrowLeft size={16} aria-hidden="true" /> {T.privacy.back}</Link>
     <h1>{title}</h1>
     {!info ? <p role="status">{error ? T.privacy.loadError : T.privacy.loading}</p> : <>
       <p className="muted">{T.privacy.version(info.version)}</p>

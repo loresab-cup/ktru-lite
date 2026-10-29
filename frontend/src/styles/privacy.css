@@ -1,6 +1,9 @@
 .legal-page { max-width: 900px; padding-top: var(--s6); padding-bottom: var(--s8); }
 .legal-page h1 { font-size: var(--text-xl); line-height: 1.3; margin: var(--s5) 0 var(--s3); }
 .legal-page h2 { font-size: var(--text-lg); margin-top: var(--s6); }
+/* "Вернуться на сайт": the arrow on the line of the text, underlined only under the pointer */
+.legal-back { display: inline-flex; align-items: center; gap: var(--s2); font-weight: 600; text-decoration: none; }
+.legal-back:hover, .legal-back:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
 .legal-page p { line-height: 1.7; margin: var(--s3) 0; }
 .legal-contact { padding: var(--s5); margin: var(--s5) 0; }
 .legal-links { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); font-size: var(--text-sm); }
