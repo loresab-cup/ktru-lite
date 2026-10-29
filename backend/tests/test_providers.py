@@ -123,7 +123,26 @@ def test_yandex_request(monkeypatch):
     assert seen[0].headers["Authorization"] == "Api-Key secret"
     assert seen[0].headers["OpenAI-Project"] == "b1g"
     assert body["model"] == "gpt://b1g/yandexgpt-5.1" and body["max_tokens"] == 8000
-    assert p.parallel == 1  # five keys of one cloud share its 5 generations
+    assert p.parallel == 5  # a single key of a cloud takes all its 5 generations
+
+
+def test_auto_parallel_shares_five_generations_of_a_folder():
+    env = {
+        "LLM_PROVIDERS": "yandex,yandex2,yandex3,yandex4",
+        "YANDEX_API_KEY": "k1",
+        "YANDEX_FOLDER_ID": "cloud-a",
+        "YANDEX2_API_KEY": "k2",  # the folder of YANDEX_*: the same cloud
+        "YANDEX3_API_KEY": "k3",
+        "YANDEX3_FOLDER_ID": "cloud-b",
+        "YANDEX4_API_KEY": "k4",
+        "YANDEX4_FOLDER_ID": "cloud-c",
+        "YANDEX4_PARALLEL": "2",  # a number set by hand stays
+    }
+    first, second, third, fourth = providers.load(env)
+    assert (first.parallel, second.parallel, third.parallel, fourth.parallel) == (3, 2, 5, 2)
+    assert first.slots._value == 3  # the semaphore follows the share
+    explicit = providers.load(env | {"YANDEX_PARALLEL": "1"})
+    assert [p.parallel for p in explicit] == [1, 1, 1, 2]  # the old setting still works
 
 
 def test_load_from_env():

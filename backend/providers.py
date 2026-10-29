@@ -26,9 +26,12 @@ DEFAULT_PROVIDERS = "yandex,yandex2,yandex3,yandex4,yandex5"
 YANDEX_URL = "https://ai.api.cloud.yandex.net/v1"  # the OpenAI-compatible API of AI Studio
 YANDEX_MODEL = "yandexgpt-5.1"  # YandexGPT Pro 5.1; Lite 5 is withdrawn on 15.11.2026
 # A cloud runs 5 generations at the same moment for all its keys together (measured 27.10.2026:
-# the 6th gets 429, quota ai.textGenerationCompletionSessionsCount), so five keys of one cloud
-# take one request each; keys of other clouds bring 5 more each
-YANDEX_PARALLEL = "1"
+# the 6th gets 429, quota ai.textGenerationCompletionSessionsCount). «auto» shares them between
+# the keys of one folder (a folder lies in one cloud); keys of other clouds bring 5 more each.
+# Measured 29.10.2026: four folders of four clouds, 5 requests each at once, 20 answers and no 429;
+# the 6th and 7th of one folder got 429. Two folders of one cloud need numbers set by hand.
+YANDEX_PARALLEL = "auto"
+CLOUD_GENERATIONS = 5
 # YandexGPT has a 32K context for the question and the answer together: 8K answer tokens are
 # still twice what 20 rows need, and the prompt with the rows keeps the rest
 YANDEX_MAX_TOKENS = "8000"
@@ -61,6 +64,7 @@ class Provider:
     folder: str = ""  # Yandex Cloud folder of the key: sent as OpenAI-Project
     max_tokens: int = MAX_TOKENS
     reasoning: str = ""  # optional reasoning_effort for models hosted by Yandex AI Studio
+    auto_parallel: bool = False  # X_PARALLEL=auto: set by share_cloud_slots
     down_until: float = 0.0  # did not answer a moment ago: skipped until then
     busy_until: float = 0.0  # overloaded (429, 502-504): the batches wait for others meanwhile
     slots: threading.BoundedSemaphore = field(init=False, repr=False)
@@ -115,7 +119,22 @@ def load(env=os.environ) -> list[Provider]:
         result[-1].max_tokens = int(setting(env, name, "MAX_TOKENS", YANDEX_MAX_TOKENS))
         result[-1].reasoning = setting(env, name, "REASONING_EFFORT").strip()
         result[-1].rpm = int(setting(env, name, "RPM", "0") or 0)
+    share_cloud_slots(result)
     return result
+
+
+def share_cloud_slots(found: list[Provider]) -> None:
+    """X_PARALLEL=auto: the CLOUD_GENERATIONS of a folder go to its auto keys, the first ones
+    get the rest of the division (two keys of a folder: 3 and 2)."""
+    by_folder: dict[str, list[Provider]] = {}
+    for p in found:
+        if p.auto_parallel and p.configured:
+            by_folder.setdefault(p.folder, []).append(p)
+    for keys in by_folder.values():
+        share, rest = divmod(CLOUD_GENERATIONS, len(keys))
+        for n, p in enumerate(keys):
+            p.parallel = max(1, share + (n < rest))
+            p.slots = threading.BoundedSemaphore(p.parallel)
 
 
 def yandex(env, name: str) -> Provider:
@@ -125,14 +144,16 @@ def yandex(env, name: str) -> Provider:
     model = setting(env, name, "MODEL", YANDEX_MODEL).strip()
     if folder and not model.startswith("gpt://"):
         model = f"gpt://{folder}/{model}"
+    parallel = setting(env, name, "PARALLEL", YANDEX_PARALLEL).strip().lower()
     return Provider(
         name,
         "yandex",
         setting(env, name, "BASE_URL", YANDEX_URL),
         setting(env, name, "API_KEY", shared=False).strip(),
         model if folder else "",
-        int(setting(env, name, "PARALLEL", YANDEX_PARALLEL)),
+        int(parallel) if parallel.isdigit() else 1,
         folder=folder,
+        auto_parallel=not parallel.isdigit(),  # «auto» or a typo: the safe share
     )
 
 
