@@ -1,0 +1,96 @@
+{
+  "date": "2026-10-29",
+  "route": "scripts/bench.py --api http://127.0.0.1:3000, YANDEX_PARALLEL=auto",
+  "sets": {
+    "real": {
+      "set": "real",
+      "rows": 12,
+      "exact": 12,
+      "meaning": 12,
+      "top5": 12,
+      "auto": 8,
+      "wrong_in_auto": 0,
+      "seconds": 8,
+      "rules": 0
+    },
+    "eis": {
+      "set": "eis",
+      "rows": 3,
+      "exact": 3,
+      "meaning": 3,
+      "top5": 3,
+      "auto": 3,
+      "wrong_in_auto": 0,
+      "seconds": 3,
+      "rules": 0
+    },
+    "eism": {
+      "set": "eism",
+      "rows": 3,
+      "exact": 3,
+      "meaning": 3,
+      "top5": 3,
+      "auto": 3,
+      "wrong_in_auto": 0,
+      "seconds": 3,
+      "rules": 0
+    },
+    "primer": {
+      "set": "primer",
+      "rows": 11,
+      "exact": 11,
+      "meaning": 11,
+      "top5": 11,
+      "auto": 9,
+      "wrong_in_auto": 0,
+      "seconds": 9,
+      "rules": 0
+    },
+    "292": {
+      "set": "292",
+      "rows": 292,
+      "exact": 292,
+      "meaning": 292,
+      "top5": 292,
+      "auto": 268,
+      "wrong_in_auto": 0,
+      "seconds": 33,
+      "rules": 0
+    },
+    "292m": {
+      "set": "292m",
+      "rows": 292,
+      "exact": 289,
+      "meaning": 292,
+      "top5": 290,
+      "auto": 260,
+      "wrong_in_auto": 0,
+      "seconds": 46,
+      "rules": 0
+    },
+    "1000m": {
+      "set": "1000m",
+      "rows": 1000,
+      "exact": 986,
+      "meaning": 998,
+      "top5": 997,
+      "auto": 803,
+      "wrong_in_auto": 2,
+      "seconds": 91,
+      "rules": 0
+    },
+    "human": {
+      "set": "human",
+      "rows": 770,
+      "exact": 759,
+      "meaning": 766,
+      "top5": 768,
+      "auto": 667,
+      "wrong_in_auto": 2,
+      "seconds": 99,
+      "rules": 0,
+      "ambiguous_in_auto": "66/200",
+      "negative_in_auto": "0/30"
+    }
+  }
+}

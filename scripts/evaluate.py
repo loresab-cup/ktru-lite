@@ -271,10 +271,14 @@ def log_in(client: httpx.Client) -> None:
 
     Without them nothing is sent: a server with AUTH_REQUIRED=0 needs no login."""
     login, password = os.getenv("EVAL_LOGIN", ""), os.getenv("EVAL_PASSWORD", "")
-    if login and password:
-        client.post(
-            "/api/auth/login", json={"login": login, "password": password}
-        ).raise_for_status()
+    if not login or not password:
+        return
+    client.post("/api/auth/login", json={"login": login, "password": password}).raise_for_status()
+    # files are processed only after the consents of the current version (the site asks for them)
+    version = client.get("/api/legal").json()["version"]
+    for purpose in ("account", "files"):
+        consent = {"purpose": purpose, "accepted": True, "version": version}
+        client.post("/api/auth/consents", json=consent).raise_for_status()
 
 
 def upload(client: httpx.Client, path: pathlib.Path) -> str:
