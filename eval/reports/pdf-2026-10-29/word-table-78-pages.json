@@ -1,0 +1,18 @@
+{
+  "date": "2026-10-29",
+  "file": "dataset/organizers/Спецификация_292_без_КТРУ.xlsx as a Word table (№, наименование, характеристики, кол-во), saved by Word as PDF",
+  "pages": 78,
+  "rows_split_by_page_ends": "almost every page starts with the rest of the previous row",
+  "route": "http://127.0.0.1:3000 (nginx) -> FastAPI -> Celery",
+  "http_status": 202,
+  "upload_seconds": 0.09,
+  "status": "done",
+  "positions": 292,
+  "seconds_total": 48.63,
+  "seconds_read": 2.73,
+  "exact_vs_reference": 292,
+  "reference_rows": 292,
+  "fallback": 0,
+  "words_only": 0,
+  "before_the_fix": "the line-by-line parser made over 1000 positions of it and refused the file"
+}
