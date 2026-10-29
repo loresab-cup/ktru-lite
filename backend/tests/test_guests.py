@@ -59,7 +59,7 @@ def test_a_guest_must_accept_the_policy_and_gets_a_cookie_of_the_browser_session
         assert client.get("/api/auth/me").json()["is_guest"] is True
         assert client.get("/api/jobs").json() == []
         consents = client.get("/api/auth/consents").json()
-        assert consents["account"] and not consents["files"]
+        assert consents["account"] and consents["files"] and not consents["improvement"]
 
 
 def test_nobody_can_log_in_or_change_a_profile_as_a_guest(site):
@@ -70,7 +70,15 @@ def test_nobody_can_log_in_or_change_a_profile_as_a_guest(site):
         )
         assert changed.status_code == 403
     with TestClient(site.app) as other:
-        answer = other.post("/api/auth/login", json={"login": login, "password": "anything"})
+        answer = other.post(
+            "/api/auth/login",
+            json={
+                "login": login,
+                "password": "anything",
+                "privacy_version": privacy.VERSION,
+                "privacy_accepted": True,
+            },
+        )
         assert answer.status_code == 401
 
 
@@ -103,7 +111,13 @@ def test_a_guest_who_logs_in_keeps_the_files_in_the_account(site, way):
             )
         else:
             answer = client.post(
-                "/api/auth/login", json={"login": "ivan", "password": "correct horse"}
+                "/api/auth/login",
+                json={
+                    "login": "ivan",
+                    "password": "correct horse",
+                    "privacy_version": privacy.VERSION,
+                    "privacy_accepted": True,
+                },
             )
         assert answer.status_code in (200, 201) and not answer.json()["is_guest"]
         assert "max-age" in answer.headers["set-cookie"].lower()

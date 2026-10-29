@@ -273,12 +273,10 @@ def log_in(client: httpx.Client) -> None:
     login, password = os.getenv("EVAL_LOGIN", ""), os.getenv("EVAL_PASSWORD", "")
     if not login or not password:
         return
-    client.post("/api/auth/login", json={"login": login, "password": password}).raise_for_status()
-    # files are processed only after the consents of the current version (the site asks for them)
+    # the entry takes the privacy policy of the current version with the files consent
     version = client.get("/api/legal").json()["version"]
-    for purpose in ("account", "files"):
-        consent = {"purpose": purpose, "accepted": True, "version": version}
-        client.post("/api/auth/consents", json=consent).raise_for_status()
+    entry = {"login": login, "password": password, "privacy_version": version}
+    client.post("/api/auth/login", json={**entry, "privacy_accepted": True}).raise_for_status()
 
 
 def upload(client: httpx.Client, path: pathlib.Path) -> str:

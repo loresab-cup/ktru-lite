@@ -6,6 +6,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 import auth
+import privacy
 
 
 @pytest.fixture
@@ -21,7 +22,15 @@ def site(api_database, monkeypatch):
 
 
 def log_in(client, login="ivan", password="correct horse"):
-    return client.post("/api/auth/login", json={"login": login, "password": password})
+    return client.post(
+        "/api/auth/login",
+        json={
+            "login": login,
+            "password": password,
+            "privacy_version": privacy.VERSION,
+            "privacy_accepted": True,
+        },
+    )
 
 
 def test_password_hash_is_salted_and_checked():
@@ -109,7 +118,6 @@ def test_first_admin_only_when_there_are_no_users(tmp_path):
 
 
 def register(client, login="petya", password="long enough"):
-    import privacy
 
     return client.post(
         "/api/auth/register",

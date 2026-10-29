@@ -53,7 +53,7 @@ export function CookieNotice() {
   })
   if (!visible) return null
   return <section className="cookie-notice card" aria-label={T.privacy.cookies}>
-    <div><p>{T.privacy.cookieNotice}</p><LegalLinks /></div>
+    <div><p>{T.privacy.cookieNotice}</p><Link to={paths.cookies}>{T.privacy.cookieMore}</Link></div>
     <button className="btn primary small" type="button" onClick={() => {
       try { localStorage.setItem(NOTICE_KEY, 'necessary') } catch { /* Browser storage is optional. */ }
       setVisible(false)

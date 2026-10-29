@@ -124,10 +124,12 @@ async function logIn() {
   const login = process.env.TOUR_LOGIN
   const password = process.env.TOUR_PASSWORD
   if (!login || !password) throw new Error('set TOUR_LOGIN and TOUR_PASSWORD')
+  // the entry takes the privacy policy of the current version with the files consent
+  const { version } = await (await fetch(`${SITE}/api/legal`)).json()
   const answer = await fetch(`${SITE}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ login, password }),
+    body: JSON.stringify({ login, password, privacy_version: version, privacy_accepted: true }),
   })
   if (!answer.ok) throw new Error(`login: HTTP ${answer.status}`)
   const [name, value] = answer.headers.getSetCookie()[0].split(';')[0].split('=')

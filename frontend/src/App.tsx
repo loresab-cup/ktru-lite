@@ -12,7 +12,6 @@ import { Link } from './Link'
 import { LoginScreen } from './LoginScreen'
 import { ProfileScreen } from './ProfileScreen'
 import { clearAccountViews, navigate, parseRoute, paths, usePath } from './router'
-import { ConsentGate } from './ConsentSettings'
 import { CookieNotice, LegalLinks, LegalScreen } from './LegalScreen'
 import { T } from './texts'
 import { UploadScreen } from './UploadScreen'
@@ -52,7 +51,11 @@ function useMe() {
     let alive = true
     api
       .me()
-      .then((found) => alive && setMe(found))
+      .then(async (found) => {
+        // consents of an older policy version: the entry page asks for the current one
+        const current = !found.login || await api.consents().then((c) => c.account && c.files, () => true)
+        if (alive) setMe(current ? found : null)
+      })
       .catch((error) => {
         // no answer at all: show the site, its own notices say that the server is unreachable
         if (!alive) return
@@ -279,7 +282,7 @@ export function App() {
             {route.page !== 'legal' && me && !(me.is_guest && signIn) && (
               <div className="site">
                 <Header page={route.page} me={me} onLogout={logout} onSignIn={() => setSignIn(true)} />
-                <main>{route.page === 'profile' ? page() : <ConsentGate login={me.login} needsFiles={route.page === 'home'}>{page()}</ConsentGate>}</main>
+                <main>{page()}</main>
                 <footer className="site-foot" aria-labelledby="feedback-title">
                   <div className="wrap foot-in">
                     <h2 id="feedback-title" className="foot-title">

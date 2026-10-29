@@ -120,18 +120,16 @@ cookie HttpOnly. Перед первой загрузкой пользовате
 ## Примеры API
 
 Документация со схемами: http://localhost:8000/api/docs. Ниже — полный сценарий через curl:
-регистрация, согласие, загрузка, ожидание, правка кода, выгрузка. Cookie сессии хранится в файле.
+регистрация с согласием, загрузка, ожидание, правка кода, выгрузка. Cookie сессии хранится в файле.
 
 ```bash
 API=http://localhost:3000
 VERSION=$(curl -s $API/api/legal | python -c "import json,sys; print(json.load(sys.stdin)['version'])")
 
-# Регистрация (сразу входит) и согласие на обработку файлов
+# Регистрация (сразу входит): политика конфиденциальности и согласие на обработку файлов
 curl -s -c cookies.txt -H "Content-Type: application/json" \
   -d "{\"login\":\"demo-user\",\"password\":\"demo-password-1\",\"privacy_version\":\"$VERSION\",\"privacy_accepted\":true}" \
   $API/api/auth/register
-curl -s -b cookies.txt -H "Content-Type: application/json" \
-  -d "{\"purpose\":\"files\",\"accepted\":true,\"version\":\"$VERSION\"}" $API/api/auth/consents
 
 # Загрузка: ответ 202 и номер задания
 JOB=$(curl -s -b cookies.txt -F "file=@frontend/public/primer.xlsx" $API/api/jobs \
@@ -151,7 +149,9 @@ curl -s -b cookies.txt -X PATCH -H "Content-Type: application/json" \
 curl -s -b cookies.txt -o result.xlsx "$API/api/jobs/$JOB/export?format=xlsx"
 ```
 
-Вход в существующую учётную запись: `POST /api/auth/login` с `{"login": "...", "password": "..."}`.
+Вход в существующую учётную запись: `POST /api/auth/login` с `{"login": "...", "password": "...",
+"privacy_version": "$VERSION", "privacy_accepted": true}`: вход, регистрация и работа без входа
+принимают политику конфиденциальности вместе с согласием на обработку файлов.
 Без учётной записи: `POST /api/auth/guest` с `{"privacy_version": "$VERSION", "privacy_accepted": true}`;
 cookie гостя без срока действия, сервер удаляет гостя и его файлы через `GUEST_HOURS` (12) часов
 или после выхода, а вход или регистрация из такой сессии переносят его спецификации в учётную запись.

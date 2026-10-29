@@ -24,9 +24,23 @@ def session_user(token: str) -> auth.User | None:
         return auth.user_by_token(session, token)
 
 
-class LoginIn(BaseModel):
+class PolicyIn(BaseModel):
+    """The checkbox of the entry page: the privacy policy and the files consent."""
+
+    privacy_version: str = Field(default="", max_length=32)
+    privacy_accepted: bool = False
+
+
+class LoginIn(PolicyIn):
     login: str = Field(max_length=64)
     password: str = Field(max_length=200)
+
+
+def require_policy(body: PolicyIn) -> None:
+    if not body.privacy_accepted or body.privacy_version != privacy.VERSION:
+        raise HTTPException(
+            400, "Примите политику конфиденциальности и согласие на обработку файлов"
+        )
 
 
 def user_out(user: auth.User) -> dict:
@@ -36,11 +50,13 @@ def user_out(user: auth.User) -> dict:
 @router.post("/api/auth/login")
 def log_in(body: LoginIn, request: Request, response: Response):
     key = (body.login.strip().lower(), client_address(request))
+    require_policy(body)
     if throttle.blocked(key):
         raise HTTPException(429, "Слишком много неудачных попыток: подождите минуту")
     with db.SessionLocal() as session:
         found = auth.log_in(session, body.login, body.password, rt.SESSION_HOURS)
         if found is not None:
+            privacy.accept_entry(session, found[1].id, body.privacy_version)
             auth.adopt_guest(session, request.cookies.get(rt.COOKIE, ""), found[1])
     if found is None:
         throttle.failed(key)
@@ -49,17 +65,11 @@ def log_in(body: LoginIn, request: Request, response: Response):
     return with_session(response, *found)
 
 
-class RegisterIn(LoginIn):
-    privacy_version: str = Field(default="", max_length=32)
-    privacy_accepted: bool = False
-
-
 @router.post("/api/auth/register", status_code=201)
-def register(body: RegisterIn, request: Request, response: Response):
+def register(body: LoginIn, request: Request, response: Response):
     """A new account by login and password; the user is logged in at once."""
     key = ("", client_address(request))
-    if not body.privacy_accepted or body.privacy_version != privacy.VERSION:
-        raise HTTPException(400, "Подтвердите отдельное согласие на обработку учётной записи")
+    require_policy(body)
     if registrations.blocked(key):
         raise HTTPException(
             429,
@@ -68,7 +78,7 @@ def register(body: RegisterIn, request: Request, response: Response):
     with db.SessionLocal() as session:
         try:
             found = auth.register(session, body.login, body.password, rt.SESSION_HOURS)
-            privacy.record(session, found[1].id, "account", True, body.privacy_version)
+            privacy.accept_entry(session, found[1].id, body.privacy_version)
             auth.adopt_guest(session, request.cookies.get(rt.COOKIE, ""), found[1])
         except auth.LoginTaken as exc:
             raise HTTPException(409, str(exc)) from None
@@ -78,25 +88,19 @@ def register(body: RegisterIn, request: Request, response: Response):
     return with_session(response, *found)
 
 
-class GuestIn(BaseModel):
-    privacy_version: str = Field(default="", max_length=32)
-    privacy_accepted: bool = False
-
-
 @router.post("/api/auth/guest", status_code=201)
-def guest(body: GuestIn, request: Request, response: Response):
+def guest(body: PolicyIn, request: Request, response: Response):
     """Work without an account after accepting the privacy policy; the files of the guest live
     while the browser is open (the cookie has no expiry date)."""
     key = ("guest", client_address(request))
-    if not body.privacy_accepted or body.privacy_version != privacy.VERSION:
-        raise HTTPException(400, "Примите политику конфиденциальности")
+    require_policy(body)
     if guests.blocked(key):
         raise HTTPException(
             429, "С этого адреса только что открыли много сеансов: подождите минуту"
         )
     with db.SessionLocal() as session:
         found = auth.start_guest(session, rt.GUEST_HOURS)
-        privacy.record(session, found[1].id, "account", True, body.privacy_version)
+        privacy.accept_entry(session, found[1].id, body.privacy_version)
     guests.failed(key)
     return with_session(response, *found)
 

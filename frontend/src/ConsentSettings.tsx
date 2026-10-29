@@ -1,5 +1,5 @@
 import { Checkbox } from 'antd'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { api, ApiError, type ConsentPurpose, type Consents } from './api'
 import { paths } from './router'
 import { T } from './texts'
@@ -11,46 +11,6 @@ export function ConsentDocumentLink({ purpose }: { purpose: ConsentPurpose }) {
 }
 
 function message(error: unknown) { return error instanceof ApiError ? error.message : T.privacy.loadError }
-
-export function ConsentGate({ login, needsFiles, children }: { login: string; needsFiles: boolean; children: ReactNode }) {
-  const [state, setState] = useState<Consents | null>(null)
-  const [draft, setDraft] = useState({ account: false, files: false, improvement: false })
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [reload, setReload] = useState(0)
-  useEffect(() => {
-    if (!login) return
-    let alive = true
-    api.consents().then((found) => { if (alive) { setState(found); setError('') } }).catch((e) => { if (alive) setError(message(e)) })
-    return () => { alive = false }
-  }, [login, needsFiles, reload])
-  if (!login) return children
-  if (!state) return <div className="wrap consent-panel"><p role="status">{error || T.privacy.loading}</p>{error && <button className="btn" onClick={() => setReload((v) => v + 1)}>{T.retry}</button>}</div>
-  if (state.account && (!needsFiles || state.files)) return children
-  const save = async () => {
-    if ((!state.account && !draft.account) || (needsFiles && !state.files && !draft.files)) { setError(T.privacy.required); return }
-    setBusy(true)
-    setError('')
-    try {
-      if (!state.account) await api.setConsent('account', true, state.version)
-      if (needsFiles && !state.files) await api.setConsent('files', true, state.version)
-      if (needsFiles && draft.improvement) await api.setConsent('improvement', true, state.version)
-      setState(await api.consents())
-    } catch (e) { setError(message(e)) } finally { setBusy(false) }
-  }
-  return <section className="wrap consent-panel">
-    <div className="card consent-card">
-      <h1>{T.privacy.gateTitle}</h1><p>{T.privacy.gateHint}</p>
-      {PURPOSES.filter((purpose) => purpose === 'account' ? !state.account : needsFiles && (purpose === 'improvement' || !state.files)).map((purpose) => <div key={purpose} className="consent-option">
-        <Checkbox checked={draft[purpose]} disabled={busy} onChange={(event) => setDraft({ ...draft, [purpose]: event.target.checked })}>{T.privacy.labels[purpose]}</Checkbox>
-        <ConsentDocumentLink purpose={purpose} />
-        {purpose === 'improvement' && <p className="muted">{T.privacy.optional}</p>}
-      </div>)}
-      {error && <p className="login-error" role="alert">{error}</p>}
-      <button className="btn primary" disabled={busy} onClick={() => void save()}>{busy ? T.login.busy : T.privacy.continue}</button>
-    </div>
-  </section>
-}
 
 export function ConsentSettings() {
   const [state, setState] = useState<Consents | null>(null)

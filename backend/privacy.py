@@ -74,6 +74,16 @@ def record(session: Session, user_id: int, purpose: str, accepted: bool, version
     return state(session, user_id)
 
 
+def accept_entry(session: Session, user_id: int, version: str) -> None:
+    """The checkbox of the entry page (guest, login, registration): the policy with the account
+    and files purposes, each written as its own event; one already given in this version is not
+    written again. The improvement purpose stays a separate choice of the profile."""
+    current = state(session, user_id)
+    for purpose in ("account", "files"):
+        if not current[purpose]:
+            record(session, user_id, purpose, True, version)
+
+
 def require_processing(session: Session, user_id: int):
     current = state(session, user_id)
     if not current["account"] or not current["files"]:

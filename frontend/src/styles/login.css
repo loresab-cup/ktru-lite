@@ -104,3 +104,18 @@
   font-weight: 400;
   color: var(--ink-3);
 }
+
+/* the one checkbox of the entry page: the box at the first line, the documents underlined */
+.login-card .entry-consent {
+  align-items: flex-start;
+}
+
+.login-card .entry-consent .ant-checkbox {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.login-card .entry-consent a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

@@ -21,7 +21,13 @@ def site(api_database, monkeypatch):
 
 def sign_in(client):
     client.post(
-        "/api/auth/login", json={"login": "consent-user", "password": "private password"}
+        "/api/auth/login",
+        json={
+            "login": "consent-user",
+            "password": "private password",
+            "privacy_version": privacy.VERSION,
+            "privacy_accepted": True,
+        },
     ).raise_for_status()
 
 
@@ -63,13 +69,29 @@ def test_public_documents_metadata_and_required_registration_consent(site):
             == 201
         )
         state = client.get("/api/auth/consents").json()
-        assert state["account"] and not state["files"] and not state["improvement"]
+        assert state["account"] and state["files"] and not state["improvement"]
+
+
+def test_login_needs_the_policy_and_gives_the_account_and_files_consents(site):
+    with TestClient(site.app) as client:
+        plain = {"login": "consent-user", "password": "private password"}
+        assert client.post("/api/auth/login", json=plain).status_code == 400
+        old = {**plain, "privacy_version": "2020-01-01", "privacy_accepted": True}
+        assert client.post("/api/auth/login", json=old).status_code == 400
+        assert client.get("/api/auth/consents").status_code == 401
+        sign_in(client)
+        sign_in(client)  # a second entry with the same version writes no new events
+        state = client.get("/api/auth/consents").json()
+        assert state["account"] and state["files"] and not state["improvement"]
+    with db.SessionLocal() as session:
+        assert len(session.scalars(select(privacy.Consent)).all()) == 2
 
 
 def test_upload_is_blocked_without_required_consents_and_improvement_is_optional(site):
     with TestClient(site.app) as client:
         sign_in(client)
         upload = lambda: client.post("/api/jobs", files={"file": ("mine.txt", b"Monitor")})
+        assert consent(client, "account", False).status_code == 200  # withdraws files too
         assert upload().status_code == 403
         assert consent(client, "improvement").status_code == 400
         assert consent(client, "account").status_code == 200

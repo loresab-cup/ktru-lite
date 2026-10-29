@@ -58,7 +58,15 @@ def private_site(api_database, monkeypatch):
 
 
 def login(client, name):
-    response = client.post("/api/auth/login", json={"login": name, "password": "private password"})
+    response = client.post(
+        "/api/auth/login",
+        json={
+            "login": name,
+            "password": "private password",
+            "privacy_version": privacy.VERSION,
+            "privacy_accepted": True,
+        },
+    )
     assert response.status_code == 200
 
 

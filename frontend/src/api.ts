@@ -217,8 +217,8 @@ export const api = {
   me: () => request<Me>('/api/auth/me'),
   guest: (privacy_version: string) =>
     request<Me>('/api/auth/guest', json('POST', { privacy_version, privacy_accepted: true })),
-  login: (login: string, password: string) =>
-    request<Me>('/api/auth/login', json('POST', { login, password })),
+  login: (login: string, password: string, privacy_version: string) =>
+    request<Me>('/api/auth/login', json('POST', { login, password, privacy_version, privacy_accepted: true })),
   register: (login: string, password: string, privacy_version: string) =>
     request<Me>('/api/auth/register', json('POST', { login, password, privacy_version, privacy_accepted: true })),
   legal: () => request<LegalInfo>('/api/legal'),
