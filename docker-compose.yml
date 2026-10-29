@@ -37,7 +37,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 300s  # the first start imports 81 509 vectors; slower PCs need more than a minute
   worker:
     <<: *backend
     command: ["celery", "-A", "tasks:app", "worker", "--pool=threads", "--concurrency=2", "--loglevel=INFO"]
