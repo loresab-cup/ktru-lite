@@ -29,3 +29,7 @@ db/*.npz
 # Local benchmark inputs, generated workbooks and raw API results
 audit-results/
 outputs/
+
+# Local database dumps and stray key files sent by the team
+backups/
+*.env
