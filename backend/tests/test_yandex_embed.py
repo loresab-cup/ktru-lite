@@ -148,3 +148,22 @@ def test_corrupt_catalog_vectors_are_rejected(tmp_path, bad):
     np.savez(file, codes=np.asarray(["code"]), vectors=np.full((1, 256), bad))
     with pytest.raises(ValueError):
         search.catalog_vectors(file, ["code"])
+
+
+def test_without_its_own_key_the_search_takes_the_yandexgpt_key(monkeypatch):
+    import importlib
+
+    monkeypatch.delenv("YANDEX_EMBED_API_KEY", raising=False)
+    monkeypatch.delenv("YANDEX_EMBED_FOLDER_ID", raising=False)
+    monkeypatch.setenv("YANDEX_API_KEY", " gpt-key ")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "b1gfolder")
+    try:
+        module = importlib.reload(embedder)
+        assert (module.YANDEX_KEY, module.YANDEX_FOLDER) == ("gpt-key", "b1gfolder")
+        monkeypatch.setenv("YANDEX_EMBED_API_KEY", "embed-key")
+        monkeypatch.setenv("YANDEX_EMBED_FOLDER_ID", "b1gother")
+        module = importlib.reload(embedder)
+        assert (module.YANDEX_KEY, module.YANDEX_FOLDER) == ("embed-key", "b1gother")
+    finally:
+        monkeypatch.undo()
+        importlib.reload(embedder)

@@ -20,8 +20,10 @@ logger = logging.getLogger(__name__)
 YANDEX_URL = os.getenv(
     "YANDEX_EMBED_URL", "https://llm.api.cloud.yandex.net/foundationModels/v1/textEmbedding"
 )
-YANDEX_KEY = os.getenv("YANDEX_EMBED_API_KEY", "")
-YANDEX_FOLDER = os.getenv("YANDEX_EMBED_FOLDER_ID", "")
+# Without its own key the search takes the YandexGPT key and folder: an AI Studio key made by
+# «Создать API-ключ» serves both, and a lone YANDEX_API_KEY must not leave the search on words
+YANDEX_KEY = (os.getenv("YANDEX_EMBED_API_KEY") or os.getenv("YANDEX_API_KEY") or "").strip()
+YANDEX_FOLDER = (os.getenv("YANDEX_EMBED_FOLDER_ID") or os.getenv("YANDEX_FOLDER_ID") or "").strip()
 YANDEX_QUERY_MODEL = os.getenv("YANDEX_EMBED_QUERY_MODEL", "text-search-query")
 YANDEX_DOC_MODEL = "text-search-doc"
 # The cloud allows 10 embedding requests a second (all keys of the cloud together); more -> 429
