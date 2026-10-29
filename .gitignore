@@ -33,3 +33,4 @@ outputs/
 # Local database dumps and stray key files sent by the team
 backups/
 *.env
+dataset/eis/new
