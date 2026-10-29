@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY *.py ./
 COPY routes ./routes
 COPY migrations ./migrations
+COPY demo_data ./demo_data
 COPY alembic.ini ./
 # Volumes mounted on /data and /cache take this ownership on first creation
 RUN useradd --uid 10001 --create-home app \
