@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
-MAX_ITEMS = 1000
+MAX_ITEMS = 5000
 MAX_CELLS = 300_000
 MAX_PDF_PAGES = 200
 MAX_UNZIPPED_BYTES = 200 * 1024 * 1024  # zip bomb guard for xlsx and docx

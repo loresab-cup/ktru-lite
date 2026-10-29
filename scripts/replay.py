@@ -47,6 +47,7 @@ def replay(catalog, embedder, search, confidence, items: list[dict]) -> list[dic
             units=[c or g for c, g in hints],
             column_units=[c for c, _ in hints],
             anchors=[i["raw_text"] for i in batch],
+            attributes=[a.get("characteristics") or [] for a in attrs],
         )
         for item, a, cands in zip(batch, attrs, found, strict=True):
             verdict = confidence.assess(cands, is_product=bool(a.get("name")))

@@ -19,7 +19,7 @@ import runtime as rt
 import search
 from models import Decision, Item, Job, now
 
-logger = logging.getLogger("workers")
+logger = logging.getLogger("app_lifecycle")
 
 
 def clean_old_jobs() -> int:
@@ -57,12 +57,31 @@ def clean_guests() -> int:
             select(auth.User).where(auth.User.is_guest, auth.User.id.not_in(live))
         ).all()
         for guest in guests:
+            # Adoption locks this row too: never delete files while they are being moved.
+            guest = session.scalar(
+                select(auth.User)
+                .where(auth.User.id == guest.id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+            if guest is None or not guest.is_guest:
+                continue
+            if session.scalar(
+                select(auth.LoginSession.token_hash)
+                .where(
+                    auth.LoginSession.user_id == guest.id,
+                    auth.LoginSession.expires_at >= now(),
+                )
+                .limit(1)
+            ):
+                continue
             jobs = session.scalars(select(Job).where(Job.owner_id == guest.id)).all()
             if any(job.status == "processing" for job in jobs):
                 continue
             ids = [job.id for job in jobs]
             session.execute(delete(Item).where(Item.job_id.in_(ids)))
             session.execute(delete(Decision).where(Decision.job_id.in_(ids)))
+            session.execute(delete(Decision).where(Decision.owner_id == guest.id))
             removed = session.execute(
                 delete(Job).where(Job.id.in_(ids), Job.status != "processing")
             ).rowcount
@@ -94,9 +113,18 @@ def load_catalog() -> None:
             catalog.vector_store = VectorStore(catalog)
             catalog.vector_store.sync()
         rt.state.catalog = catalog
+        rt.state.catalog_error = None
     except Exception as exc:
         logger.exception("catalog is not loaded")
         rt.state.catalog_error = str(exc)[:300] or type(exc).__name__
+
+
+def load_catalog_when_available(stop) -> None:
+    """Recover after the missing catalog files have been supplied, without restarting API."""
+    while not stop.is_set():
+        load_catalog()
+        if rt.state.catalog is not None or stop.wait(15):
+            return
 
 
 def init_db() -> None:

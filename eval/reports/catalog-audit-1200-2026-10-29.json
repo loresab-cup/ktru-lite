@@ -1,0 +1,35 @@
+{
+  "rows": 1200,
+  "reference_version": 2,
+  "reference_sha256_before_comparison": "5d05b974e3934ee59b0bfee7950a1d6bf28087e068b699967ca83a462f4fae50",
+  "assigned": 397,
+  "published_reference": 4,
+  "draft_catalog_reference": 393,
+  "counts": {
+    "match": 371,
+    "unresolved": 796,
+    "not_product": 7,
+    "different": 18,
+    "equivalent": 8
+  },
+  "exact_agreement_on_assigned": 93.45,
+  "not_overall_accuracy": true,
+  "assigned_code_in_top5": 392,
+  "reference_statuses": {
+    "published_source": 4,
+    "catalog_unique": 382,
+    "no_direct_card": 2,
+    "insufficient_description": 14,
+    "name_not_matched": 624,
+    "ambiguous": 123,
+    "not_product": 7,
+    "conflicting": 31,
+    "catalog_name_in_source": 11,
+    "mixed_products": 1,
+    "source_conflict": 1
+  },
+  "different_model_auto": 1,
+  "different_model_needs_review": 17,
+  "revision_note": "Version 1 preserved. Row 476 withdrawn because its source title says iliac artery while its characteristics say renal artery. No replacement label copied from predictions. Exact-equivalence sets compare full catalog cards including units and constraints; template flag alone is not a semantic difference.",
+  "limitations": "Draft catalog review, not expert-validated reference. Four codes are publication-backed; unknown constraints and unmatched rows remain unresolved. Agreement on selected rows is not overall accuracy."
+}

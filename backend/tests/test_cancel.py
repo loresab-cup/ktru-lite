@@ -255,7 +255,7 @@ def test_run_job_stops_between_batches_and_keeps_finished_rows(api, monkeypatch,
         session.commit()
     path = tmp_path / f"{job_id}.txt"
     path.write_text("\n".join(f"Бумага А4 {i}" for i in range(runtime.BATCH * 3)), encoding="utf-8")
-    original = pipeline.process_batch
+    original = spec_processing.process_batch
 
     def first_batch_then_stop(job, batch, start, *args):
         original(job, batch, start, *args)
@@ -265,8 +265,8 @@ def test_run_job_stops_between_batches_and_keeps_finished_rows(api, monkeypatch,
             )
             session.commit()
 
-    monkeypatch.setattr(pipeline, "process_batch", first_batch_then_stop)
-    pipeline.run_job(job_id)
+    monkeypatch.setattr(spec_processing, "process_batch", first_batch_then_stop)
+    spec_processing.run_job(job_id)
     with database.SessionLocal() as session:
         job = session.get(models.Job, job_id)
         count = session.query(models.Item).filter(models.Item.job_id == job_id).count()
@@ -292,7 +292,7 @@ def test_vectors_of_the_next_batch_are_fetched_during_the_search(api, monkeypatc
         session.commit()
     path = tmp_path / f"{job_id}.txt"
     path.write_text("\n".join(f"Бумага А4 {i}" for i in range(runtime.BATCH * 2)), encoding="utf-8")
-    original = pipeline.process_batch
+    original = spec_processing.process_batch
     overlapped = []
 
     def slow_first_batch(job, batch, start, *args):
@@ -300,8 +300,8 @@ def test_vectors_of_the_next_batch_are_fetched_during_the_search(api, monkeypatc
             overlapped.append(second_embedded.wait(5))
         original(job, batch, start, *args)
 
-    monkeypatch.setattr(pipeline, "process_batch", slow_first_batch)
-    pipeline.run_job(job_id)
+    monkeypatch.setattr(spec_processing, "process_batch", slow_first_batch)
+    spec_processing.run_job(job_id)
     with database.SessionLocal() as session:
         job = session.get(models.Job, job_id)
     assert overlapped == [True]
@@ -406,7 +406,7 @@ def test_a_persons_code_goes_to_the_same_row_of_a_later_file(api, monkeypatch):
     with TestClient(api.app) as client:
         client.patch(f"/api/items/{first}", json={"ktru_code": "26.20.11.110-00000001"})
         [decision] = decisions.recalled([later]).values()
-        item = pipeline.build_item(uuid.uuid4(), later, {"name": "ноутбук"}, found, decision)
+        item = spec_processing.build_item(uuid.uuid4(), later, {"name": "ноутбук"}, found, decision)
         assert item.ktru_code == "26.20.11.110-00000001" and item.status == "auto"
         assert item.confidence is None and "решения человека" in item.summary
         assert "review" not in item.attributes
@@ -444,9 +444,9 @@ def test_old_finished_jobs_are_cleaned_only_when_asked(api, monkeypatch, tmp_pat
         session.add(models.Decision(key="k", job_id=old, ktru_code="17.12.14.129-00000001"))
         session.commit()
     (tmp_path / f"{old}.txt").write_text("x")
-    assert workers.clean_old_jobs() == 0  # JOBS_KEEP_DAYS=0 by default: nothing is deleted
+    assert app_lifecycle.clean_old_jobs() == 0  # JOBS_KEEP_DAYS=0 by default: nothing is deleted
     monkeypatch.setattr(runtime, "KEEP_DAYS", 30.0)
-    assert workers.clean_old_jobs() == 1
+    assert app_lifecycle.clean_old_jobs() == 1
     with database.SessionLocal() as session:
         assert {job.id for job in session.query(models.Job)} == {fresh, running}
         assert session.query(models.Item).count() == 0
@@ -469,8 +469,8 @@ def test_a_failed_batch_stops_the_network_requests_of_the_job(api, monkeypatch, 
     def broken(*args):
         raise RuntimeError("the database went away")
 
-    monkeypatch.setattr(pipeline, "process_batch", broken)
-    pipeline.run_job(job_id)
+    monkeypatch.setattr(spec_processing, "process_batch", broken)
+    spec_processing.run_job(job_id)
     with database.SessionLocal() as session:
         assert session.get(models.Job, job_id).status == "failed"
     assert stopped == [True]
@@ -479,11 +479,11 @@ def test_a_failed_batch_stops_the_network_requests_of_the_job(api, monkeypatch, 
 import sqlalchemy
 import sqlalchemy.orm
 
+import app_lifecycle
 import database
 import decisions
 import job_store
 import models
 import parser
-import pipeline
 import runtime
-import workers
+import spec_processing

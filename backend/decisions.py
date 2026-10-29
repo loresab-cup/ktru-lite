@@ -45,13 +45,13 @@ def recalled(rows: list[parser.Item], job_id=None) -> dict[str, Decision]:
         if rt.AUTH_REQUIRED and job is None:
             return {}
         owner = job.owner_id if job else None
+        if rt.AUTH_REQUIRED and owner is None:
+            return {}
         keys = {text_key(row.text, owner): text_key(row.text) for row in rows}
         found = session.scalars(
-            select(Decision)
-            .join(Job, Decision.job_id == Job.id)
-            .where(
+            select(Decision).where(
                 Decision.key.in_(keys),
-                Job.owner_id == owner,
+                Decision.owner_id == owner,
             )
         ).all()
     return {keys[d.key]: d for d in found}
@@ -63,12 +63,33 @@ def remember(session: Session, item: Item) -> None:
         job = session.get(Job, item.job_id)
         decision = Decision(
             key=text_key(item.raw_text, job.owner_id if job else None),
+            owner_id=job.owner_id if job else None,
+            raw_text=item.raw_text,
             job_id=item.job_id,
             ktru_code=item.ktru_code,
             ktru_name=item.ktru_name or "",
             decided_at=now(),
         )
         session.merge(decision)
+
+
+def transfer(session: Session, guest_id: int, owner_id: int) -> None:
+    """Move remembered decisions with the guest's files; the latest decision wins."""
+    found = session.scalars(
+        select(Decision).where(Decision.owner_id == guest_id).with_for_update()
+    ).all()
+    for decision in found:
+        key = text_key(decision.raw_text, owner_id)
+        existing = session.get(Decision, key)
+        if existing is not None:
+            before = existing.decided_at.replace(tzinfo=UTC)
+            after = decision.decided_at.replace(tzinfo=UTC)
+            if before >= after:
+                session.delete(decision)
+                continue
+            session.delete(existing)
+            session.flush()
+        decision.key, decision.owner_id = key, owner_id
 
 
 def forget(session: Session, item: Item) -> None:

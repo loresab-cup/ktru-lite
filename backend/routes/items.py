@@ -15,12 +15,13 @@ import chooser
 import confidence
 import database as db
 import embedder
+import parser
 import privacy
 import runtime as rt
 from decisions import forget, remember
 from models import Item, Job
-from pipeline import apply_candidates
 from routes.common import ITEM_ID_MAX, Text, get_or_404, require_catalog, to_dict
+from spec_processing import apply_candidates
 
 router = APIRouter()
 
@@ -209,7 +210,12 @@ def edit_attributes(item_id: int, body: AttributesIn):
         if rt.AUTH_REQUIRED:
             privacy.require_processing(session, session.get(Job, item.job_id).owner_id)
         vectors = embedder.embed([query])
-        [found] = catalog.search(vectors, [query], include_inactive)
+        [found] = catalog.search(
+            vectors,
+            [query],
+            include_inactive,
+            attributes=[[c.model_dump() for c in body.characteristics]],
+        )
         remember_original(item)  # "revert" brings back what the system proposed
         push_history(item)
         old = item.attributes or {}
@@ -298,7 +304,7 @@ def accept_job(job_id: str, min_confidence: float = Query(85.0, ge=0, le=100)):
 
 class RevertIn(BaseModel):
     ids: list[Annotated[int, Field(ge=1, le=ITEM_ID_MAX)]] = Field(
-        default_factory=list, max_length=1000
+        default_factory=list, max_length=parser.MAX_ITEMS
     )
     all_accepted: bool = False  # every accepted row of the job, not only the listed ones
 

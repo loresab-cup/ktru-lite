@@ -24,7 +24,7 @@ from decisions import apply_decision, recalled, text_key
 from job_store import cancelled, finish, set_job, upload_path
 from models import Decision, Item, Job
 
-logger = logging.getLogger("pipeline")
+logger = logging.getLogger("spec_processing")
 
 
 def tick(stages: dict, stage: str, started: float) -> None:
@@ -44,6 +44,10 @@ def full_cards(candidates: list) -> list[dict] | None:
 
 def apply_candidates(item: Item, found: list, is_product: bool = True) -> None:
     """Top-5 -> the best code, confidence, zone, status and explanation of the item."""
+    if not is_product:
+        found = []
+    elif (item.attributes or {}).get("words_only"):
+        found = [c | {"words_only": True} for c in found]
     verdict = confidence.assess(found, is_product=is_product)
     best = found[0] if found else {}
     item.candidates = found
@@ -72,7 +76,11 @@ def build_item(
         attributes={**attributes, "columns": row.columns},
     )
     try:
-        apply_candidates(item, found, is_product=bool(attributes.get("name")))
+        apply_candidates(
+            item,
+            found,
+            is_product=bool(attributes.get("name")) and any(c.isalpha() for c in row.text),
+        )
         if decision is not None:
             apply_decision(item, decision)
     except Exception as exc:  # one broken row must not stop the job
@@ -159,6 +167,7 @@ def process_batch(
         units=[column or guessed for column, guessed in hints],
         column_units=[column for column, _ in hints],
         anchors=[row.text for row in batch],
+        attributes=[attrs.get("characteristics") or [] for attrs in attributes],
     )
     tick(stages, "search", started)
     started = time.monotonic()
@@ -264,7 +273,9 @@ def run_job(job_id: uuid.UUID) -> None:
         tick(stages, "read", started)
         set_job(job_id, total=len(rows))
         process_items(job_id, rows, include_inactive, stages)
-        choose_codes(job_id, stages, until=started + rt.JOB_TIME_LIMIT)
+        # Preserve the 1000-row budget and give larger files proportionally more review time.
+        budget = rt.JOB_TIME_LIMIT * max(1, len(rows) / 1000)
+        choose_codes(job_id, stages, until=started + budget)
         tick(stages, "total", started)
         status, error = "done", None
     except extractor.Cancelled:

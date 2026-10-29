@@ -40,18 +40,18 @@ services:
       start_period: 300s  # the first start imports 81 509 vectors; slower PCs need more than a minute
   worker:
     <<: *backend
-    command: ["celery", "-A", "tasks:app", "worker", "--pool=threads", "--concurrency=2", "--loglevel=INFO"]
+    command: ["celery", "-A", "celery_tasks:app", "worker", "--pool=threads", "--concurrency=2", "--loglevel=INFO"]
     depends_on:
       backend: {condition: service_healthy}
       redis: {condition: service_healthy}
     healthcheck:
-      test: ["CMD", "celery", "-A", "tasks:app", "inspect", "ping", "--timeout=5"]
+      test: ["CMD", "celery", "-A", "celery_tasks:app", "inspect", "ping", "--timeout=5"]
       interval: 30s
       timeout: 10s
       retries: 5
   scheduler:
     <<: *backend
-    command: ["celery", "-A", "tasks:app", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat"]
+    command: ["celery", "-A", "celery_tasks:app", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat"]
     depends_on:
       redis: {condition: service_healthy}
       backend: {condition: service_healthy}

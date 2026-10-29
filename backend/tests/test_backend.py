@@ -416,10 +416,12 @@ def test_api_upload_process_correct_export(catalog, monkeypatch):
     importlib.reload(runtime)
     importlib.reload(database)
     api = importlib.reload(importlib.import_module("api"))
+    import celery_tasks
     import job_queue
-    import tasks
 
-    monkeypatch.setattr(job_queue, "publish", lambda job_id: tasks.process_job.run(str(job_id)))
+    monkeypatch.setattr(
+        job_queue, "publish", lambda job_id: celery_tasks.process_job.run(str(job_id))
+    )
     monkeypatch.setattr(embedder, "embed", lambda texts: None)  # no vectors: words only
     monkeypatch.setattr(embedder, "state", lambda: "down")
     spec = "Наименование;Кол-во\nБумага для офисной техники А4;10\n=HYPERLINK(1) ноутбук;1\n"

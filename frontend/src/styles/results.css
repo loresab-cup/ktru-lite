@@ -317,6 +317,14 @@
   text-decoration: none;
 }
 
+.res-original {
+  margin: var(--s2) 0 0;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .res-conf,
 .res-status {
   display: flex;

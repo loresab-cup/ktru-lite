@@ -63,6 +63,10 @@ class Decision(Base):
 
     __tablename__ = "decisions"
     key: Mapped[str] = mapped_column(String(64), primary_key=True)  # text_key of the row
+    owner_id: Mapped[int | None] = mapped_column(
+        ForeignKey(User.id, name="fk_decisions_owner_id_users", ondelete="CASCADE"), index=True
+    )
+    raw_text: Mapped[str] = mapped_column(Text, default="", server_default="")
     job_id: Mapped[uuid.UUID] = mapped_column(Uuid, index=True)
     ktru_code: Mapped[str] = mapped_column(String(32))
     ktru_name: Mapped[str] = mapped_column(Text, default="")

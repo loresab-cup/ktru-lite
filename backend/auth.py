@@ -6,7 +6,7 @@ when there are no users yet; `python users.py` manages accounts from the command
 
 A visitor may also work without an account: a guest is a user with is_guest, no usable password
 and a cookie without an expiry date, so closing the browser ends the visit; the worker removes
-guests whose session is over (workers.clean_guests). Logging in or registering from a guest
+guests whose session is over (app_lifecycle.clean_guests). Logging in or registering from a guest
 session moves the guest's specifications to the account (adopt_guest).
 """
 
@@ -240,11 +240,14 @@ def start_guest(session: Session, hours: float) -> tuple[str, User]:
 def adopt_guest(session: Session, token: str, user: User) -> None:
     """The guest of this session token logged in or registered: its specifications go to the
     account and the guest is removed. Any other token is left alone."""
+    from decisions import transfer
     from models import Job  # models imports auth
 
-    guest = user_by_token(session, token)
+    guest = locked_user(session, token)
     if guest is None or not guest.is_guest or guest.id == user.id:
         return
+    session.scalar(select(User).where(User.id == user.id).with_for_update())
+    transfer(session, guest.id, user.id)
     session.execute(update(Job).where(Job.owner_id == guest.id).values(owner_id=user.id))
     session.execute(delete(LoginSession).where(LoginSession.user_id == guest.id))
     session.delete(guest)

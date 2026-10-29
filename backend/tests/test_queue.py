@@ -2,13 +2,13 @@
 
 import uuid
 
+import celery_tasks
 import job_queue
-import tasks
 
 
 def test_broker_failure_keeps_job_for_periodic_dispatch(monkeypatch):
     def broken(*args, **kwargs):
         raise ConnectionError("broker unavailable")
 
-    monkeypatch.setattr(tasks.process_job, "apply_async", broken)
+    monkeypatch.setattr(celery_tasks.process_job, "apply_async", broken)
     assert job_queue.publish(uuid.uuid4()) is False

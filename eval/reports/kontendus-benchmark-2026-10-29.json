@@ -1,0 +1,163 @@
+{
+  "date": "2026-10-29",
+  "dataset": "Kontendus: 1200 positions, 324 procurements, 23 categories",
+  "model": "yandexgpt-5.1",
+  "max_items": 5000,
+  "runs": {
+    "1000": {
+      "expected_rows": 1000,
+      "benchmark_date": "2026-10-29",
+      "cache": "worker restarted before this scenario",
+      "model_configuration": [
+        {
+          "name": "yandex",
+          "model": "yandexgpt-5.1",
+          "parallel": 3
+        },
+        {
+          "name": "yandex2",
+          "model": "yandexgpt-5.1",
+          "parallel": 5
+        },
+        {
+          "name": "yandex3",
+          "model": "yandexgpt-5.1",
+          "parallel": 5
+        },
+        {
+          "name": "yandex4",
+          "model": "yandexgpt-5.1",
+          "parallel": 5
+        },
+        {
+          "name": "yandex5",
+          "model": "yandexgpt-5.1",
+          "parallel": 2
+        }
+      ],
+      "llm_batch": 20,
+      "embedding_model": "text-search-query",
+      "embedding_rps": 20.0,
+      "simultaneous_benchmark_jobs": 1,
+      "single_uploaded_file": true,
+      "upload_seconds": 0.154,
+      "job_id": "22105d88-62e8-4985-a30a-86c9d2f8e778",
+      "seconds_http": 303.724,
+      "status": "done",
+      "total": 1000,
+      "processed": 1000,
+      "fallback": 40,
+      "words_only": 0,
+      "error": null,
+      "stage_seconds": {
+        "read": 0.02,
+        "extract": 221.13,
+        "embed": 80.93,
+        "wait": 276.21,
+        "search": 25.21,
+        "confidence": 0.15,
+        "save": 0.9,
+        "choose": 0.13,
+        "total": 302.74
+      },
+      "item_statuses": {
+        "auto": 313,
+        "needs_review": 687
+      },
+      "read_rows": 1000,
+      "known_reference_rows": 4,
+      "known_reference_hits": 3,
+      "complete": true,
+      "new_account": true,
+      "remembered_items": 0,
+      "export_xlsx_rows_verified": 1000,
+      "export_codes_match_api": true,
+      "export_csv_rows_verified": 1000,
+      "catalog_ready_before_upload": true,
+      "includes_registration_and_container_startup": false,
+      "input_sha256": "289a2c451fc915a76ad5b6fc4aeeea646bbf4c5766ba26d406f0bb613cf84d75"
+    },
+    "1200": {
+      "expected_rows": 1200,
+      "benchmark_date": "2026-10-29",
+      "cache": "worker restarted before this scenario",
+      "model_configuration": [
+        {
+          "name": "yandex",
+          "model": "yandexgpt-5.1",
+          "parallel": 3
+        },
+        {
+          "name": "yandex2",
+          "model": "yandexgpt-5.1",
+          "parallel": 5
+        },
+        {
+          "name": "yandex3",
+          "model": "yandexgpt-5.1",
+          "parallel": 5
+        },
+        {
+          "name": "yandex4",
+          "model": "yandexgpt-5.1",
+          "parallel": 5
+        },
+        {
+          "name": "yandex5",
+          "model": "yandexgpt-5.1",
+          "parallel": 2
+        }
+      ],
+      "llm_batch": 20,
+      "embedding_model": "text-search-query",
+      "embedding_rps": 20.0,
+      "simultaneous_benchmark_jobs": 1,
+      "single_uploaded_file": true,
+      "upload_seconds": 0.159,
+      "job_id": "504e8f33-fbdc-450a-8994-5b2c0ee08b68",
+      "seconds_http": 221.574,
+      "status": "done",
+      "total": 1200,
+      "processed": 1200,
+      "fallback": 0,
+      "words_only": 0,
+      "error": null,
+      "stage_seconds": {
+        "read": 0.02,
+        "extract": 98.95,
+        "embed": 106.73,
+        "wait": 174.28,
+        "search": 30.57,
+        "confidence": 0.25,
+        "save": 1.03,
+        "choose": 14.5,
+        "total": 220.74
+      },
+      "item_statuses": {
+        "auto": 363,
+        "needs_review": 837
+      },
+      "read_rows": 1200,
+      "known_reference_rows": 4,
+      "known_reference_hits": 3,
+      "complete": true,
+      "new_account": true,
+      "remembered_items": 0,
+      "export_xlsx_rows_verified": 1200,
+      "export_codes_match_api": true,
+      "export_csv_rows_verified": 1200,
+      "catalog_ready_before_upload": true,
+      "includes_registration_and_container_startup": false,
+      "input_sha256": "79bae9ca058b14f0f9843e89d16e6ac9da3742511d5a78a7529a5cf4d07a00e1"
+    }
+  },
+  "interpretation": "Separate single-file uploads on new accounts after worker restart. The 1000-row run was earlier and had HTTP 429 retries; external API latency differs. No statistical speed guarantee. Only 4 reference KTRU labels are available; not a 1200-row accuracy benchmark.",
+  "limit_checks": {
+    "backend_tests_passed": 281,
+    "skipped": 18,
+    "ruff": "passed",
+    "frontend_lint": "passed",
+    "frontend_build": "passed",
+    "max_5000_parser_and_revert_boundaries": "passed"
+  }
+}

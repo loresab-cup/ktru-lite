@@ -1,0 +1,36 @@
+{
+  "date": "2026-10-29",
+  "fixed": [
+    "REVIEW-001",
+    "REVIEW-002",
+    "REVIEW-003"
+  ],
+  "migration": "0006",
+  "tests": {
+    "passed": 272,
+    "skipped_missing_fixtures": 10,
+    "postgresql": true,
+    "sqlite": true,
+    "ruff_check": true,
+    "ruff_format": true
+  },
+  "deployment": {
+    "migration_applied": true,
+    "worker_pong": true,
+    "preserved_jobs": 25,
+    "preserved_items": 9567,
+    "decisions": 1
+  },
+  "reproduction_after_fix": {
+    "guest_memory_recalled": true,
+    "retained_memory_recalled": true,
+    "mixed_key_slots": [
+      4,
+      1
+    ]
+  },
+  "limitations": [
+    "Existing decisions without a verifiable source row remain unassigned; ownership is never guessed.",
+    "Automatic quota accounting groups keys by folder; cloud identity and raised quotas still require operator configuration."
+  ]
+}

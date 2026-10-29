@@ -45,7 +45,7 @@
 |---|---|
 | `backend/api.py`, `backend/routes/` | сборка приложения и эндпоинты `/api` |
 | `backend/models.py`, `backend/database.py`, `backend/migrate.py`, `backend/migrations/` | база и миграции |
-| `backend/tasks.py`, `backend/job_queue.py`, `backend/job_store.py`, `backend/workers.py`, `backend/pipeline.py` | Celery, Redis, обработка и состояние заданий |
+| `backend/celery_tasks.py`, `backend/job_queue.py`, `backend/job_store.py`, `backend/app_lifecycle.py`, `backend/spec_processing.py` | Celery, Redis, обработка и состояние заданий |
 | `backend/exporting.py`, `backend/decisions.py` | выгрузка и память решений |
 | `backend/requirements.txt` | зависимости backend (новая библиотека — после согласования с Кириллом) |
 | `backend/Dockerfile` | образ backend |

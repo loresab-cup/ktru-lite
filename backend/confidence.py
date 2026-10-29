@@ -51,7 +51,9 @@ def explain(best: dict, is_product: bool) -> str:
         parts.append("характеристики: " + "; ".join(best["matched_characteristics"][:4]))
     if best.get("numeric_matches"):
         parts.append(f"совпало числовых границ: {best['numeric_matches']}")
-    if not best.get("shared_words"):
+    if best.get("words_only"):
+        parts.append("Поиск выполнен только по словам")
+    elif not best.get("shared_words"):
         parts.append(f"совпадение по смыслу {best.get('cosine', best['score']):.2f}")
     if best.get("status") in STATUS_LABELS:
         parts.append(STATUS_LABELS[best["status"]])
@@ -95,13 +97,17 @@ def review_reason(
 
     cards: full catalog cards of the first two candidates; the candidates keep only six
     characteristics, and codes of one name usually differ further down."""
+    if not is_product:
+        return "Строка не похожа на товар, работу или услугу"
     if not candidates:
         return "Подходящих кодов КТРУ не найдено"
     best = candidates[0]
-    if not is_product:
-        return "Строка не похожа на товар, работу или услугу"
     if best.get("status") in STATUS_LABELS:
         return f"Лучший код {STATUS_LABELS[best['status']]}"
+    if best.get("words_only"):
+        return "Векторный поиск недоступен: код найден только по словам, проверьте выбор"
+    if best.get("characteristic_clashes"):
+        return "Есть противоречия характеристик описанию товара: проверьте значения и код"
     if assess(candidates, is_product)["status"] == "auto":
         return ""
     second = candidates[1] if len(candidates) > 1 else None
@@ -122,7 +128,7 @@ def review_reason(
                 f"{listed}: уточните их в строке или выберите код"
             )
         return f"Два кода «{best['name']}» почти равны, в каталоге у них одинаковые характеристики"
-    if min(raw(best), 1.0) < WEAK_SCORE:
+    if min(raw(best), 1.0) < WEAK_SCORE and not best.get("name_match"):
         return "Совпадение с каталогом слабое: проверьте наименование и характеристики"
     if second:
         return f"Второй кандидат {second['code']} «{second['name']}» почти так же близок"
@@ -134,6 +140,15 @@ def raw(candidate: dict) -> float:
     return candidate.get("raw_score", candidate["score"])
 
 
+def supported_probability(candidate: dict, margin: float) -> float:
+    """A lead among weak or contradictory candidates cannot justify high confidence."""
+    score = raw(candidate)
+    weak = score < WEAK_SCORE and not candidate.get("name_match")
+    if weak or candidate.get("characteristic_clashes") or candidate.get("words_only"):
+        margin = min(margin, 0.0)
+    return probability(score, margin)
+
+
 def with_confidences(candidates: list[dict]) -> list[dict]:
     """The candidates with the confidence each of them would have as the pick: its margin is to
     the best of the others, so the first one gets the confidence of the item and the rest get low."""
@@ -142,7 +157,9 @@ def with_confidences(candidates: list[dict]) -> list[dict]:
     for i, candidate in enumerate(candidates):
         others = scores[:i] + scores[i + 1 :]
         margin = scores[i] - max(others) if others else 0.0
-        result.append(candidate | {"confidence": round(probability(scores[i], margin), 1)})
+        result.append(
+            candidate | {"confidence": round(supported_probability(candidate, margin), 1)}
+        )
     return result
 
 
@@ -164,11 +181,13 @@ def assess(candidates: list[dict], is_product: bool = True) -> dict:
             "zone": "low",
             "needs_review": True,
             "status": "needs_review",
-            "summary": "Подходящих кодов КТРУ не найдено",
+            "summary": "Подходящих кодов КТРУ не найдено"
+            if is_product
+            else "Строка не похожа на товар, работу или услугу",
         }
     best = candidates[0]
     margin = raw(best) - raw(candidates[1]) if len(candidates) > 1 else 0.0
-    confidence = round(probability(raw(best), margin), 1)
+    confidence = round(supported_probability(best, margin), 1)
     zone = zone_of(confidence)
     # A terminated code and a row that is not a product never go to auto
     auto = zone == "high" and best.get("status") == "ACTIVE" and is_product
