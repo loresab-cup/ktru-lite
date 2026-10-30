@@ -48,6 +48,7 @@ SETS = {
         "human_2026_10_28/human_1000.reference.jsonl",
     ),
     "primer": ("../frontend/public/primer.xlsx", "primer/primer_reference.jsonl"),
+    "eis37": ("eis/ЕИС_37_без_КТРУ.xlsx", "eis/ЕИС_37_reference.jsonl"),
 }
 
 
