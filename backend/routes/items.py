@@ -227,6 +227,17 @@ def edit_attributes(item_id: int, body: AttributesIn):
         return to_dict(item)
 
 
+ACCEPT_FIELDS = ("status", "confidence", "zone", "summary")
+
+
+def remember_before_accept(item: Item) -> None:
+    """Keeps the state an accept replaces, so that only the accept can be undone."""
+    if item.status == "accepted":
+        return
+    before = {field: getattr(item, field) for field in ACCEPT_FIELDS}
+    item.attributes = {**(item.attributes or {}), "before_accept": before}
+
+
 @router.post("/api/items/{item_id}/accept")
 def accept_item(item_id: int):
     with db.SessionLocal() as session:
@@ -234,9 +245,29 @@ def accept_item(item_id: int):
         if not item.ktru_code:
             raise HTTPException(400, "У позиции нет кода: выберите его вручную")
         remember_original(item)
+        remember_before_accept(item)
         if item.status in ("needs_review", "failed"):
             remember(session, item)  # a person looked at a doubtful row and agreed
         item.status = "accepted"
+        session.commit()
+        return to_dict(item)
+
+
+@router.post("/api/items/{item_id}/unaccept")
+def unaccept_item(item_id: int):
+    """Undoes the last accept only: a code chosen by a person before it stays, unlike revert,
+    which brings back the proposal of the system."""
+    with db.SessionLocal() as session:
+        item = get_or_404(session, Item, item_id, "Позиция")
+        attributes = dict(item.attributes or {})
+        before = attributes.pop("before_accept", None)
+        if item.status != "accepted" or before is None:
+            raise HTTPException(400, "Принятие уже отменено")
+        for field in ACCEPT_FIELDS:
+            setattr(item, field, before.get(field))
+        item.attributes = attributes
+        if item.status in ("needs_review", "failed"):
+            forget(session, item)  # the accept remembered it; a manual code keeps its decision
         session.commit()
         return to_dict(item)
 
@@ -291,6 +322,7 @@ def accept_job(job_id: str, min_confidence: float = Query(85.0, ge=0, le=100)):
             is_product = bool((item.attributes or {}).get("name"))
             if code and code["status"] == "ACTIVE" and is_product:
                 remember_original(item)
+                remember_before_accept(item)
                 item.status, accepted = "accepted", accepted + 1
         session.commit()
         return {"accepted": accepted}

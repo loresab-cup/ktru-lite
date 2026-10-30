@@ -287,6 +287,8 @@ export const api = {
   editAttributes: (itemId: number, attributes: AttributesInput) =>
     request<Item>(`/api/items/${itemId}/attributes`, json('PUT', attributes)),
   accept: (itemId: number) => request<Item>(`/api/items/${itemId}/accept`, json('POST')),
+  /** Undoes only the last accept: a code chosen by hand before it stays. */
+  unaccept: (itemId: number) => request<Item>(`/api/items/${itemId}/unaccept`, json('POST')),
   acceptAll: (jobId: string, minConfidence: number) =>
     request<{ accepted: number }>(
       `/api/jobs/${encodeURIComponent(jobId)}/accept?min_confidence=${minConfidence}`,

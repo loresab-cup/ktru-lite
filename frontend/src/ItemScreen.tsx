@@ -129,7 +129,7 @@ export function ItemScreen({ jobId, itemId }: { jobId: string; itemId: number })
               className="toast-undo"
               onClick={() =>
                 void api
-                  .revert(itemId)
+                  .unaccept(itemId)
                   .then(() => {
                     toast.info(T.item.undone)
                     void load()
