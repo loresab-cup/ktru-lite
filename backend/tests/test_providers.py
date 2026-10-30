@@ -145,6 +145,21 @@ def test_auto_parallel_shares_five_generations_of_a_folder():
     assert [p.parallel for p in explicit] == [1, 1, 1, 2]  # the old setting still works
 
 
+def test_auto_uses_only_slots_left_by_explicit_keys():
+    env = {
+        "LLM_PROVIDERS": "yandex,yandex2",
+        "YANDEX_API_KEY": "one",
+        "YANDEX2_API_KEY": "two",
+        "YANDEX_FOLDER_ID": "same-folder",
+        "YANDEX_PARALLEL": "4",
+        "YANDEX2_PARALLEL": "auto",
+    }
+    assert [p.parallel for p in providers.load(env)] == [4, 1]
+    with pytest.raises(ValueError, match="leave no room"):
+        providers.load(env | {"YANDEX_PARALLEL": "5"})
+    assert [p.parallel for p in providers.load(env | {"YANDEX2_PARALLEL": "6"})] == [4, 6]
+
+
 def test_load_from_env():
     env = {
         "LLM_PROVIDERS": "gigachat, yandex, other, gigachat",

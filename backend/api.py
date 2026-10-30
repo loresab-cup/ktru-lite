@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 import access
 import routes
 import runtime as rt
-from workers import init_db, load_catalog
+from workers import init_db, load_catalog_when_available
 
 logger = logging.getLogger("api")
 
@@ -21,8 +21,12 @@ logger = logging.getLogger("api")
 async def lifespan(_: FastAPI):
     rt.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     init_db()
-    threading.Thread(target=load_catalog, daemon=True).start()
-    yield
+    stop = threading.Event()
+    threading.Thread(target=load_catalog_when_available, args=(stop,), daemon=True).start()
+    try:
+        yield
+    finally:
+        stop.set()
 
 
 app = FastAPI(

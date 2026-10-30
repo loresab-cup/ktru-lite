@@ -15,9 +15,8 @@ from pathlib import Path
 
 import httpx
 
-RELEASE = os.getenv(
-    "CATALOG_RELEASE_URL",
-    "https://github.com/loresab-cup/ktru-lite/releases/download/catalog_yandex",
+RELEASE = os.getenv("CATALOG_RELEASE_URL") or (
+    "https://github.com/loresab-cup/ktru-lite/releases/download/catalog_yandex"
 )
 FILES = {  # name -> (bytes, sha256) of the release catalog_yandex, 28.10.2026
     "ktru_catalog.jsonl.gz": (

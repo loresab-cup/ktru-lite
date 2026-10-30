@@ -128,11 +128,20 @@ def share_cloud_slots(found: list[Provider]) -> None:
     get the rest of the division (two keys of a folder: 3 and 2)."""
     by_folder: dict[str, list[Provider]] = {}
     for p in found:
-        if p.auto_parallel and p.configured:
+        if p.configured:
             by_folder.setdefault(p.folder, []).append(p)
     for keys in by_folder.values():
-        share, rest = divmod(CLOUD_GENERATIONS, len(keys))
-        for n, p in enumerate(keys):
+        automatic = [p for p in keys if p.auto_parallel]
+        if not automatic:
+            continue  # Explicit limits may describe an increased cloud quota.
+        remaining = CLOUD_GENERATIONS - sum(p.parallel for p in keys if not p.auto_parallel)
+        if remaining < len(automatic):
+            raise ValueError(
+                "YANDEX_PARALLEL: explicit slots leave no room for every auto key; "
+                "set all limits explicitly or reduce the explicit slots"
+            )
+        share, rest = divmod(remaining, len(automatic))
+        for n, p in enumerate(automatic):
             p.parallel = max(1, share + (n < rest))
             p.slots = threading.BoundedSemaphore(p.parallel)
 

@@ -45,7 +45,7 @@ def test_fresh_and_repeated_upgrade_matches_models(database):
     upgrade_database(database)
     upgrade_database(database)
     with database.connect() as c:
-        assert c.scalar(text("select version_num from alembic_version")) == "0005"
+        assert c.scalar(text("select version_num from alembic_version")) == "0006"
         assert (
             compare_metadata(
                 MigrationContext.configure(c), [Base.metadata, AuthBase.metadata, vector_metadata]
@@ -158,3 +158,60 @@ def test_downgrade_only_on_disposable_database(database):
     with database.begin() as connection:
         command.downgrade(configuration(connection), "base")
     assert set(inspect(database).get_table_names()) <= {"alembic_version"}
+
+
+def test_decision_owner_migration_recovers_only_verified_sources(database):
+    import hashlib
+
+    from auth import User
+    from models import Item, Job
+
+    source = "Бумага А4"
+    with database.begin() as c:
+        command.upgrade(configuration(c), "0005")
+        owner = c.execute(
+            User.__table__.insert()
+            .values(
+                login="decision-owner",
+                password_hash="not-a-real-password",
+            )
+            .returning(User.id)
+        ).scalar_one()
+        job = uuid.uuid4()
+        c.execute(Job.__table__.insert().values(id=job, owner_id=owner, filename="old.csv"))
+        c.execute(
+            Item.__table__.insert().values(
+                job_id=job, row_number=1, raw_text=source, status="corrected", zone="low"
+            )
+        )
+        normalized = " ".join(source.lower().split())
+        key = hashlib.sha256(f"user:{owner}:{normalized}".encode()).hexdigest()
+        old_decisions = MetaData()
+        old_decisions.reflect(c, only=["decisions"])
+        c.execute(
+            old_decisions.tables["decisions"].insert(),
+            [
+                {
+                    "key": key,
+                    "job_id": job.hex if database.dialect.name == "sqlite" else job,
+                    "ktru_code": "saved",
+                    "ktru_name": "Paper",
+                    "decided_at": datetime.now(UTC),
+                },
+                {
+                    "key": "unknown",
+                    "job_id": job.hex if database.dialect.name == "sqlite" else job,
+                    "ktru_code": "unverified",
+                    "ktru_name": "",
+                    "decided_at": datetime.now(UTC),
+                },
+            ],
+        )
+    upgrade_database(database)
+    with database.connect() as c:
+        assert c.execute(
+            text("SELECT owner_id, raw_text, ktru_code FROM decisions WHERE key=:k"), {"k": key}
+        ).one() == (owner, source, "saved")
+        assert c.execute(
+            text("SELECT owner_id, raw_text FROM decisions WHERE key='unknown'")
+        ).one() == (None, "")
