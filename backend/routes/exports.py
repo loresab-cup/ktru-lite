@@ -65,7 +65,8 @@ def export_rows(items: list[Item]) -> list[list]:
 def export(job_id: str, format: str = Query("xlsx", pattern="^(xlsx|csv)$")):
     with db.SessionLocal() as session:
         job = get_or_404(session, Job, job_id, "Задание")
-        if job.status not in ("done", "cancelled"):
+        # A failed job keeps the rows it finished before the failure: they can be exported too
+        if job.status not in ("done", "cancelled", "failed"):
             raise HTTPException(409, "Выгрузка доступна после окончания обработки")
         # The five candidates of a row (~10 KB) are not exported: they are not read from the base
         query = select(Item).options(defer(Item.candidates)).where(Item.job_id == job.id)

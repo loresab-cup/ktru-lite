@@ -262,7 +262,9 @@ export function JobScreen({ jobId }: { jobId: string }) {
   }, [jobId])
 
   const running = job?.status === 'queued' || job?.status === 'processing'
-  const finished = job?.status === 'done' || job?.status === 'cancelled'
+  // A failed job keeps the rows it finished before the failure: they are shown and exported
+  const partial = job?.status === 'failed' && job.processed > 0
+  const finished = job?.status === 'done' || job?.status === 'cancelled' || partial
 
   const body = () => {
     if (problem) {
@@ -290,6 +292,18 @@ export function JobScreen({ jobId }: { jobId: string }) {
             ))}
           </div>
         </section>
+      )
+    }
+    if (job.status === 'failed' && job.processed > 0) {
+      return (
+        <>
+          <Notice kind="error" title={T.progress.failed}>
+            {[job.error?.replace(/[.!?]?$/, '.'), T.progress.failedPartial(job.processed, job.total)]
+              .filter(Boolean)
+              .join(' ')}
+          </Notice>
+          <Results job={job} onChanged={refresh} />
+        </>
       )
     }
     if (job.status === 'failed') return <Problem title={T.progress.failed} text={job.error ?? ''} />
