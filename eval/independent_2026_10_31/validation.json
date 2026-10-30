@@ -1,0 +1,50 @@
+{
+ "positions_in_print_forms": 433,
+ "included": 262,
+ "purchases": 43,
+ "categories": {
+  "электротовары": 40,
+  "спецодежда": 36,
+  "мебель": 32,
+  "моющие средства": 30,
+  "канцелярия": 26,
+  "медицинские изделия": 16,
+  "компьютеры": 16,
+  "расходники печати": 14,
+  "периферия": 12,
+  "сантехника": 11,
+  "освещение": 10,
+  "хозяйственные товары": 9,
+  "продукты питания": 4,
+  "инструменты": 4,
+  "строительные материалы": 2
+ },
+ "excluded": {
+  "нет полного кода КТРУ": 121,
+  "дубль": 50
+ },
+ "codes_missing_from_catalog": [],
+ "rows_with_missing_code": 0,
+ "rows_name_equals_catalog_card_name": 262,
+ "rows_without_characteristics": 0,
+ "catalog_card_fields": [
+  "application_end",
+  "application_start",
+  "cancel_date",
+  "cancel_reason",
+  "characteristics",
+  "code",
+  "description",
+  "embedding_b64",
+  "embedding_text",
+  "is_template",
+  "name",
+  "okpd2_code",
+  "okpd2_name",
+  "parent_code",
+  "rubricators",
+  "status",
+  "units",
+  "version"
+ ]
+}
