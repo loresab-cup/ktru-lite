@@ -44,6 +44,10 @@ def full_cards(candidates: list) -> list[dict] | None:
 
 def apply_candidates(item: Item, found: list, is_product: bool = True) -> None:
     """Top-5 -> the best code, confidence, zone, status and explanation of the item."""
+    if not is_product:
+        found = []
+    elif (item.attributes or {}).get("words_only"):
+        found = [c | {"words_only": True} for c in found]
     verdict = confidence.assess(found, is_product=is_product)
     best = found[0] if found else {}
     item.candidates = found
@@ -72,7 +76,11 @@ def build_item(
         attributes={**attributes, "columns": row.columns},
     )
     try:
-        apply_candidates(item, found, is_product=bool(attributes.get("name")))
+        apply_candidates(
+            item,
+            found,
+            is_product=bool(attributes.get("name")) and any(c.isalpha() for c in row.text),
+        )
         if decision is not None:
             apply_decision(item, decision)
     except Exception as exc:  # one broken row must not stop the job

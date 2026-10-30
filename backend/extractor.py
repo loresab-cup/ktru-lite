@@ -217,7 +217,11 @@ def answer_by_id(objects: list[dict]) -> dict[int, dict]:
 
 # --- rules (fallback) ----------------------------------------------------------------------
 
-_BRAND = re.compile(r"\b[A-Z][A-Za-z]*[a-z][A-Za-z]*\b")
+_BRAND = re.compile(
+    r"\b(?:Erich\s+Krause|Hewlett[- ]Packard|HP|LG|IBM|MSI|ASUS|[A-Z][A-Za-z]*[a-z][A-Za-z]*)\b"
+)
+_ACCESSORY = re.compile(r"\b(?:картридж|чехол|кабель|адаптер|тонер|переходник)\b", re.IGNORECASE)
+_COMPATIBILITY = re.compile(r"\b(?:для|совместим[а-яё]*\s+с)\b", re.IGNORECASE)
 _MODEL = re.compile(r"\b[\w-]*\d[\w-]*\b")
 _UNITS = r"мм|см|м|км|мкм|кг|г|мг|мл|л|гб|тб|мб|вт|квт|в|а|°c|г/м2|%|шт|дюйм\w*|листов|страниц"
 # «белизна не менее 146 %»: the bound belongs to the value, not to the name
@@ -292,13 +296,23 @@ def rules(text: str, reason: str = ERROR) -> dict:
     """Attributes without a network: brand = Latin word with a capital, model = token with
     digits after it, characteristics = «name: value unit» pairs or else «name value unit»
     found by the numbers, search_text = the row itself."""
-    brand_match = _BRAND.search(text)
+    scope = text
+    if _ACCESSORY.search(text[:80]) and (compatibility := _COMPATIBILITY.search(text)):
+        scope = text[: compatibility.start()]
+    brand_match = _BRAND.search(scope)
     brand = brand_match.group(0) if brand_match else ""
     model = ""
     if brand_match:
-        found = _MODEL.search(text, brand_match.end())
+        found = _MODEL.search(scope, brand_match.end())
         if found and found.start() - brand_match.end() < 30:
-            model = found.group(0)
+            token = found.group(0)
+            decimal = token.isdigit() and (
+                re.match(r"[.,]\d", scope[found.end() :]) is not None
+                or re.search(r"\d[.,]$", scope[: found.start()]) is not None
+            )
+            measurement = re.fullmatch(rf"\d+(?:{_UNITS})", token, re.IGNORECASE)
+            if not decimal and not measurement and (not token.isdigit() or len(token) >= 3):
+                model = token
     name = re.split(r"[,;(]|\.\s|\s\d|\s[A-Za-z]", text, maxsplit=1)[0].strip(" .:-")
     pairs = named_pairs(text)
     if pairs:
@@ -315,7 +329,7 @@ def rules(text: str, reason: str = ERROR) -> dict:
             if m.group("value") != model and (m.group("name") or m.group("unit"))
         ][:10]
     return {
-        "name": name or text[:100],
+        "name": (name or text[:100]) if any(c.isalpha() for c in text) else "",
         "brand": brand,
         "model": model,
         "measure": measure,

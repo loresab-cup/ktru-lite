@@ -176,18 +176,38 @@ def read_pdf(path: Path) -> list[Item]:
     import pdfplumber
     from pypdf import PdfReader
 
+    from pdf_tables import extract_tables
+
     try:
         reader = PdfReader(str(path))
         if len(reader.pages) > MAX_PDF_PAGES:
             raise ParseError(f"В PDF больше {MAX_PDF_PAGES} страниц")
-        rows = []
+        rows, pending = [], False
         with pdfplumber.open(str(path)) as pdf:
             for page in pdf.pages:
-                for number, table in enumerate(page.extract_tables()):
+                for number, (table, open_end) in enumerate(extract_tables(page)):
                     page_rows = [[cell or "" for cell in row] for row in table if any(row)]
-                    if number == 0 and page_rows and continues(rows, page_rows[0]):
+                    if rows and page_rows:
+                        known_headers = {
+                            tuple(clean(c) for c in row)
+                            for row in rows
+                            if any(is_header_cell(clean(c)) for c in row)
+                        }
+                        while page_rows and tuple(clean(c) for c in page_rows[0]) in known_headers:
+                            page_rows.pop(0)
+                    continuation = page_rows and (
+                        continues(rows, page_rows[0])
+                        or (
+                            pending
+                            and rows
+                            and len(page_rows[0]) == len(rows[-1])
+                            and any(not c for c in page_rows[0])
+                        )
+                    )
+                    if number == 0 and continuation:
                         rows[-1] = [f"{a} {b}".strip() for a, b in zip(rows[-1], page_rows.pop(0))]
                     rows += page_rows
+                    pending = open_end
                 page.close()  # frees the parsed page: 200 pages stay small in memory
         if not rows:
             lines = [

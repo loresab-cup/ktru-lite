@@ -45,3 +45,20 @@ def test_successful_catalog_load_clears_old_error(monkeypatch):
     )
     workers.load_catalog()
     assert rt.state.catalog is catalog and rt.state.catalog_error is None
+
+
+def test_api_reports_missing_catalog_without_blocking_queued_uploads(api_database, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setattr(rt.state, "catalog", None)
+    monkeypatch.setattr(rt.state, "catalog_error", "Catalog files are missing")
+    with TestClient(api_database.app) as client:
+        health = client.get("/api/health")
+        assert health.status_code == 200
+        assert health.json()["status"] == "ok"
+        assert health.json()["catalog"] == "error"
+        assert client.get("/api/catalog/search", params={"q": "Бумага"}).status_code == 503
+        uploaded = client.post("/api/jobs", files={"file": ("paper.txt", "Бумага А4".encode())})
+        assert uploaded.status_code == 202
+        job = client.get("/api/jobs/" + uploaded.json()["job_id"]).json()
+        assert job["status"] == "queued"

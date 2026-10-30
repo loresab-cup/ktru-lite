@@ -79,6 +79,7 @@ export function ResultCard({ item, jobId, open, onToggle, pick }: {
           {item.status === 'needs_review' && item.attributes.review && (
             <p className="review-reason">{item.attributes.review}</p>
           )}
+          <p className="res-original" title={item.raw_text}>{item.raw_text}</p>
           {item.attributes.remembered && (
             <p className="remembered-note">
               {T.results.remembered(formatDate(item.attributes.remembered))}

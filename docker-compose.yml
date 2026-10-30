@@ -33,11 +33,11 @@ services:
       db: {condition: service_healthy}
       catalog: {condition: service_completed_successfully}
     healthcheck:
-      test: ["CMD", "python", "-c", "import json,urllib.request as u; assert json.load(u.urlopen('http://localhost:8000/api/health'))['catalog']=='ready'"]
+      test: ["CMD", "python", "-c", "import json,urllib.request as u; assert json.load(u.urlopen('http://localhost:8000/api/health'))['status']=='ok'"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 300s  # the first start imports 81 509 vectors; slower PCs need more than a minute
+      start_period: 300s  # API startup includes schema migrations; catalog readiness is separate
   worker:
     <<: *backend
     command: ["celery", "-A", "tasks:app", "worker", "--pool=threads", "--concurrency=2", "--loglevel=INFO"]

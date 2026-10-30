@@ -1,21 +1,22 @@
 import { App as AntApp, ConfigProvider } from 'antd'
 import ruRU from 'antd/locale/ru_RU'
 import { CircleUserRound, ExternalLink, LogIn, LogOut, LucideProvider, Menu, ScanSearch, X } from 'lucide-react'
-import { useMemo, useEffect, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useMemo, useEffect, useState, type ReactNode } from 'react'
 import { HealthContext, type HealthState } from './health'
 import { api, ApiError, LOGGED_OUT, type Me } from './api'
 import { EisMark } from './EisMark'
-import { ItemScreen } from './ItemScreen'
-import { JobScreen } from './JobScreen'
-import { JobsScreen } from './JobsScreen'
 import { Link } from './Link'
 import { LoginScreen } from './LoginScreen'
-import { ProfileScreen } from './ProfileScreen'
 import { clearAccountViews, navigate, parseRoute, paths, usePath } from './router'
 import { CookieNotice, LegalLinks, LegalScreen } from './LegalScreen'
 import { T } from './texts'
 import { UploadScreen } from './UploadScreen'
 import { EmptyState } from './ui'
+
+const ItemScreen = lazy(() => import('./ItemScreen').then((m) => ({ default: m.ItemScreen })))
+const JobScreen = lazy(() => import('./JobScreen').then((m) => ({ default: m.JobScreen })))
+const JobsScreen = lazy(() => import('./JobsScreen').then((m) => ({ default: m.JobsScreen })))
+const ProfileScreen = lazy(() => import('./ProfileScreen').then((m) => ({ default: m.ProfileScreen })))
 
 /** The KTRU catalog of the official procurement system, to check a code there. */
 const EIS_CATALOG = 'https://zakupki.gov.ru/epz/ktru/start/startPage.html'
@@ -268,6 +269,7 @@ export function App() {
       <LucideProvider className="icon" strokeWidth={1.75}>
         <AntApp component={false}>
           <HealthProvider>
+            <CookieNotice />
             {route.page === 'legal' && <LegalScreen document={route.document} />}
             {route.page !== 'legal' && (me === null || (me?.is_guest && signIn)) && <LoginScreen
               onBack={me ? () => setSignIn(false) : undefined}
@@ -282,7 +284,7 @@ export function App() {
             {route.page !== 'legal' && me && !(me.is_guest && signIn) && (
               <div className="site">
                 <Header page={route.page} me={me} onLogout={logout} onSignIn={() => setSignIn(true)} />
-                <main>{page()}</main>
+                <main><Suspense fallback={<p className="wrap" role="status">{T.app.loadingPage}</p>}>{page()}</Suspense></main>
                 <footer className="site-foot" aria-labelledby="feedback-title">
                   <div className="wrap foot-in">
                     <h2 id="feedback-title" className="foot-title">
@@ -295,7 +297,6 @@ export function App() {
                 </footer>
               </div>
             )}
-            <CookieNotice />
           </HealthProvider>
         </AntApp>
       </LucideProvider>

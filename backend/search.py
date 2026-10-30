@@ -280,7 +280,7 @@ class Catalog:
             )
         ]
         if anchors is None:
-            return ranked
+            return [[c | {"words_only": vectors is None} for c in found] for found in ranked]
         rows = zip(
             anchors,
             texts,
@@ -290,7 +290,10 @@ class Catalog:
             column_units,
             strict=True,
         )
-        return [self._anchored(*row, include_inactive) for row in rows]
+        return [
+            [c | {"words_only": vectors is None} for c in self._anchored(*row, include_inactive)]
+            for row in rows
+        ]
 
     def _anchored(self, anchor, text, found, vector, unit, column_unit, include_inactive):
         """Keeps the product the row names when the ranking lost it: «клавиатура USB чёрная»
@@ -513,12 +516,25 @@ class Catalog:
                 "score": round(min(1.0, score), 4),
                 "raw_score": round(score, 4),
                 "cosine": round(cosine, 4),
-                "shared_words": sorted(shared)[:12],
+                "shared_words": self._display_words(i, shared),
                 "matched_characteristics": self._matched_chars(i, query_words),
                 "numeric_matches": matches,
             }
             for score, cosine, i, shared, matches in scored[:TOP_K]
         ]
+
+    def _display_words(self, i: int, shared: set[str]) -> list[str]:
+        wanted = sorted(shared)[:12]
+        shown = {}
+        texts = [self.names[i]]
+        for name, values, _ in self.chars[i]:
+            texts.append(name)
+            texts.extend(values)
+        for text in texts:
+            for token in re.findall(r"\w+(?:[.,]\w+)*", text):
+                for key in words(token) & shared:
+                    shown.setdefault(key, token if re.search(r"[A-Za-z]", token) else token.lower())
+        return [shown.get(word, word) for word in wanted]
 
     def _matched_chars(self, i: int, query_words: set[str]) -> list[str]:
         matched = []
