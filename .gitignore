@@ -34,3 +34,4 @@ outputs/
 backups/
 *.env
 dataset/eis/new
+presentations
