@@ -12,7 +12,7 @@
 .site-foot .legal-summary { margin-left: auto; color: var(--ink-2); text-decoration: none; }
 .site-foot .legal-summary:hover, .site-foot .legal-summary:focus-visible { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 .legal-page > .legal-links { margin-top: var(--s7); padding-top: var(--s4); border-top: 1px solid var(--line); }
-.cookie-notice { position: relative; z-index: 10; margin: var(--s4) auto; width: min(1000px, calc(100% - 32px)); padding: var(--s5); display: flex; align-items: center; gap: var(--s5); box-shadow: var(--shadow); }
+.cookie-notice { position: fixed; bottom: var(--s4); left: 50%; transform: translateX(-50%); z-index: 10; margin: 0; width: min(1000px, calc(100% - 32px)); padding: var(--s5); display: flex; align-items: center; gap: var(--s5); box-shadow: var(--shadow); }
 .cookie-notice p { margin: 0 0 var(--s2); font-size: var(--text-sm); }
 .cookie-notice .btn { flex-shrink: 0; }
 .consent-panel { padding-top: var(--s7); padding-bottom: var(--s8); }
