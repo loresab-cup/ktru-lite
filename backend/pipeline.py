@@ -24,7 +24,7 @@ from decisions import apply_decision, recalled, text_key
 from job_store import cancelled, finish, set_job, upload_path
 from models import Decision, Item, Job
 
-logger = logging.getLogger("spec_processing")
+logger = logging.getLogger("pipeline")
 
 
 def tick(stages: dict, stage: str, started: float) -> None:

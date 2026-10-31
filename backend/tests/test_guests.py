@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select, update
 
-import app_lifecycle
+import workers
 import auth
 import database as db
 import job_store
@@ -140,13 +140,13 @@ def test_the_worker_removes_guests_whose_session_is_over(site):
         upload = job_store.upload_path(session.get(Job, job.id))
     upload.write_bytes(b"Monitor")
 
-    assert app_lifecycle.clean_guests() == 1
+    assert workers.clean_guests() == 1
     with db.SessionLocal() as session:
         logins = set(session.scalars(select(auth.User.login)))
         jobs = {str(j) for j in session.scalars(select(Job.id))}
     assert left_login not in logins and stays_login in logins
     assert jobs == {stays_job} and left_job not in jobs
-    assert app_lifecycle.clean_guests() == 0
+    assert workers.clean_guests() == 0
 
 
 def test_a_guest_whose_job_is_processing_waits_for_the_next_run(site):
@@ -157,11 +157,11 @@ def test_a_guest_whose_job_is_processing_waits_for_the_next_run(site):
         session.execute(update(Job).values(status="processing"))
         session.execute(update(auth.LoginSession).values(expires_at=now() - timedelta(hours=1)))
         session.commit()
-    assert app_lifecycle.clean_guests() == 0
+    assert workers.clean_guests() == 0
     with db.SessionLocal() as session:
         session.execute(update(Job).values(status="done"))
         session.commit()
-    assert app_lifecycle.clean_guests() == 1
+    assert workers.clean_guests() == 1
     with db.SessionLocal() as session:
         assert session.scalar(select(auth.User).where(auth.User.login == login)) is None
         assert session.scalar(select(Job.id)) is None, job_id

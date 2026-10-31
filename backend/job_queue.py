@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 def publish(job_id):
-    from celery_tasks import process_job
+    from tasks import process_job
 
     try:
         process_job.apply_async(args=[str(job_id)], task_id=str(job_id), retry=False)

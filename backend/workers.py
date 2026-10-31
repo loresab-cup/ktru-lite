@@ -19,7 +19,7 @@ import runtime as rt
 import search
 from models import Decision, Item, Job, now
 
-logger = logging.getLogger("app_lifecycle")
+logger = logging.getLogger("workers")
 
 
 def clean_old_jobs() -> int:

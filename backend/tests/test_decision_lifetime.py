@@ -5,7 +5,7 @@ from datetime import timedelta
 import pytest
 from sqlalchemy import select
 
-import app_lifecycle
+import workers
 import auth
 import database as db
 import decisions
@@ -51,7 +51,7 @@ def test_retention_keeps_decisions_private_and_reusable(memory, monkeypatch):
         s.add_all([own_job, other_job])
         s.commit()
     monkeypatch.setattr(rt, "KEEP_DAYS", 1)
-    assert app_lifecycle.clean_old_jobs() == 1
+    assert workers.clean_old_jobs() == 1
     rows = [parser.Item(1, "Бумага А4")]
     assert (
         decisions.recalled(rows, own_job.id)[decisions.text_key(rows[0].text)].ktru_code

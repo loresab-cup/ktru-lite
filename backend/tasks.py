@@ -1,4 +1,4 @@
-"""Celery app_lifecycle with Redis delivery, duplicate protection and crash recovery."""
+"""Celery workers with Redis delivery, duplicate protection and crash recovery."""
 
 import os
 import threading
@@ -35,7 +35,7 @@ _catalog_lock = threading.Lock()
 @worker_init.connect
 def prepare_worker(**kwargs):
     """A worker must load its catalog before it can report itself ready."""
-    from app_lifecycle import load_catalog
+    from workers import load_catalog
 
     load_catalog()
     if rt.state.catalog is None:
@@ -43,7 +43,7 @@ def prepare_worker(**kwargs):
 
 
 def ensure_catalog() -> None:
-    from app_lifecycle import load_catalog
+    from workers import load_catalog
 
     with _catalog_lock:
         if rt.state.catalog is None:
@@ -65,7 +65,7 @@ def watch_cancel(job_id: uuid.UUID, stop: threading.Event) -> None:
 
 
 def run_watched(job_id: uuid.UUID) -> None:
-    from spec_processing import run_job
+    from pipeline import run_job
 
     stop = threading.Event()
     watcher = threading.Thread(target=watch_cancel, args=(job_id, stop), daemon=True)
@@ -124,7 +124,7 @@ def dispatch(recover=False):
 
 @app.task(name="ktru.cleanup")
 def cleanup():
-    from app_lifecycle import clean_guests, clean_old_jobs
+    from workers import clean_guests, clean_old_jobs
 
     return {"jobs": clean_old_jobs(), "guests": clean_guests()}
 

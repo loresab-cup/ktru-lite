@@ -82,7 +82,7 @@ def test_choice_changes_only_doubtful_rows_and_never_user_edits(api, monkeypatch
 
     monkeypatch.setattr(providers, "chat", pick_second)
     stages = {}
-    spec_processing.choose_codes(job_id, stages, until=time.monotonic() + 30)
+    pipeline.choose_codes(job_id, stages, until=time.monotonic() + 30)
     with database.SessionLocal() as session:
         items = session.query(models.Item).order_by(models.Item.row_number).all()
     assert [i.ktru_code for i in items] == ["2", "1", "1"]
@@ -107,7 +107,7 @@ def test_no_provider_means_no_second_opinion(api, monkeypatch):
     add_items(api, job_id, ["needs_review"])
     monkeypatch.setattr(extractor, "PROVIDERS", [])
     monkeypatch.setattr(providers, "chat", lambda *a, **k: pytest.fail("no request expected"))
-    spec_processing.choose_codes(job_id, {}, until=time.monotonic() + 30)
+    pipeline.choose_codes(job_id, {}, until=time.monotonic() + 30)
     with database.SessionLocal() as session:
         assert session.query(models.Item).one().ktru_code == "1"
 
@@ -116,7 +116,7 @@ def test_choice_never_makes_the_job_late(api, monkeypatch):
     job_id = uuid.uuid4()
     add_items(api, job_id, ["needs_review"])
     monkeypatch.setattr(providers, "chat", lambda *a, **k: pytest.fail("no time left: no request"))
-    spec_processing.choose_codes(job_id, {}, until=time.monotonic() - 1)
+    pipeline.choose_codes(job_id, {}, until=time.monotonic() - 1)
     with database.SessionLocal() as session:
         assert session.query(models.Item).one().ktru_code == "1"
 
@@ -133,7 +133,7 @@ def test_concurrent_manual_edit_keeps_its_code_and_unknown_score(api, monkeypatc
         return {rows[0]["id"]: ("2", "x")}
 
     monkeypatch.setattr(chooser, "choose", choose_while_edited)
-    spec_processing.choose_codes(job_id, {}, until=time.monotonic() + 30)
+    pipeline.choose_codes(job_id, {}, until=time.monotonic() + 30)
     with database.SessionLocal() as session:
         item = session.query(models.Item).one()
         assert item.status == "corrected" and item.ktru_code == "manual"
@@ -144,7 +144,7 @@ def test_invalid_second_opinion_does_not_change_the_proposal(api, monkeypatch):
     job_id = uuid.uuid4()
     add_items(api, job_id, ["needs_review"])
     monkeypatch.setattr(chooser, "choose", lambda rows, *args: {rows[0]["id"]: ("unknown", "x")})
-    spec_processing.choose_codes(job_id, {}, until=time.monotonic() + 30)
+    pipeline.choose_codes(job_id, {}, until=time.monotonic() + 30)
     with database.SessionLocal() as session:
         assert session.query(models.Item).one().ktru_code == "1"
 
@@ -173,4 +173,4 @@ import sqlalchemy.orm
 
 import database
 import models
-import spec_processing
+import pipeline

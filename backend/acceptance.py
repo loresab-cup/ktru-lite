@@ -196,7 +196,7 @@ def main():
                     },
                 ).raise_for_status()
             health = client.get("/api/health").json()
-            from celery_tasks import app
+            from tasks import app
             from database import engine
 
             workers = bool(app.control.ping(timeout=5))

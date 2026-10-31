@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 import access
 import routes
 import runtime as rt
-from app_lifecycle import init_db, load_catalog_when_available
+from workers import init_db, load_catalog_when_available
 
 logger = logging.getLogger("api")
 

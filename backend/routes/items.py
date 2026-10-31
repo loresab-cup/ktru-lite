@@ -21,7 +21,7 @@ import runtime as rt
 from decisions import forget, remember
 from models import Item, Job
 from routes.common import ITEM_ID_MAX, Text, get_or_404, require_catalog, to_dict
-from spec_processing import apply_candidates
+from pipeline import apply_candidates
 
 router = APIRouter()
 

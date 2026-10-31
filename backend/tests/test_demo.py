@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
-import app_lifecycle
+import workers
 import auth
 import database as db
 import demo
@@ -27,8 +27,8 @@ def test_normal_startup_seeds_fresh_database_once(monkeypatch, tmp_path, enabled
     monkeypatch.setenv("JURY_DATA", enabled)
     monkeypatch.setenv("ADMIN_PASSWORD", "")
     try:
-        app_lifecycle.init_db()
-        app_lifecycle.init_db()
+        workers.init_db()
+        workers.init_db()
         with sessions() as session:
             assert session.scalar(select(func.count()).select_from(Item)) == expected
             assert session.scalar(select(func.count()).select_from(Job)) == (1 if expected else 0)

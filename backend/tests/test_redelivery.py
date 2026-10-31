@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import database
 import runtime
-import spec_processing
+import pipeline
 from models import Item, Job
 
 
@@ -35,7 +35,7 @@ def test_retry_keeps_manual_row_and_does_not_duplicate_it(api_database, monkeypa
         s.commit()
         row_id = row.id
     (runtime.UPLOAD_DIR / f"{job_id}.txt").write_text("Бумага\nНоутбук", encoding="utf-8")
-    spec_processing.run_job(job_id)
+    pipeline.run_job(job_id)
     with database.SessionLocal() as s:
         assert s.get(Job, job_id).status == "done"
         assert s.query(Item).filter(Item.job_id == job_id).count() == 2

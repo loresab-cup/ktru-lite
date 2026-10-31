@@ -1,7 +1,7 @@
 # Backend и миграции базы
 
 `api.py` собирает приложение и middleware. Папка `routes/` содержит HTTP-маршруты,
-`spec_processing.py` — обработку, `job_store.py` — операции очереди, `celery_tasks.py` — задачи Celery; `app_lifecycle.py` — подготовку каталога и очистку.
+`pipeline.py` — обработку, `job_store.py` — операции очереди, `tasks.py` — задачи Celery; `workers.py` — подготовку каталога и очистку.
 Подробная карта — [структура backend](backend-structure.md). `models.py` содержит Job, Item,
 Decision; модели авторизации остались в auth.py. `database.py` создаёт единственные
 engine/SessionLocal, `runtime.py` хранит настройки и общее состояние.

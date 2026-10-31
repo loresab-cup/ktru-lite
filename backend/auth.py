@@ -6,7 +6,7 @@ when there are no users yet; `python users.py` manages accounts from the command
 
 A visitor may also work without an account: a guest is a user with is_guest, no usable password
 and a cookie without an expiry date, so closing the browser ends the visit; the worker removes
-guests whose session is over (app_lifecycle.clean_guests). Logging in or registering from a guest
+guests whose session is over (workers.clean_guests). Logging in or registering from a guest
 session moves the guest's specifications to the account (adopt_guest).
 """
 

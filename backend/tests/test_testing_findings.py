@@ -6,14 +6,14 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-import app_lifecycle
+import workers
 import confidence
 import extractor
 import parser
 import runtime as rt
 import search
 from models import Item
-from spec_processing import apply_candidates, build_item
+from pipeline import apply_candidates, build_item
 
 
 @pytest.mark.parametrize(
@@ -76,27 +76,27 @@ def test_catalog_retries_until_available(monkeypatch):
     stop = SimpleNamespace(
         is_set=lambda: False, wait=lambda seconds: waits.append(seconds) or False
     )
-    monkeypatch.setattr(app_lifecycle, "load_catalog", load)
-    app_lifecycle.load_catalog_when_available(stop)
+    monkeypatch.setattr(workers, "load_catalog", load)
+    workers.load_catalog_when_available(stop)
     assert len(attempts) == 2 and waits == [15]
 
 
 def test_catalog_retry_stops_on_shutdown(monkeypatch):
     monkeypatch.setattr(rt.state, "catalog", None)
     attempts = []
-    monkeypatch.setattr(app_lifecycle, "load_catalog", lambda: attempts.append(1))
+    monkeypatch.setattr(workers, "load_catalog", lambda: attempts.append(1))
     stop = SimpleNamespace(is_set=lambda: False, wait=lambda seconds: True)
-    app_lifecycle.load_catalog_when_available(stop)
+    workers.load_catalog_when_available(stop)
     assert len(attempts) == 1
 
 
 def test_successful_catalog_load_clears_old_error(monkeypatch):
-    catalog = SimpleNamespace(vectors=np.zeros((1, app_lifecycle.embedder.DIM)))
+    catalog = SimpleNamespace(vectors=np.zeros((1, workers.embedder.DIM)))
     monkeypatch.setattr(rt.state, "catalog", None)
     monkeypatch.setattr(rt.state, "catalog_error", "FileNotFoundError")
-    monkeypatch.setattr(app_lifecycle.search, "load_catalog", lambda: catalog)
+    monkeypatch.setattr(workers.search, "load_catalog", lambda: catalog)
     monkeypatch.setattr(
-        app_lifecycle.db, "engine", SimpleNamespace(dialect=SimpleNamespace(name="sqlite"))
+        workers.db, "engine", SimpleNamespace(dialect=SimpleNamespace(name="sqlite"))
     )
-    app_lifecycle.load_catalog()
+    workers.load_catalog()
     assert rt.state.catalog is catalog and rt.state.catalog_error is None

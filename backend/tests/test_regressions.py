@@ -438,12 +438,12 @@ def test_item_page_says_how_candidates_differ(isolated_api):
 def test_a_unit_the_customer_wrote_is_not_replaced_by_a_guess(isolated_api):
     guessed = {"measure": "усл. ед"}
     minute = parser.Item(1, "Услуги телефонной связи", {"Ед. изм.": "Минута"})
-    assert spec_processing.unit_hints(minute, guessed) == (None, None)  # a unit we do not know
+    assert pipeline.unit_hints(minute, guessed) == (None, None)  # a unit we do not know
     litre = parser.Item(2, "Кефир", {"Ед. изм.": "л"})
-    assert spec_processing.unit_hints(litre, {"measure": "кг"}) == ("l", "kg")
+    assert pipeline.unit_hints(litre, {"measure": "кг"}) == ("l", "kg")
     blank = parser.Item(3, "Кефир", {"Ед. изм.": " "})
-    assert spec_processing.unit_hints(blank, {"measure": "л"}) == (None, "l")
-    assert spec_processing.unit_hints(parser.Item(4, "Кефир", {}), {"measure": "л"}) == (None, "l")
+    assert pipeline.unit_hints(blank, {"measure": "л"}) == (None, "l")
+    assert pipeline.unit_hints(parser.Item(4, "Кефир", {}), {"measure": "л"}) == (None, "l")
 
 
 import database
@@ -453,4 +453,4 @@ import models
 import routes
 import routes.jobs
 import runtime
-import spec_processing
+import pipeline
