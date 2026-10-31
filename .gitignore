@@ -1,38 +1,65 @@
-# Secrets
+# Submission: application, datasets, startup guide and final video.
+/*
+!/.gitignore
+!/.gitattributes
+!/.env.example
+!/README.md
+!/docker-compose.yml
+!/backend/
+!/frontend/
+!/dataset/
+!/db/
+!/Video/
+
+# Credentials and local configuration.
 .env
+.env.*
+!.env.example
+*.env
 *.local
 
-# Catalog dump and its caches (hundreds of MB)
-db/*.gz
-db/*.sha256
-*.npy
-
-# Python
+# Dependencies, build output and runtime data.
 .venv/
-__pycache__/
-*.pyc
-.pytest_cache/
-.ruff_cache/
-
-# Frontend
+venv/
 node_modules/
 dist/
+__pycache__/
+*.pyc
 *.tsbuildinfo
-.claude/tmp/
+.pytest_cache/
+.ruff_cache/
+.cache/
+.uploads/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.log
 
-.claude
-_figma
-Схема.png
-# Yandex embeddings of the catalog (scripts/embed_catalog.py)
-db/*.npz
+# Development checks stay in the local working copy.
+/backend/tests/
+/backend/requirements-dev.txt
+/frontend/tests/
 
-# Local benchmark inputs, generated workbooks and raw API results
-audit-results/
-outputs/
+# Large catalog files are distributed through the catalog_yandex release.
+/db/*
+!/db/README.md
 
-# Local database dumps and stray key files sent by the team
-backups/
-*.env
-dataset/eis/new
-presentations
-Video
+# Duplicate inputs and dataset audit output.
+/dataset/files/
+/dataset/results/
+/dataset/Проверка/
+/dataset/Аудит_датасета_КТРУ/
+/dataset/eis/new/
+*.inspect.ndjson
+
+# Only the final presentation video.
+/Video/*
+!/Video/BigToBoss.mp4
+
+# Assistant instructions and local editing state.
+AGENTS.md
+CLAUDE.md
+.claude/
+.codex/
+.agents/
