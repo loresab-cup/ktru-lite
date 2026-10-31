@@ -79,8 +79,9 @@ def test_typed_attributes_lose_control_characters(api_database, monkeypatch):
     captured = {}
 
     class Catalog:
-        def search(self, vectors, texts, include_inactive):
+        def search(self, vectors, texts, include_inactive, attributes=None):
             captured["text"] = texts[0]
+            captured["attributes"] = attributes
             return [[]]
 
     monkeypatch.setattr(routes.items, "require_catalog", lambda: Catalog())

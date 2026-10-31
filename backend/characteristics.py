@@ -189,7 +189,7 @@ def code_units(units: list | None) -> list[str]:
     return sorted(key for key in keys if key)
 
 
-def numeric_bounds(characteristics: list) -> list[list]:
+def numeric_bounds(characteristics: list, named: bool = False) -> list[list]:
     """[[min, max, quantity, min is strict, max is strict], ...] of the numeric values in base
     units: «≥ 2 и < 3 Метр» -> [2000, 3000, "length", False, True]; an exact value «1 Штука» is
     [1, 1, "count", False, False]. None is an open side or a value without a known unit."""
@@ -206,13 +206,15 @@ def numeric_bounds(characteristics: list) -> list[list]:
                 for x in (low, high)
             ]
             strict = [value.get("min_op") == ">", value.get("max_op") == "<"]
-            ranges.append([*sides, quantity, *strict])
+            ranges.append(
+                [*sides, quantity, *strict, *([characteristic.get("name") or ""] if named else [])]
+            )
     return ranges
 
 
 def inside(value: float, bounds: list) -> bool:
     """A plain value of the row inside [min, max, quantity, min strict, max strict] of a code."""
-    low, high, _, low_strict, high_strict = bounds
+    low, high, _, low_strict, high_strict = bounds[:5]
     above = low is None or value > low or (value == low and not low_strict)
     below = high is None or value < high or (value == high and not high_strict)
     return above and below

@@ -52,7 +52,7 @@ QUERY_CHUNK = 128  # 128 x 81 509 float32 = 42 MB of similarities at a time
 WORDS_ONLY_BASE = 0.6  # without vectors the score stays low: nothing goes to auto
 MAX_CODE_WORDS = 400
 # Characteristics kept per code: candidates show 6 x 5 of them, a lookup of one code all
-CACHE_VERSION = 10  # bump when the cached metadata changes
+CACHE_VERSION = 11  # numeric ranges now retain their characteristic names
 # Neighbour codes of one group often differ only by a range: "> 1.25" vs "<= 1.25".
 # A bound of the row equal to a bound of the code adds NUMERIC_BONUS, so does a plain value with
 # a unit inside a range of the code («Вес: 100 г» and «≥ 90 и < 110 Грамм»); the same number on
@@ -113,6 +113,20 @@ _LOOKALIKE = str.maketrans("aceopxkmhbty", "асеорхкмнвту")
 # A decimal number is one word: «2,5 процента» must not match the values «2» and «≥ 2»
 # «Нужно: ноутбук Lenovo…» - the name follows the request word (human_1000 has 132 such rows)
 REQUEST_PREFIX = re.compile(r"^\s*(нужн[оаы]?|требу[ею]тся|необходим[оаы]?)\s*:\s*", re.IGNORECASE)
+ANCHOR_STOP_WORDS = {
+    "для",
+    "при",
+    "под",
+    "над",
+    "без",
+    "нам",
+    "нужен",
+    "нужна",
+    "нужны",
+    "нужно",
+    "закупка",
+    "поставка",
+}
 _DECIMAL = re.compile(r"\d+(?:\.\d+)+")
 
 # Numbers are compared in one unit per quantity: «2 м» = «2000 Миллиметр», «0,1 кг» = «100 г».
@@ -138,6 +152,41 @@ def with_synonyms(text: str) -> str:
     for pattern, name in SYNONYMS:
         text = pattern.sub(name, text)
     return text
+
+
+def scoped_numbers(text: str, characteristics: list[dict] | None = None) -> tuple[set, set, set]:
+    """Attach extracted characteristic names to numeric evidence without extra model calls."""
+    query = query_bounds(text)
+    names: dict[tuple, set[str]] = {}
+    for characteristic in characteristics or []:
+        name = characteristic.get("name") or ""
+        if not name:
+            continue
+        value = f"{characteristic.get('value') or ''} {characteristic.get('unit') or ''}"
+        for part in query_bounds(value):
+            for number in part:
+                names.setdefault(number, set()).add(name)
+    return tuple(
+        {(v, q, label) for v, q in part for label in names.get((v, q), {""})} for part in query
+    )
+
+
+@functools.lru_cache(maxsize=100_000)
+def same_characteristic(first: str, second: str) -> bool:
+    def normalized(name):
+        head, separator, suffix = name.partition(",")
+        if separator and ("/" in suffix or unit_of(suffix.strip().lower()) is not None):
+            name = head  # Unit in the heading: «Производительность, шкур/смена».
+        aliases = {
+            "озу": "оперативная память",
+            "ram": "оперативная память",
+            "экран": "диагональ экрана",
+            "ядер": "количество ядер процессора",
+        }
+        return stems(with_synonyms(aliases.get(name.strip().lower(), name)))
+
+    a, b = normalized(first), normalized(second)
+    return bool(a and b) and (a == b or (min(len(a), len(b)) >= 2 and (a <= b or b <= a)))
 
 
 def words(text: str) -> set[str]:
@@ -255,6 +304,7 @@ class Catalog:
         units: list[str | None] | None = None,
         column_units: list[str | None] | None = None,
         anchors: list[str] | None = None,
+        attributes: list[list[dict]] | None = None,
     ) -> list[list[dict]]:
         """Top-5 candidates for every text; vectors=None -> by words only.
 
@@ -273,10 +323,14 @@ class Catalog:
             ]
         units = units or [None] * len(texts)
         column_units = column_units or [None] * len(texts)
+        attributes = attributes if attributes is not None else [None] * len(texts)
+        numbers = [
+            scoped_numbers(text, attrs) for text, attrs in zip(texts, attributes, strict=True)
+        ]
         ranked = [
-            self._rank(qw, query_bounds(text), stems(text), near, unit, text, column_unit)
-            for qw, text, near, unit, column_unit in zip(
-                query_words, texts, nearest, units, column_units, strict=True
+            self._rank(qw, numeric, stems(text), near, unit, text, column_unit)
+            for qw, text, near, unit, column_unit, numeric in zip(
+                query_words, texts, nearest, units, column_units, numbers, strict=True
             )
         ]
         if anchors is None:
@@ -288,14 +342,15 @@ class Catalog:
             vectors if vectors is not None else [None] * len(texts),
             units,
             column_units,
+            [include_inactive] * len(texts),
+            numbers,
             strict=True,
         )
-        return [
-            [c | {"words_only": vectors is None} for c in self._anchored(*row, include_inactive)]
-            for row in rows
-        ]
+        return [[c | {"words_only": vectors is None} for c in self._anchored(*row)] for row in rows]
 
-    def _anchored(self, anchor, text, found, vector, unit, column_unit, include_inactive):
+    def _anchored(
+        self, anchor, text, found, vector, unit, column_unit, include_inactive, numbers=None
+    ):
         """Keeps the product the row names when the ranking lost it: «клавиатура USB чёрная»
         went to tea and «мышь с проводом 1,5 м» to fuel oil, characteristics outweighed the name.
 
@@ -305,9 +360,12 @@ class Catalog:
         search hint of the LLM: «Изделия сухарные» must not become «Сухари». Measurements:
         docs/final-report-2026-10-28.md."""
         anchor = REQUEST_PREFIX.sub("", anchor)
+        first = re.search(r"[а-яА-ЯёЁa-zA-Z]{3,}", anchor)
+        if first and first.group().lower() in ANCHOR_STOP_WORDS:
+            return found
         if vector is None:
             return self._anchored_word(
-                anchor, text, found, vector, unit, column_unit, include_inactive
+                anchor, text, found, vector, unit, column_unit, include_inactive, numbers
             )
         head = re.split(r"\.\s|[,;:]", anchor, maxsplit=1)[0].lower().replace("ё", "е").split()
         for end in range(len(head), 0, -1):
@@ -323,28 +381,36 @@ class Catalog:
                 same_product(name, found[0]["name"]) or same_product(whole, found[0]["name"])
             ):
                 return found
-            return self._rank_pool(pool, text, vector, unit, column_unit)
+            return self._rank_pool(pool, text, vector, unit, column_unit, numbers)
         # A synonym can keep the qualifier: «стул офисный» found «кресло офисное»
         qualifiers = {w[:5] for w in words(" ".join(head[1:])) if re.search(r"[а-я]", w)}
         if found and qualifiers & stems(found[0]["name"]):
             return found
-        return self._anchored_word(anchor, text, found, vector, unit, column_unit, include_inactive)
+        return self._anchored_word(
+            anchor, text, found, vector, unit, column_unit, include_inactive, numbers
+        )
 
-    def _anchored_word(self, anchor, text, found, vector, unit, column_unit, include_inactive):
+    def _anchored_word(
+        self, anchor, text, found, vector, unit, column_unit, include_inactive, numbers=None
+    ):
         """The first word of the row (3+ letters) must be in the best name; if it is not, the
         codes whose name has that word are ranked instead."""
         first = re.search(r"[а-яА-ЯёЁa-zA-Z]{3,}", anchor)
         first_words = words(first.group()) if first else set()
-        if not first_words or (found and first_words & words(found[0]["name"])):
+        if (
+            not first_words
+            or (first and first.group().lower() in ANCHOR_STOP_WORDS)
+            or (found and first_words & words(found[0]["name"]))
+        ):
             return found
         postings = self._name_postings()
         pool = {int(i) for word in first_words for i in postings.get(word, [])}
         pool = sorted(i for i in pool if include_inactive or self.active[i])
         if not pool:
             return found
-        return self._rank_pool(pool, text, vector, unit, column_unit)
+        return self._rank_pool(pool, text, vector, unit, column_unit, numbers)
 
-    def _rank_pool(self, pool, text, vector, unit, column_unit) -> list[dict]:
+    def _rank_pool(self, pool, text, vector, unit, column_unit, numbers=None) -> list[dict]:
         qw = words(text)
         if vector is None:
             nearest = [
@@ -354,7 +420,15 @@ class Catalog:
         else:
             cosines = self.vectors[pool] @ vector
             nearest = [(i, float(c)) for i, c in zip(pool, cosines, strict=True)]
-        return self._rank(qw, query_bounds(text), stems(text), nearest, unit, text, column_unit)
+        return self._rank(
+            qw,
+            numbers if numbers is not None else scoped_numbers(text),
+            stems(text),
+            nearest,
+            unit,
+            text,
+            column_unit,
+        )
 
     def _bm25_postings(self) -> dict[str, tuple[np.ndarray, np.ndarray]]:
         """stem -> (code indices, BM25 weight of the stem in that code name)."""
@@ -446,13 +520,34 @@ class Catalog:
         lower, upper, plain = query
         ranges = self.bounds[i]
 
-        def has(value: float, quantity: str | None, side: int) -> bool:
-            return any(r[side] == value and same_quantity(quantity, r[2]) for r in ranges)
+        def eligible(feature):
+            value, quantity = feature[:2]
+            label = feature[2] if len(feature) > 2 else ""
+            available = [r for r in ranges if same_quantity(quantity, r[2])]
+            if label:
+                available = [
+                    r for r in available if len(r) > 5 and same_characteristic(label, r[5])
+                ]
+            elif len({r[5] for r in available if len(r) > 5}) > 1:
+                return value, []  # The same unit cannot distinguish multiple characteristics.
+            return value, available
 
-        matches = sum(has(v, q, 0) for v, q in lower) + sum(has(v, q, 1) for v, q in upper)
-        matches += sum(any(q == r[2] and inside(v, r) for r in ranges) for v, q in plain)
-        clashes = sum(has(v, q, 1) and not has(v, q, 0) for v, q in lower)
-        clashes += sum(has(v, q, 0) and not has(v, q, 1) for v, q in upper)
+        def has(feature, side):
+            value, available = eligible(feature)
+            return any(r[side] == value for r in available)
+
+        matches = sum(has(f, 0) for f in lower) + sum(has(f, 1) for f in upper)
+        matches += sum(
+            any(f[1] == r[2] and inside(v, r) for r in rs) for f in plain for v, rs in [eligible(f)]
+        )
+        clashes = sum(has(f, 1) and not has(f, 0) for f in lower)
+        clashes += sum(has(f, 0) and not has(f, 1) for f in upper)
+        clashes += sum(
+            bool(rs) and not any(inside(v, r) for r in rs)
+            for f in plain
+            if len(f) > 2 and f[2]
+            for v, rs in [eligible(f)]
+        )
         return matches, clashes
 
     def _fixed_fit(self, i: int, query_stems: set[str], text: str = "") -> tuple[float, int, int]:
@@ -506,7 +601,8 @@ class Catalog:
             score -= UNNAMED_PENALTY * self._unnamed(i, query_stems)
             score += UNIT_BONUS * (unit is not None and unit in self.units[i])
             score += COLUMN_UNIT_BONUS * (column_unit is not None and column_unit in self.units[i])
-            scored.append((score, cosine, i, shared, matches))
+            # A missing fixed value is only a ranking heuristic, not a proven contradiction.
+            scored.append((score, cosine, i, shared, matches, clashes))
         # Sorted by the raw sum: the cap at 1.0 must not make near-perfect matches equal;
         # the confidence takes the gap between the first two from raw_score for the same reason
         scored.sort(key=lambda row: row[0], reverse=True)
@@ -519,8 +615,11 @@ class Catalog:
                 "shared_words": self._display_words(i, shared),
                 "matched_characteristics": self._matched_chars(i, query_words),
                 "numeric_matches": matches,
+                "characteristic_clashes": clashes,
+                "name_match": bool(catalog_stems(self.names[i]))
+                and catalog_stems(self.names[i]) <= query_stems,
             }
-            for score, cosine, i, shared, matches in scored[:TOP_K]
+            for score, cosine, i, shared, matches, clashes in scored[:TOP_K]
         ]
 
     def _display_words(self, i: int, shared: set[str]) -> list[str]:
@@ -635,7 +734,7 @@ def build(path: Path) -> dict:
             meta["okpd2"].append(record.get("okpd2_code") or "")
             meta["words"].append(" ".join(code_words[:MAX_CODE_WORDS]))
             meta["chars"].append(chars)
-            meta["bounds"].append(numeric_bounds(record.get("characteristics")))
+            meta["bounds"].append(numeric_bounds(record.get("characteristics"), named=True))
             meta["fixed"].append(fixed_characteristics(record.get("characteristics")))
             meta["templates"].append(bool(record.get("is_template")))
             meta["units"].append(code_units(record.get("units")))

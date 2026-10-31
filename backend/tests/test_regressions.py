@@ -177,9 +177,30 @@ def test_oversize_upload_is_rejected(isolated_api):
 
 def test_too_many_positions_is_rejected(tmp_path):
     path = tmp_path / "large.txt"
-    path.write_text("Бумага А4\n" * 1001, encoding="utf-8")
-    with pytest.raises(parser.ParseError, match="1000"):
+    path.write_text("Бумага А4\n" * 5001, encoding="utf-8")
+    with pytest.raises(parser.ParseError, match="5000"):
         parser.parse_file(path)
+
+
+def test_5000_positions_are_accepted(tmp_path):
+    path = tmp_path / "large.csv"
+    path.write_text(
+        "Наименование;Характеристики\n" + "Бумага А4;80 г/м2\n" * 5000, encoding="utf-8"
+    )
+    rows = parser.parse_file(path)
+    assert len(rows) == 5000
+    assert rows[-1].row_number == 5001
+    assert "80 г/м2" in rows[-1].text
+
+
+def test_bulk_revert_accepts_5000_ids_but_rejects_5001():
+    from pydantic import ValidationError
+
+    from routes.items import RevertIn
+
+    assert len(RevertIn(ids=list(range(1, 5001))).ids) == 5000
+    with pytest.raises(ValidationError):
+        RevertIn(ids=list(range(1, 5002)))
 
 
 def test_job_fallback_count_handles_mixed_attribute_sources(isolated_api):

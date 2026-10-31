@@ -139,6 +139,9 @@ def init_db() -> None:
                 raise
             logger.info("database is not ready, waiting")
             time.sleep(2)
+    from demo import seed_on_startup
+
+    seed_on_startup()
     with db.SessionLocal() as session:
         admin = os.getenv("ADMIN_LOGIN", "admin")
         try:

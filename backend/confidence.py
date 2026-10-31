@@ -102,10 +102,12 @@ def review_reason(
     if not candidates:
         return "Подходящих кодов КТРУ не найдено"
     best = candidates[0]
-    if best.get("words_only"):
-        return "Векторный поиск недоступен: код найден только по словам, проверьте выбор"
     if best.get("status") in STATUS_LABELS:
         return f"Лучший код {STATUS_LABELS[best['status']]}"
+    if best.get("words_only"):
+        return "Векторный поиск недоступен: код найден только по словам, проверьте выбор"
+    if best.get("characteristic_clashes"):
+        return "Есть противоречия характеристик описанию товара: проверьте значения и код"
     if assess(candidates, is_product)["status"] == "auto":
         return ""
     second = candidates[1] if len(candidates) > 1 else None
@@ -126,7 +128,7 @@ def review_reason(
                 f"{listed}: уточните их в строке или выберите код"
             )
         return f"Два кода «{best['name']}» почти равны, в каталоге у них одинаковые характеристики"
-    if min(raw(best), 1.0) < WEAK_SCORE:
+    if min(raw(best), 1.0) < WEAK_SCORE and not best.get("name_match"):
         return "Совпадение с каталогом слабое: проверьте наименование и характеристики"
     if second:
         return f"Второй кандидат {second['code']} «{second['name']}» почти так же близок"
@@ -139,10 +141,12 @@ def raw(candidate: dict) -> float:
 
 
 def supported_probability(candidate: dict, margin: float) -> float:
-    """A word-only search cannot justify automatic classification by its score gap."""
-    if candidate.get("words_only"):
+    """A lead among weak or contradictory candidates cannot justify high confidence."""
+    score = raw(candidate)
+    weak = score < WEAK_SCORE and not candidate.get("name_match")
+    if weak or candidate.get("characteristic_clashes") or candidate.get("words_only"):
         margin = min(margin, 0.0)
-    return probability(raw(candidate), margin)
+    return probability(score, margin)
 
 
 def with_confidences(candidates: list[dict]) -> list[dict]:

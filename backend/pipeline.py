@@ -167,6 +167,7 @@ def process_batch(
         units=[column or guessed for column, guessed in hints],
         column_units=[column for column, _ in hints],
         anchors=[row.text for row in batch],
+        attributes=[attrs.get("characteristics") or [] for attrs in attributes],
     )
     tick(stages, "search", started)
     started = time.monotonic()
@@ -272,7 +273,9 @@ def run_job(job_id: uuid.UUID) -> None:
         tick(stages, "read", started)
         set_job(job_id, total=len(rows))
         process_items(job_id, rows, include_inactive, stages)
-        choose_codes(job_id, stages, until=started + rt.JOB_TIME_LIMIT)
+        # Preserve the 1000-row budget and give larger files proportionally more review time.
+        budget = rt.JOB_TIME_LIMIT * max(1, len(rows) / 1000)
+        choose_codes(job_id, stages, until=started + budget)
         tick(stages, "total", started)
         status, error = "done", None
     except extractor.Cancelled:
